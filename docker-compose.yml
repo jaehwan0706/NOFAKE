@@ -1,0 +1,8 @@
+version: '3.8'
+services:
+  raffle-web:
+    build: .
+    container_name: fortress-nft-web
+    ports:
+      - "80:80"
+    restart: always
