@@ -1,0 +1,18 @@
+# 1. 보안 민감 파일 (절대 업로드 금지)
+.env
+*.pem
+*.key
+
+# 2. 의존성 및 라이브러리 (용량 최적화)
+node_modules/
+dist/
+build/
+
+# 3. OS 및 에디터 설정 파일
+.DS_Store
+.vscode/
+.idea/
+
+# 4. 로그 파일
+*.log
+npm-debug.log*
