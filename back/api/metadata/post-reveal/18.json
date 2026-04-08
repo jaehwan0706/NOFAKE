@@ -1,0 +1,16 @@
+{
+  "name": "NOFAKE #18",
+  "description": "아쉽게도 이번 이벤트에는 당첨되지 않았습니다. 투명한 추첨 시스템 NOFAKE의 다음 콜라보 이벤트를 기대해 주세요!",
+  "image": "https://nofake.s3.ap-northeast-2.amazonaws.com/images/post-reveal/gg.png",
+  "attributes": [
+    { "trait_type": "Event Name", "value": "나이키X백석 콜라보이벤트" },
+    { "trait_type": "Contract Address", "value": "" },
+    { 
+      "display_type": "date", 
+      "trait_type": "Minted Date", 
+      "value": 0 
+    },
+    { "trait_type": "Status", "value": "Revealed" },
+    { "trait_type": "Winning Prize", "value": "꽝: 일반 티켓" }
+  ]
+}
