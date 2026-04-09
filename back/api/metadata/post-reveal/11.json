@@ -1,9 +1,10 @@
 {
   "name": "NOFAKE #11",
-  "description": "아쉽게도 이번 이벤트에는 당첨되지 않았습니다. 투명한 추첨 시스템 NOFAKE의 다음 콜라보 이벤트를 기대해 주세요!",
+  "description": "주최자도 개입할 수 없는 투명한 추첨 시스템, NOFAKE를 통한 나이키X백석대 콜라보 이벤트 참여 기념 티켓입니다.",
   "image": "https://nofake.s3.ap-northeast-2.amazonaws.com/images/post-reveal/gg.png",
   "attributes": [
-    { "trait_type": "Event Name", "value": "나이키X백석 콜라보이벤트" },
+    { "trait_type": "Event Name", "value": "나이키X백석대 콜라보이벤트" },
+    { "trait_type": "Issuer", "value": "NIKE X BAEKSEOK" },
     { "trait_type": "Contract Address", "value": "" },
     { 
       "display_type": "date", 
@@ -11,6 +12,7 @@
       "value": 0 
     },
     { "trait_type": "Status", "value": "Revealed" },
-    { "trait_type": "Winning Prize", "value": "꽝: 일반 티켓" }
+    { "trait_type": "Winning Prize", "value": "꽝: 일반 기념 티켓" },
+    { "trait_type": "Provenance Hash", "value": "" }
   ]
 }
