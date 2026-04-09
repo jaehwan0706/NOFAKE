@@ -206,14 +206,10 @@ export default function NoFakeDashboard() {
   // 커스텀 확인 모달 상태 — type: "mint" | "reveal" | null
   const [confirmModal, setConfirmModal]           = useState({ open: false, type: null });
 
-  /*
-    QR URL — 사용자 대시보드 경로로 설정
-    QR을 찍으면 /user/dashboard 로 이동하며
-    winners(당첨자 수)와 hash(Provenance Hash)를 쿼리스트링으로 전달
-    → 실제 배포 도메인에 맞게 BASE_URL을 교체하세요
-  */
+  // QR URL — 사용자 대시보드로 이동
+  // 실제 배포 시 REACT_APP_BASE_URL 환경변수를 설정하세요
   const BASE_URL = process.env.REACT_APP_BASE_URL || "http://localhost:3000";
-  const qrUrl = `${BASE_URL}/admin/Dashboard?first=${prizeCounts.first}&second=${prizeCounts.second}&hash=${encodeURIComponent(PROVENANCE_HASH)}`;
+  const qrUrl = `${BASE_URL}/user/pages/Home`;
 
   // ── 유틸 함수 ──────────────────────────
 
@@ -228,15 +224,16 @@ export default function NoFakeDashboard() {
   /** 헤더 "참여자 QR" 버튼 — QR 모달 열기 */
   const handleQRButton = () => setQrModal({ open: true, fromApply: false });
 
-  /** 리셋 — 민팅·공개·QR 상태 초기화 */
+  /** 리셋 — 모든 상태 + localStorage 초기화 */
   const handleReset = () => {
     setMintClosed(false);
     setRevealed(false);
     setQrApplied(false);
+    localStorage.removeItem("nofake_raffles"); // 사용자 대시보드 추첨 목록도 초기화
     showToast("리셋 완료 — 민팅을 다시 시작할 수 있습니다.");
   };
 
-  /** 적용 — 등수별 당첨자 수 유효성 검사 후 QR 모달 오픈 */
+  /** 적용 — 유효성 검사 후 추첨 목록을 localStorage에 저장하고 QR 오픈 */
   const handleApply = () => {
     const first  = parseInt(prizeInputs.first);
     const second = parseInt(prizeInputs.second);
@@ -248,6 +245,19 @@ export default function NoFakeDashboard() {
     setPrizeCounts({ first, second });
     setQrApplied(true);
     setQrModal({ open: true, fromApply: true });
+
+    // 추첨 목록을 localStorage에 저장 → UserDashboard가 이 값을 읽어 실시간 표시
+    // 기존 목록을 불러와서 새 항목을 맨 앞에 추가 (최신순 정렬)
+    const existing = JSON.parse(localStorage.getItem("nofake_raffles") || "[]");
+    const newRaffle = {
+      id: Date.now(),                          // 고유 ID로 현재 시각(ms) 사용
+      first,                                   // 1등 당첨자 수
+      second,                                  // 2등 당첨자 수
+      hash: PROVENANCE_HASH,                   // 조작 방지용 해시
+      createdAt: new Date().toLocaleString("ko-KR"), // 생성 시각
+    };
+    localStorage.setItem("nofake_raffles", JSON.stringify([newRaffle, ...existing]));
+
     showToast(`1등 ${first}명 · 2등 ${second}명 적용 — QR이 생성되었습니다.`);
   };
 
@@ -294,7 +304,7 @@ export default function NoFakeDashboard() {
         {/* ── 헤더 ── */}
         <div className="nf-page-header">
           <div>
-            <h1 className="nf-title">NoFAKE</h1>
+            <h1 className="nf-title">NOFAKE</h1>
             <p className="nf-subtitle">이벤트를 관리하고 결과를 공개하세요</p>
           </div>
           <div className="nf-header-actions">
@@ -537,7 +547,7 @@ export default function NoFakeDashboard() {
               <QRCanvas url={qrUrl} />
               <div className="nf-qr-hint">
                 QR을 찍으면 사용자 대시보드로 이동합니다.<br />
-                🥇 1등 {prizeCounts.first}명 · 🥈 2등 {prizeCounts.second}명이 적용된 링크입니다.
+                추첨 목록이 실시간으로 반영됩니다.
               </div>
               <div className="nf-qr-url">{qrUrl}</div>
             </div>
