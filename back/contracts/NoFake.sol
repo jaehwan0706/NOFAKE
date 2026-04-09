@@ -5,73 +5,82 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-/**
- * @title NoFake Raffle Ticket
- * @dev 주최자조차 당첨자를 조작할 수 없는 투명한 추첨 시스템
- */
-contract NoFake is ERC721, Ownable {
+contract NoFakePlatform is ERC721, Ownable {
     using Strings for uint256;
 
-    // 1. 최대 인원 30명 설정 (Constant: 상수)
-    uint256 public constant MAX_SUPPLY = 30; 
     uint256 public totalSupply = 0;
-    
-    bytes32 public provenanceHash; // 모든 데이터의 무결성 증명 해시
-    string public unrevealedURI;   // 리빌 전 (물음표 상자) 주소
-    string public baseURI;         // 리빌 후 (실제 결과) 폴더 주소
-    
-    bool public mintingActive = true;
-    bool public revealed = false;
 
-    // 핵심 보안 요소: 리빌 시 생성될 무작위 숫자 (Offset)
-    uint256 public revealOffset; 
+    // 유효기간 설정 (블록체인 타임스탬프 기준)
+    uint256 public immutable PRE_PURCHASE_EXPIRY;
+    uint256 public immutable PUZZLE_EXPIRY;
+
+    string public unrevealedURI;
+    string public baseURI;
+
+    bool public revealed = false;
+    uint256 public revealOffset;
+
+    // 상품 ID별(Raffle ID) 사용자 참여 여부 기록
+    mapping(uint256 => mapping(address => bool)) public hasParticipated;
 
     constructor(
-        bytes32 _provenanceHash,
-        string memory _unrevealedURI
-    ) ERC721("NoFakeTicket", "NFTK") Ownable(msg.sender) {
-        provenanceHash = _provenanceHash;
+        string memory _unrevealedURI,
+        uint256 _preExpiryDays,
+        uint256 _puzzleMonth
+    ) ERC721("NoFake Raffle Platform", "NFP") Ownable(msg.sender) {
         unrevealedURI = _unrevealedURI;
+        // 현재 시간 기준 유효기간 계산 (1일 = 86400초)
+        PRE_PURCHASE_EXPIRY = block.timestamp + (_preExpiryDays * 86400);
+        PUZZLE_EXPIRY = block.timestamp + (_puzzleMonth * 30 * 86400);
     }
 
-    // [참여자] 티켓 받기 (최대 30명)
-    function mintTicket() public {
-        require(mintingActive, "Minting is closed.");
-        require(totalSupply < MAX_SUPPLY, "Exceeds max supply.");
-        
+    // [함수: 민팅] 특정 상품(raffleId)에 대해 서버가 사용자에게 NFT를 발행함
+    function mintRaffleTicket(address _to, uint256 _raffleId) public onlyOwner {
+        require(totalSupply < 5000, "Global limit reached"); // 플랫폼 전체 한도
+        require(!hasParticipated[_raffleId][_to], "Already entered this raffle");
+
         totalSupply++;
-        _safeMint(msg.sender, totalSupply);
+        hasParticipated[_raffleId][_to] = true;
+        _safeMint(_to, totalSupply);
     }
 
-    // [주최자] 민팅 종료
-    function closeMinting() public onlyOwner {
-        mintingActive = false;
+    // [함수: 퍼즐 합성 및 소각] 퍼즐 NFT 10개를 소각하고 새로운 쿠폰 NFT 1개를 발행함
+    function swapPuzzleForCoupon(uint256[] memory tokenIds) public {
+        require(block.timestamp < PUZZLE_EXPIRY, "Puzzle event expired");
+        require(tokenIds.length == 10, "Need exactly 10 pieces");
+
+        for (uint i = 0; i < 10; i++) {
+            require(ownerOf(tokenIds[i]) == msg.sender, "Not the owner");
+            _burn(tokenIds[i]); // 선택한 퍼즐 10개 소각
+        }
+
+        totalSupply++;
+        _safeMint(msg.sender, totalSupply); // 보상 NFT 발행
     }
 
-    // [주최자] 결과 리빌 (이때 0~29 사이의 난수를 생성해 순서를 섞음)
+    // [함수: 공개] 추첨 결과 확인을 위해 메타데이터 경로를 업데이트함
     function reveal(string memory _baseURI) public onlyOwner {
-        require(!mintingActive, "Close minting first.");
-        require(!revealed, "Already revealed.");
-
-        // 블록체인 데이터를 활용한 예측 불가능한 난수 생성
-        revealOffset = uint256(keccak256(abi.encodePacked(block.timestamp, block.prevrandao, msg.sender))) % MAX_SUPPLY;
-        
+        require(!revealed, "Already revealed");
+        // 온체인 난수(prevrandao)를 활용한 리빌 오프셋 생성
+        revealOffset = uint256(keccak256(abi.encodePacked(block.prevrandao, block.timestamp))) % totalSupply;
         baseURI = _baseURI;
         revealed = true;
     }
 
-    // 각 티켓 번호에 맞는 JSON 파일 주소를 반환 (오프셋 적용)
+    // [함수: 선구매권 소각] 실제 제품 구매 시 관리자가 NFT를 소각함
+    function usePrePurchaseTicket(uint256 _tokenId) public onlyOwner {
+        require(block.timestamp < PRE_PURCHASE_EXPIRY, "Ticket expired");
+        _burn(_tokenId);
+    }
+
+    // [함수: 조회] 개별 NFT의 메타데이터(JSON) 주소를 반환함
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
+        if (!revealed) return unrevealedURI;
 
-        if (!revealed) {
-            return unrevealedURI;
-        }
+        uint256 shiftedId = (tokenId + revealOffset) % totalSupply;
+        if (shiftedId == 0) shiftedId = totalSupply;
 
-        // 실제 데이터 번호 계산: (내 번호 + 랜덤 숫자) % 30
-        uint256 shiftedTokenId = (tokenId + revealOffset) % MAX_SUPPLY;
-        if (shiftedTokenId == 0) shiftedTokenId = MAX_SUPPLY; 
-
-        return string(abi.encodePacked(baseURI, shiftedTokenId.toString(), ".json"));
+        return string(abi.encodePacked(baseURI, shiftedId.toString(), ".json"));
     }
 }
