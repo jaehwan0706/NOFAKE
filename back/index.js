@@ -6,16 +6,17 @@ import jwksClient from 'jwks-rsa';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
 // 1. 환경 설정 로드
-dotenv.config();
+// 현재 구조상 .env가 상위 폴더(root)에 있으므로 경로를 명시해줍니다.
+dotenv.config({ path: '../.env' }); 
+
 const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
 
-// 2. Web3Auth 검증 클라이언트 설정 (백엔드 C 영역)
+// 2. Web3Auth/Kakao 검증 클라이언트 설정
 const client = jwksClient({
-  // 이제 주소를 직접 적지 않고 .env에서 가져옵니다.
   jwksUri: process.env.JWKS_URI 
 });
 
@@ -32,14 +33,18 @@ const verifyTokenMiddleware = (req, res, next) => {
     if (!authHeader) return res.status(401).json({ error: '인증 토큰이 없습니다.' });
 
     const token = authHeader.split(' ')[1];
+    
+    // ✅ SyntaxError 유발했던 '...'를 실제 로직으로 교체했습니다.
     jwt.verify(token, getKey, { 
-    algorithms: ['RS256'],
-    // 수신자(Audience)도 .env에서 가져옵니다.
-    audience: process.env.TOKEN_AUDIENCE 
-}, (err, decoded) => { ... });
-        if (err) return res.status(403).json({ error: '유효하지 않은 토큰입니다.' });
+        algorithms: ['RS256'],
+        audience: process.env.TOKEN_AUDIENCE 
+    }, (err, decoded) => {
+        if (err) {
+            console.error("❌ 토큰 검증 실패:", err.message);
+            return res.status(403).json({ error: '유효하지 않은 토큰입니다.' });
+        }
         
-        // [핵심 업데이트] 어제 성공한 지갑 주소(또는 고유 ID) 추출 로직 반영
+        // 지갑 주소 또는 고유 ID 추출 (어제 성공한 로직)
         req.user = {
             walletAddress: decoded.wallets?.[0]?.address || decoded.sub,
             email: decoded.email
@@ -68,7 +73,6 @@ app.post('/api/login', verifyTokenMiddleware, (req, res) => {
 app.get('/api/metadata/:id', verifyTokenMiddleware, async (req, res) => {
     const { id } = req.params;
     
-    // 리빌 상태에 따른 S3 경로 설정
     const s3Key = isRevealed 
         ? `metadata/post-reveal/${id}.json` 
         : `metadata/pre-reveal/unrevealed.json`;
@@ -89,7 +93,6 @@ app.get('/api/metadata/:id', verifyTokenMiddleware, async (req, res) => {
 // [API] 민팅 요청 (수요일 백엔드 A 합체용 공간)
 // ==========================================
 app.post('/api/mint', verifyTokenMiddleware, (req, res) => {
-    // TODO: 정민님의 스마트 컨트랙트 연동 로직 추가 예정
     res.json({ success: true, message: "민팅 보안 검증 통과", user: req.user });
 });
 
