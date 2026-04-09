@@ -1,0 +1,21 @@
+{
+  "name": "nofake-backend-a",
+  "version": "1.0.0",
+  "description": "NoFake Raffle Platform Smart Contract Backend",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "hardhat run scripts/deploy.js",
+    "mint": "hardhat run scripts/mint.js",
+    "gen-hash": "node scripts/gen-provenance.js"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.9.6",
+    "ethers": "^6.11.1"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^17.4.1",
+    "hardhat": "^2.22.2"
+  },
+  "type": "module"
+}
