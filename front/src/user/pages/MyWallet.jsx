@@ -1,144 +1,145 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import mockWallet from "../data/mockWallet";
 import NFTDetailModal from "../components/NFTDetailModal";
 
-export default function MyWallet() {
-  const { summary, tickets, puzzles, prePurchase } = mockWallet;
-
+export default function MyWallet({ revealState = {} }) {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [mintedTickets, setMintedTickets] = useState([]);
 
-  const handleOpenModal = (ticket) => {
+  useEffect(() => {
+    const savedMintedTickets = localStorage.getItem("mintedTickets");
+    const parsedTickets = savedMintedTickets ? JSON.parse(savedMintedTickets) : [];
+    setMintedTickets(parsedTickets);
+  }, []);
+
+  const allTickets = useMemo(() => {
+    return [...mockWallet.tickets, ...mintedTickets];
+  }, [mintedTickets]);
+
+  const ticketsWithDisplayStatus = useMemo(() => {
+    return allTickets.map((ticket) => {
+      const revealKey =
+        ticket.eventSlug ||
+        ticket.slug ||
+        ticket.event?.slug ||
+        "";
+
+      const isEventRevealed = revealState[revealKey] ?? false;
+
+      return {
+        ...ticket,
+        displayStatus: isEventRevealed ? ticket.status : "미공개",
+        displayReward: isEventRevealed ? ticket.reward : "미공개",
+        displayUsageGuide: isEventRevealed
+          ? ticket.usageGuide
+          : "리빌 이후 결과를 확인할 수 있습니다.",
+      };
+    });
+  }, [allTickets, revealState]);
+
+  const handleOpenDetail = (ticket) => {
     setSelectedTicket(ticket);
     setIsModalOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setSelectedTicket(null);
+  const handleCloseDetail = () => {
     setIsModalOpen(false);
+    setSelectedTicket(null);
   };
 
   return (
-    <section className="wallet-page">
-      <div className="page-heading">
-        <h2>내 지갑</h2>
-        <p>보유 중인 NFT 티켓, 퍼즐, 선구매권을 관리하세요</p>
-      </div>
-
-      <div className="wallet-summary-grid">
-        <div className="wallet-summary-card orange-card">
-          <span className="summary-label">NFT 티켓</span>
-          <strong>{summary.ticketCount}</strong>
+    <>
+      <section className="wallet-page">
+        <div className="page-heading">
+          <h2>내 지갑</h2>
+          <p>보유 중인 NFT 티켓과 퍼즐 조각을 확인하세요.</p>
         </div>
 
-        <div className="wallet-summary-card purple-card">
-          <span className="summary-label">퍼즐 조각</span>
-          <strong>{summary.puzzleCount}</strong>
-        </div>
+        <div className="wallet-summary-grid">
+          <div className="home-card wallet-summary-card">
+            <span className="summary-label">NFT 티켓</span>
+            <strong className="summary-value">
+              {ticketsWithDisplayStatus.length}
+            </strong>
+          </div>
 
-        <div className="wallet-summary-card blue-card">
-          <span className="summary-label">선구매권</span>
-          <strong>{summary.prePurchaseCount}</strong>
-        </div>
-      </div>
-
-      <div className="wallet-main-card">
-        <h3 className="card-title">NFT 티켓</h3>
-
-        <div className="wallet-ticket-grid">
-          {tickets.map((ticket) => (
-            <div key={ticket.id} className="wallet-ticket-card">
-              <div className="ticket-top-row">
-                <div>
-                  <strong>{ticket.title}</strong>
-                  <p>{ticket.eventName}</p>
-                </div>
-
-                <span
-                  className={
-                    ticket.status === "당첨"
-                      ? "status-badge green"
-                      : "status-badge gray"
-                  }
-                >
-                  {ticket.status}
-                </span>
-              </div>
-
-              <div className="wallet-ticket-info">
-                <div className="info-row">
-                  <span>민팅일</span>
-                  <span>{ticket.mintedDate}</span>
-                </div>
-
-                <div className="info-row">
-                  <span>당첨 상품</span>
-                  <span>{ticket.reward}</span>
-                </div>
-              </div>
-
-              <button
-                className="full-btn wallet-detail-btn"
-                onClick={() => handleOpenModal(ticket)}
-              >
-                상세보기
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="wallet-bottom-grid">
-        <div className="home-card">
-          <h3 className="card-title">퍼즐 조각 NFT</h3>
-
-          <div className="wallet-puzzle-list">
-            {puzzles.map((puzzle) => (
-              <div key={puzzle.id} className="wallet-puzzle-item">
-                <div>
-                  <strong>
-                    {puzzle.type} #{puzzle.id}
-                  </strong>
-                  <p>{puzzle.rarity}</p>
-                </div>
-                <button className="icon-btn">↗</button>
-              </div>
-            ))}
+          <div className="home-card wallet-summary-card">
+            <span className="summary-label">퍼즐 조각</span>
+            <strong className="summary-value">{mockWallet.puzzles.length}</strong>
           </div>
         </div>
 
         <div className="home-card">
-          <h3 className="card-title">선구매권</h3>
+          <h3 className="card-title">NFT 티켓</h3>
 
-          <div className="prepurchase-detail-box">
-            <strong>{prePurchase.title}</strong>
+          {ticketsWithDisplayStatus.length === 0 ? (
+            <p className="helper-text">보유 중인 NFT 티켓이 없습니다.</p>
+          ) : (
+            <div className="wallet-ticket-grid">
+              {ticketsWithDisplayStatus.map((ticket) => (
+                <div key={ticket.id} className="wallet-ticket-card">
+                  <div className="wallet-ticket-image">
+                    {ticket.image ? (
+                      <img src={ticket.image} alt={ticket.title} />
+                    ) : (
+                      <div className="wallet-ticket-image-placeholder">NFT</div>
+                    )}
+                  </div>
 
-            <div className="wallet-ticket-info">
-              <div className="info-row">
-                <span>상태</span>
-                <span className="status-badge green">
-                  {prePurchase.usable ? "사용 가능" : "사용 불가"}
-                </span>
-              </div>
+                  <div className="wallet-ticket-body">
+                    <strong className="wallet-ticket-title">{ticket.title}</strong>
+                    <p className="wallet-ticket-event">{ticket.eventName}</p>
+                    <span className="ticket-status-badge">
+                      {ticket.displayStatus}
+                    </span>
 
-              <div className="info-row">
-                <span>유효기간</span>
-                <span>{prePurchase.expiryDate}</span>
-              </div>
+                    <button
+                      type="button"
+                      className="outline-btn wallet-detail-btn"
+                      onClick={() => handleOpenDetail(ticket)}
+                    >
+                      상세보기
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-
-            <button className="prepurchase-use-btn">
-              {prePurchase.buttonText}
-            </button>
-          </div>
+          )}
         </div>
-      </div>
+
+        <div className="home-card">
+          <h3 className="card-title">퍼즐 조각</h3>
+
+          {mockWallet.puzzles.length === 0 ? (
+            <p className="helper-text">보유 중인 퍼즐 조각이 없습니다.</p>
+          ) : (
+            <div className="wallet-puzzle-list">
+              {mockWallet.puzzles.map((puzzle) => (
+                <div key={puzzle.id} className="info-row">
+                  <span>{puzzle.type}</span>
+                  <strong>ID: {puzzle.id}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       <NFTDetailModal
         isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        ticket={selectedTicket}
+        ticket={
+          selectedTicket
+            ? {
+                ...selectedTicket,
+                status: selectedTicket.displayStatus,
+                reward: selectedTicket.displayReward,
+                usageGuide: selectedTicket.displayUsageGuide,
+              }
+            : null
+        }
+        onClose={handleCloseDetail}
       />
-    </section>
+    </>
   );
 }

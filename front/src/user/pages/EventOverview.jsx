@@ -162,9 +162,8 @@
 
 //
 import { Link, useNavigate, useParams } from "react-router-dom";
-import mockEvents from "../data/mockEvents";
 
-export default function EventOverview() {
+export default function EventOverview({ events = [] }) {
   const { slug } = useParams();
   const navigate = useNavigate();
 
@@ -178,7 +177,7 @@ export default function EventOverview() {
         </div>
 
         <div className="overview-card-list">
-          {mockEvents.map((event) => (
+          {events.map((event) => (
             <Link
               key={event.id}
               to={`/event-overview/${event.slug}`}
@@ -195,7 +194,7 @@ export default function EventOverview() {
   }
 
   // 2) slug 있으면 상세 화면
-  const currentEvent = mockEvents.find((event) => event.slug === slug);
+  const currentEvent = events.find((event) => event.slug === slug);
 
   if (!currentEvent) {
     return (
@@ -299,7 +298,9 @@ export default function EventOverview() {
               <p>{transparency.description2}</p>
             </div>
 
-            <button className="full-btn">블록체인에서 확인</button>
+            <button type="button" className="full-btn">
+              블록체인에서 확인
+            </button>
           </div>
         </div>
       </div>

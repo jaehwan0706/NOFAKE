@@ -36,3 +36,21 @@
     transform: rotate(360deg);
   }
 }
+
+.modal-use-btn {
+  width: 100%;
+  margin-top: 16px;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #4f46e5, #f97316);
+  color: white;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.modal-use-btn:hover {
+  opacity: 0.95;
+}

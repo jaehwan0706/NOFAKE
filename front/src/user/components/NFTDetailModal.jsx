@@ -1,78 +1,86 @@
-export default function NFTDetailModal({ isOpen, onClose, ticket }) {
+import { useNavigate } from "react-router-dom";
+
+export default function NFTDetailModal({ isOpen, ticket, onClose }) {
+  const navigate = useNavigate();
+
   if (!isOpen || !ticket) return null;
 
+  const handleUseTicket = () => {
+    if (!ticket.eventSlug) return;
+    navigate(`/participate/${ticket.eventSlug}`);
+    onClose();
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="nft-modal-overlay" onClick={onClose}>
       <div
-        className="nft-modal"
+        className="nft-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-header">
-          <h3>NFT 상세 정보</h3>
-          <button className="modal-close-btn" onClick={onClose}>
-            ✕
-          </button>
-        </div>
+        <button
+          type="button"
+          className="nft-modal-close"
+          onClick={onClose}
+        >
+          ✕
+        </button>
 
-        <div className="modal-body">
-          <div className="modal-image-wrap">
+        <div className="nft-modal-image-wrap">
+          {ticket.image ? (
             <img
               src={ticket.image}
               alt={ticket.title}
-              className="modal-image"
+              className="nft-modal-image"
             />
-          </div>
+          ) : (
+            <div className="nft-modal-image-placeholder">NFT</div>
+          )}
+        </div>
 
-          <div className="modal-info-grid">
-            <div className="modal-info-box">
-              <span className="modal-info-label">티켓 번호</span>
-              <strong>{ticket.title}</strong>
-            </div>
+        <div className="nft-modal-body">
+          <h3>{ticket.title}</h3>
+          <p>{ticket.eventName}</p>
 
-            <div className="modal-info-box">
-              <span className="modal-info-label">컨트랙트 주소</span>
-              <strong className="address-text">{ticket.contractAddress}</strong>
-            </div>
-
-            <div className="modal-info-box">
-              <span className="modal-info-label">이벤트</span>
-              <strong>{ticket.eventName}</strong>
-            </div>
-
-            <div className="modal-info-box">
-              <span className="modal-info-label">민팅일</span>
-              <strong>{ticket.mintedDate}</strong>
-            </div>
-
-            <div className="modal-info-box">
-              <span className="modal-info-label">티켓 유효기간</span>
-              <strong className="expiry-text">{ticket.expiryDate}</strong>
-            </div>
-
-            <div className="modal-info-box">
-              <span className="modal-info-label">상태</span>
+          <div className="nft-modal-info">
+            <div className="info-row">
+              <span>상태</span>
               <strong>{ticket.status}</strong>
             </div>
 
-            <div className="modal-info-box">
-              <span className="modal-info-label">당첨 상품</span>
+            <div className="info-row">
+              <span>보상</span>
               <strong>{ticket.reward}</strong>
             </div>
 
-            <div className="modal-info-box">
-              <span className="modal-info-label">사용 방법</span>
-              <p className="usage-guide">{ticket.usageGuide}</p>
+            <div className="info-row">
+              <span>민팅일</span>
+              <strong>{ticket.mintedDate || "-"}</strong>
+            </div>
+
+            <div className="info-row">
+              <span>만료일</span>
+              <strong>{ticket.expiryDate || "-"}</strong>
+            </div>
+
+            <div className="info-row">
+              <span>컨트랙트 주소</span>
+              <strong>{ticket.contractAddress || "-"}</strong>
             </div>
           </div>
 
-          <a
-            href="https://etherscan.io/"
-            target="_blank"
-            rel="noreferrer"
-            className="modal-link-btn"
-          >
-            Etherscan에서 보기
-          </a>
+          <div className="notice-box">
+            <p>{ticket.usageGuide || "사용 안내 정보가 없습니다."}</p>
+          </div>
+
+          {ticket.isPrePurchaseReward && ticket.status === "당첨" && (
+            <button
+              type="button"
+              className="full-btn"
+              onClick={handleUseTicket}
+            >
+              사용하기
+            </button>
+          )}
         </div>
       </div>
     </div>
