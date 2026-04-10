@@ -1,15 +1,18 @@
-import { Buffer } from 'buffer';
+import { Buffer } from "buffer";
+import * as process from "process";
 
-// 1. global 설정 (일부 라이브러리가 global 키워드를 사용함)
-window.global = window;
+if (typeof window !== "undefined") {
+  window.global = window;
+  window.Buffer = window.Buffer || Buffer;
+  window.process = window.process || process;
 
-// 2. Buffer 설정
-window.Buffer = window.Buffer || Buffer;
+  if (!window.process.env) window.process.env = {};
+  if (!window.process.nextTick) {
+    window.process.nextTick = function nextTick(fn) {
+      setTimeout(fn, 0);
+    };
+  }
 
-// 3. process 설정 
-// 라이브러리에서 직접 가져오는 대신, 브라우저가 필요한 최소한의 구조를 직접 만듭니다.
-window.process = window.process || {
-  env: { DEBUG: undefined },
-  version: '',
-  nextTick: function(fn) { setTimeout(fn, 0); }
-};
+  // Webpack fallback에서 vm은 비활성화되어 있으므로 브라우저용 stub만 둡니다.
+  window.vm = window.vm || {};
+}

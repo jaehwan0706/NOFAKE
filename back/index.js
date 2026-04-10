@@ -3,10 +3,10 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
+import axios from 'axios';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
 // 1. 환경 설정 로드
-// 현재 구조상 .env가 상위 폴더(root)에 있으므로 경로를 명시해줍니다.
 dotenv.config({ path: '../.env' }); 
 
 const app = express();
@@ -27,14 +27,13 @@ function getKey(header, callback) {
   });
 }
 
-// 🛡️ [보안 미들웨어] 모든 API 요청 전에 토큰을 검사하고 지갑 주소를 추출합니다.
+// 🛡️ [보안 미들웨어] 토큰 검사 및 지갑 주소 추출
 const verifyTokenMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ error: '인증 토큰이 없습니다.' });
 
     const token = authHeader.split(' ')[1];
     
-    // ✅ SyntaxError 유발했던 '...'를 실제 로직으로 교체했습니다.
     jwt.verify(token, getKey, { 
         algorithms: ['RS256'],
         audience: process.env.TOKEN_AUDIENCE 
@@ -44,18 +43,18 @@ const verifyTokenMiddleware = (req, res, next) => {
             return res.status(403).json({ error: '유효하지 않은 토큰입니다.' });
         }
         
-        // 지갑 주소 또는 고유 ID 추출 (어제 성공한 로직)
+        // ⭐️ 대시보드 설정에 맞게 Sub(대문자) 또는 sub(소문자) 모두 대응
         req.user = {
-            walletAddress: decoded.wallets?.[0]?.address || decoded.sub,
+            walletAddress: decoded.wallets?.[0]?.address || decoded.Sub || decoded.sub,
             email: decoded.email
         };
         
-        console.log("✅ 인증 성공:", req.user.walletAddress);
+        console.log("✅ 인증 성공 (지갑주소):", req.user.walletAddress);
         next();
     });
 };
 
-// 3. AWS S3 설정 (백엔드 B 영역)
+// 3. AWS S3 설정
 const s3Client = new S3Client({ region: 'ap-northeast-2' });
 const BUCKET_NAME = process.env.BUCKET_NAME;
 let isRevealed = process.env.IS_REVEALED === 'true';
@@ -82,7 +81,41 @@ const upsertParticipant = (participant) => {
 };
 
 // ==========================================
-// [API] 로그인 및 사용자 확인 (백엔드 C)
+// 🔥 카카오 토큰 교환 대행 (중복 요청 방어 로직 추가)
+// ==========================================
+app.post('/api/auth/kakao', async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: "인가 코드가 없습니다." });
+
+  try {
+    const response = await axios.post("https://kauth.kakao.com/oauth/token", new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: "d9c3641e6babf0f0d91c93a7ec557c40", 
+      client_secret: "npka1Tmsj6pJwM0WsDwdXgDSi788n3MI", 
+      redirect_uri: "http://localhost:3000/auth/kakao/callback",
+      code,
+    }), {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }
+    });
+
+    console.log("✅ 카카오 서버로부터 토큰 발급 성공!");
+    res.json(response.data); 
+  } catch (error) {
+    const errorData = error.response?.data;
+    
+    // ⭐️ [중요] 리액트 중복 호출(KOE320) 시 500 에러 대신 200번으로 부드럽게 처리
+    if (errorData?.error_code === 'KOE320') {
+      console.log("ℹ️ 중복된 인가 코드 요청입니다. (이미 처리됨)");
+      return res.status(200).json({ message: "이미 처리된 코드입니다." });
+    }
+
+    console.error("❌ 카카오 토큰 교환 실패:", errorData || error.message);
+    res.status(500).json({ error: "카카오 통신 중 오류 발생" });
+  }
+});
+
+// ==========================================
+// [API] 로그인 및 사용자 확인
 // ==========================================
 app.post('/api/login', verifyTokenMiddleware, (req, res) => {
     const participant = upsertParticipant({
@@ -104,11 +137,10 @@ app.get('/api/participants', (req, res) => {
 });
 
 // ==========================================
-// [API] 참여자용: 메타데이터 가져오기 (인증 필수 - 백엔드 B)
+// [API] 참여자용: 메타데이터 가져오기
 // ==========================================
 app.get('/api/metadata/:id', verifyTokenMiddleware, async (req, res) => {
     const { id } = req.params;
-    
     const s3Key = isRevealed 
         ? `metadata/post-reveal/${id}.json` 
         : `metadata/pre-reveal/unrevealed.json`;
@@ -116,7 +148,6 @@ app.get('/api/metadata/:id', verifyTokenMiddleware, async (req, res) => {
     try {
         const command = new GetObjectCommand({ Bucket: BUCKET_NAME, Key: s3Key });
         const response = await s3Client.send(command);
-        
         res.setHeader('Content-Type', response.ContentType);
         response.Body.pipe(res);
     } catch (error) {
@@ -126,7 +157,7 @@ app.get('/api/metadata/:id', verifyTokenMiddleware, async (req, res) => {
 });
 
 // ==========================================
-// [API] 민팅 요청 (수요일 백엔드 A 합체용 공간)
+// [API] 민팅 요청
 // ==========================================
 app.post('/api/mint', verifyTokenMiddleware, (req, res) => {
     res.json({ success: true, message: "민팅 보안 검증 통과", user: req.user });
@@ -135,6 +166,6 @@ app.post('/api/mint', verifyTokenMiddleware, (req, res) => {
 app.listen(port, () => {
     console.log(`==========================================`);
     console.log(`🚀 No-Fake 통합 보안 서버 가동 중 (Port: ${port})`);
-    console.log(`🔐 S3 연동 및 Web3Auth 미들웨어 활성화 완료`);
+    console.log(`🔐 카카오 인증 대행 및 S3 미들웨어 활성화 완료`);
     console.log(`==========================================`);
 });

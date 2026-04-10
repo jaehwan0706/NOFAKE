@@ -35,6 +35,7 @@ function App() {
 
           {/* 관리자 흐름 */}
           {/* 1. 전체 상황판 (통계 및 목록) */}
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/AdminDashboard" element={<AdminDashboard />} />
           
           {/* 2. 개별 래플 상세 관리 (기존 이미지의 그 화면) */}
