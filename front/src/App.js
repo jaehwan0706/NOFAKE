@@ -38,6 +38,7 @@ function App() {
           <Route path="/my-wallet" element={<UserDashboard />} />
           <Route path="/puzzle-exchange" element={<UserDashboard />} />
           <Route path="/marketplace" element={<UserDashboard />} />
+          <Route path="/transparency-center" element={<UserDashboard />} />
 
           {/* 관리자 흐름 */}
           {/* 1. 전체 상황판 (통계 및 목록) */}

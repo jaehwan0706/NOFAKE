@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 contract NoFakePlatform is ERC721, Ownable {
     using Strings for uint256;
 
-    uint256 public totalSupply = 0;
+    uint256 public Supply total= 0;
 
     // 유효기간 설정 (블록체인 타임스탬프 기준)
     uint256 public immutable PRE_PURCHASE_EXPIRY;

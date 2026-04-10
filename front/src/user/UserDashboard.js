@@ -12,6 +12,7 @@ import DrawStatus from "./pages/DrawStatus";
 import MyWallet from "./pages/MyWallet";
 import PuzzleExchange from "./pages/PuzzleExchange";
 import Marketplace from "./pages/Marketplace";
+import TransparencyCenter from "./pages/TransparencyCenter";
 
 import mockEvents from "./data/mockEvents";
 
@@ -120,6 +121,14 @@ function UserDashboard() {
     return (
       <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
         <Marketplace />
+      </ProtectedLayout>
+    );
+  }
+
+  if (pathname === "/transparency-center") {
+    return (
+      <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
+        <TransparencyCenter />
       </ProtectedLayout>
     );
   }
