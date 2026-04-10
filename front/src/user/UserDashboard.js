@@ -11,95 +11,18 @@ import Participate from "./pages/Participate";
 import DrawStatus from "./pages/DrawStatus";
 import MyWallet from "./pages/MyWallet";
 import PuzzleExchange from "./pages/PuzzleExchange";
+import Marketplace from "./pages/Marketplace";
 
 import mockEvents from "./data/mockEvents";
 
-function DevWalletTester({
-  walletAddress,
-  onConnect,
-  onDisconnect,
-  onResetMint,
-  onRevealAll,
-  onResetReveal,
-}) {
-  const isConnected = Boolean(walletAddress);
-
-  return (
-    <div className="dev-wallet-tester">
-      <span className="dev-wallet-label">테스트용 임시 지갑 연결</span>
-
-      {isConnected ? (
-        <>
-          <button
-            type="button"
-            className="dev-wallet-btn disconnect"
-            onClick={onDisconnect}
-          >
-            연결 해제
-          </button>
-
-          <button
-            type="button"
-            className="dev-wallet-btn reset"
-            onClick={onResetMint}
-          >
-            민팅 초기화
-          </button>
-
-          <button
-            type="button"
-            className="dev-wallet-btn reveal"
-            onClick={onRevealAll}
-          >
-            전체 리빌
-          </button>
-
-          <button
-            type="button"
-            className="dev-wallet-btn reveal-reset"
-            onClick={onResetReveal}
-          >
-            리빌 초기화
-          </button>
-        </>
-      ) : (
-        <button
-          type="button"
-          className="dev-wallet-btn"
-          onClick={onConnect}
-        >
-          연결
-        </button>
-      )}
-    </div>
-  );
-}
-
-function ProtectedLayout({
-  children,
-  walletAddress,
-  onConnectWallet,
-  onDisconnectWallet,
-  onResetMint,
-  onRevealAll,
-  onResetReveal,
-}) {
+function ProtectedLayout({ children, walletAddress, onLogout }) {
   if (!walletAddress) {
     return <Navigate to="/" replace />;
   }
 
   return (
     <div>
-      <DevWalletTester
-        walletAddress={walletAddress}
-        onConnect={onConnectWallet}
-        onDisconnect={onDisconnectWallet}
-        onResetMint={onResetMint}
-        onRevealAll={onRevealAll}
-        onResetReveal={onResetReveal}
-      />
-
-      <Header walletAddress={walletAddress} />
+      <Header walletAddress={walletAddress} onLogout={onLogout} />
       <Navbar />
 
       <main className="app-main">
@@ -109,7 +32,7 @@ function ProtectedLayout({
   );
 }
 
-function App() {
+function UserDashboard() {
   const location = useLocation();
   const [walletAddress, setWalletAddress] = useState(
     () => localStorage.getItem("testWalletAddress") || ""
@@ -129,12 +52,6 @@ function App() {
     }));
   }, [revealState]);
 
-  const handleConnectWallet = () => {
-    const testAddress = "0x1234567890abcdef1234567890abcdef12345678";
-    localStorage.setItem("testWalletAddress", testAddress);
-    setWalletAddress(testAddress);
-  };
-
   const handleDisconnectWallet = () => {
     localStorage.removeItem("testWalletAddress");
     localStorage.removeItem("mintedEvents");
@@ -144,29 +61,6 @@ function App() {
     setRevealState({});
   };
 
-  const handleResetMint = () => {
-    localStorage.removeItem("mintedEvents");
-    localStorage.removeItem("mintedTickets");
-  };
-
-  const handleRevealAll = () => {
-    const nextRevealState = Object.fromEntries(
-      mockEvents.map((event) => [event.slug, true])
-    );
-
-    localStorage.setItem("revealState", JSON.stringify(nextRevealState));
-    setRevealState(nextRevealState);
-  };
-
-  const handleResetReveal = () => {
-    const nextRevealState = Object.fromEntries(
-      mockEvents.map((event) => [event.slug, false])
-    );
-
-    localStorage.setItem("revealState", JSON.stringify(nextRevealState));
-    setRevealState(nextRevealState);
-  };
-
   const handleLoginSuccess = (newWalletAddress) => {
     localStorage.setItem("testWalletAddress", newWalletAddress);
     setWalletAddress(newWalletAddress);
@@ -174,84 +68,63 @@ function App() {
 
   const pathname = location.pathname;
 
-  let pageContent = null;
-
   if (pathname === "/" || pathname === "/login") {
-    pageContent = walletAddress ? (
+    return walletAddress ? (
       <Navigate to="/home" replace />
     ) : (
       <Login onLoginSuccess={handleLoginSuccess} />
     );
-  } else if (pathname === "/home") {
-    pageContent = (
-      <ProtectedLayout
-        walletAddress={walletAddress}
-        onConnectWallet={handleConnectWallet}
-        onDisconnectWallet={handleDisconnectWallet}
-        onResetMint={handleResetMint}
-        onRevealAll={handleRevealAll}
-        onResetReveal={handleResetReveal}
-      >
+  }
+
+  if (pathname === "/home") {
+    return (
+      <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
         <Home events={events} />
       </ProtectedLayout>
     );
-  } else if (pathname.startsWith("/participate/")) {
-    pageContent = (
-      <ProtectedLayout
-        walletAddress={walletAddress}
-        onConnectWallet={handleConnectWallet}
-        onDisconnectWallet={handleDisconnectWallet}
-        onResetMint={handleResetMint}
-        onRevealAll={handleRevealAll}
-        onResetReveal={handleResetReveal}
-      >
+  }
+
+  if (pathname.startsWith("/participate/")) {
+    return (
+      <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
         <Participate walletAddress={walletAddress} events={events} />
       </ProtectedLayout>
     );
-  } else if (pathname === "/draw-status") {
-    pageContent = (
-      <ProtectedLayout
-        walletAddress={walletAddress}
-        onConnectWallet={handleConnectWallet}
-        onDisconnectWallet={handleDisconnectWallet}
-        onResetMint={handleResetMint}
-        onRevealAll={handleRevealAll}
-        onResetReveal={handleResetReveal}
-      >
+  }
+
+  if (pathname === "/draw-status") {
+    return (
+      <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
         <DrawStatus events={events} revealState={revealState} />
       </ProtectedLayout>
     );
-  } else if (pathname === "/my-wallet") {
-    pageContent = (
-      <ProtectedLayout
-        walletAddress={walletAddress}
-        onConnectWallet={handleConnectWallet}
-        onDisconnectWallet={handleDisconnectWallet}
-        onResetMint={handleResetMint}
-        onRevealAll={handleRevealAll}
-        onResetReveal={handleResetReveal}
-      >
+  }
+
+  if (pathname === "/my-wallet") {
+    return (
+      <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
         <MyWallet revealState={revealState} />
       </ProtectedLayout>
     );
-  } else if (pathname === "/puzzle-exchange") {
-    pageContent = (
-      <ProtectedLayout
-        walletAddress={walletAddress}
-        onConnectWallet={handleConnectWallet}
-        onDisconnectWallet={handleDisconnectWallet}
-        onResetMint={handleResetMint}
-        onRevealAll={handleRevealAll}
-        onResetReveal={handleResetReveal}
-      >
+  }
+
+  if (pathname === "/puzzle-exchange") {
+    return (
+      <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
         <PuzzleExchange />
       </ProtectedLayout>
     );
-  } else {
-    pageContent = <Navigate to="/home" replace />;
   }
 
-  return pageContent;
+  if (pathname === "/marketplace") {
+    return (
+      <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
+        <Marketplace />
+      </ProtectedLayout>
+    );
+  }
+
+  return <Navigate to="/home" replace />;
 }
 
-export default App;
+export default UserDashboard;

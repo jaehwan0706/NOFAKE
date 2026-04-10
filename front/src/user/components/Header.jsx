@@ -5,7 +5,7 @@ function formatWalletAddress(address) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-export default function Header({ walletAddress }) {
+export default function Header({ walletAddress, onLogout }) {
   const isConnected = Boolean(walletAddress);
 
   return (
@@ -20,11 +20,17 @@ export default function Header({ walletAddress }) {
       <div className="header-actions">
         {isConnected && (
           <div className="wallet-status connected">
-            <span className="wallet-status-label">지갑 연동됨</span>
+            <span className="wallet-status-label">지갑 연결됨</span>
             <strong className="wallet-status-address">
               {formatWalletAddress(walletAddress)}
             </strong>
           </div>
+        )}
+
+        {isConnected && (
+          <button type="button" className="header-logout-btn" onClick={onLogout}>
+            로그아웃
+          </button>
         )}
       </div>
     </header>

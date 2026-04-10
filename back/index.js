@@ -4,10 +4,12 @@ import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import axios from 'axios';
+import { Contract, JsonRpcProvider } from 'ethers';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
 // 1. 환경 설정 로드
-dotenv.config({ path: '../.env' }); 
+dotenv.config();
+dotenv.config({ path: '../.env', override: false });
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -59,6 +61,31 @@ const s3Client = new S3Client({ region: 'ap-northeast-2' });
 const BUCKET_NAME = process.env.BUCKET_NAME;
 let isRevealed = process.env.IS_REVEALED === 'true';
 const participants = [];
+const noFakeContractAbi = ['function totalSupply() view returns (uint256)'];
+
+const readContractTotalParticipants = async () => {
+    const rpcUrl =
+        process.env.RPC_URL ||
+        process.env.WEB3_RPC_URL ||
+        process.env.PUBLIC_RPC_URL;
+    const contractAddress =
+        process.env.NOFAKE_CONTRACT_ADDRESS ||
+        process.env.CONTRACT_ADDRESS;
+
+    if (!rpcUrl) {
+        throw new Error('RPC_URL is not configured');
+    }
+
+    if (!contractAddress) {
+        throw new Error('NOFAKE_CONTRACT_ADDRESS is not configured');
+    }
+
+    const provider = new JsonRpcProvider(rpcUrl);
+    const contract = new Contract(contractAddress, noFakeContractAbi, provider);
+    const totalSupply = await contract.totalSupply();
+
+    return Number(totalSupply);
+};
 
 const upsertParticipant = (participant) => {
     const existingIndex = participants.findIndex((item) => item.walletAddress === participant.walletAddress);
@@ -134,6 +161,25 @@ app.get('/api/participants', (req, res) => {
         success: true,
         participants
     });
+});
+
+app.get('/api/admin/contract-stats', async (req, res) => {
+    try {
+        const totalParticipants = await readContractTotalParticipants();
+
+        res.json({
+            success: true,
+            totalParticipants,
+            source: 'NoFake.sol:totalSupply'
+        });
+    } catch (error) {
+        console.error('Contract stats error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            totalParticipants: 0
+        });
+    }
 });
 
 // ==========================================
