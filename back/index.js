@@ -166,10 +166,19 @@ app.get('/api/participants', (req, res) => {
 app.get('/api/admin/contract-stats', async (req, res) => {
     try {
         const totalParticipants = await readContractTotalParticipants();
+        const contractAddress =
+            process.env.NOFAKE_CONTRACT_ADDRESS ||
+            process.env.CONTRACT_ADDRESS ||
+            '';
+        const networkName = process.env.NETWORK_NAME || 'Ethereum Mainnet';
+        const etherscanBaseUrl = process.env.ETHERSCAN_BASE_URL || 'https://etherscan.io/address';
 
         res.json({
             success: true,
             totalParticipants,
+            contractAddress,
+            networkName,
+            etherscanUrl: contractAddress ? `${etherscanBaseUrl}/${contractAddress}` : '',
             source: 'NoFake.sol:totalSupply'
         });
     } catch (error) {
