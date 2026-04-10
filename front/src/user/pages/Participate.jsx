@@ -3,11 +3,13 @@ import { useParams } from "react-router-dom";
 import { mintMysteryBox } from "../services/mint";
 import SimpleToast from "../components/SimpleToast";
 
+const MINTED_STORAGE_KEY = "mintedEventsById";
+
 export default function Participate({ walletAddress, events = [] }) {
   const { slug } = useParams();
   const [isMinting, setIsMinting] = useState(false);
-  const [mintedEvents, setMintedEvents] = useState(() => {
-    const saved = localStorage.getItem("mintedEvents");
+  const [mintedEventsById, setMintedEventsById] = useState(() => {
+    const saved = localStorage.getItem(MINTED_STORAGE_KEY);
     return saved ? JSON.parse(saved) : {};
   });
   const [toast, setToast] = useState({
@@ -16,12 +18,11 @@ export default function Participate({ walletAddress, events = [] }) {
     type: "success",
   });
 
-  const event = useMemo(() => {
-    return events.find((item) => item.slug === slug);
-  }, [events, slug]);
-
+  const event = useMemo(() => events.find((item) => item.slug === slug), [events, slug]);
   const isWalletConnected = Boolean(walletAddress);
-  const isMinted = event ? Boolean(mintedEvents[event.slug]) : false;
+  const mintedKey = event ? String(event.id) : "";
+  const isMinted = event ? Boolean(mintedEventsById[mintedKey]) : false;
+  const isMintClosed = event?.status?.mintClosed ?? false;
 
   const showToast = (message, type) => {
     setToast({
@@ -43,6 +44,11 @@ export default function Participate({ walletAddress, events = [] }) {
 
     if (!event) return;
 
+    if (isMintClosed) {
+      showToast("이 래플은 이미 마감되었습니다.", "error");
+      return;
+    }
+
     if (isMinted) {
       showToast("이미 민팅이 완료되었습니다.", "error");
       return;
@@ -56,13 +62,14 @@ export default function Participate({ walletAddress, events = [] }) {
         walletAddress,
       });
 
-      setMintedEvents((prev) => {
+      setMintedEventsById((prev) => {
         const next = {
           ...prev,
-          [event.slug]: true,
+          [mintedKey]: true,
         };
 
-        localStorage.setItem("mintedEvents", JSON.stringify(next));
+        localStorage.setItem(MINTED_STORAGE_KEY, JSON.stringify(next));
+        window.dispatchEvent(new Event("minted-events-updated"));
         return next;
       });
 
@@ -70,57 +77,35 @@ export default function Participate({ walletAddress, events = [] }) {
       const mintedTickets = savedMintedTickets ? JSON.parse(savedMintedTickets) : [];
 
       const alreadyExists = mintedTickets.some(
-        (ticket) =>
-          ticket.eventSlug === event.slug &&
-          ticket.source === "minted"
+        (ticket) => ticket.eventId === event.id && ticket.source === "minted"
       );
 
       if (!alreadyExists) {
-  const statusText =
-    event.result === "first"
-      ? "1등"
-      : event.result === "second"
-      ? "2등"
-      : "미당첨";
+        const newTicket = {
+          id: Date.now(),
+          eventId: event.id,
+          eventSlug: event.slug,
+          title: `${event.shortTitle} 미스터리 박스`,
+          eventName: event.shortTitle,
+          image: "",
+          contractAddress: event.transparency.contractAddress,
+          mintedDate: new Date().toLocaleDateString("ko-KR"),
+          expiryDate: "2026-12-31",
+          status: "결과 대기",
+          reward: "결과 공개 전",
+          usageGuide: "관리자 결과 공개 후 당첨 여부를 확인할 수 있습니다.",
+          isPrePurchaseReward: false,
+          source: "minted",
+        };
 
-  const rewardText =
-    event.result === "first"
-      ? event.rewardInfo?.first || "1등 보상"
-      : event.result === "second"
-      ? event.rewardInfo?.second || "2등 보상"
-      : "당첨 내역 없음";
+        const nextTickets = [...mintedTickets, newTicket];
+        localStorage.setItem("mintedTickets", JSON.stringify(nextTickets));
+      }
 
-  const usageGuideText =
-    event.result === "first"
-      ? "당첨 보상을 확인하고 사용 안내를 확인하세요."
-      : event.result === "second"
-      ? "퍼즐 조각 보상을 확인하세요."
-      : "아쉽지만 이번 이벤트는 미당첨입니다.";
-
-  const newTicket = {
-    id: Date.now(),
-    eventSlug: event.slug,
-    title: `${event.shortTitle} 미스터리 박스`,
-    eventName: event.shortTitle,
-    image: "",
-    contractAddress: event.transparency.contractAddress,
-    mintedDate: new Date().toLocaleDateString("ko-KR"),
-    expiryDate: "2026-12-31",
-    status: statusText,
-    reward: rewardText,
-    usageGuide: usageGuideText,
-    isPrePurchaseReward: event.result === "first",
-    source: "minted",
-  };
-
-  const nextTickets = [...mintedTickets, newTicket];
-  localStorage.setItem("mintedTickets", JSON.stringify(nextTickets));
-}
-
-      showToast("민팅되었습니다.", "success");
+      showToast("민팅이 완료되었습니다.", "success");
     } catch (error) {
       console.error(error);
-      showToast("민팅이 실패하였습니다. 다시 시도해 주세요.", "error");
+      showToast("민팅에 실패했습니다. 다시 시도해 주세요.", "error");
     } finally {
       setIsMinting(false);
     }
@@ -131,7 +116,7 @@ export default function Participate({ walletAddress, events = [] }) {
       <section className="participate-page">
         <div className="page-heading">
           <h2>이벤트를 찾을 수 없습니다</h2>
-          <p>존재하지 않거나 삭제된 이벤트입니다.</p>
+          <p>존재하지 않거나 종료된 이벤트입니다.</p>
         </div>
       </section>
     );
@@ -176,10 +161,12 @@ export default function Participate({ walletAddress, events = [] }) {
                 type="button"
                 className={`mint-btn ${isMinted ? "completed" : ""}`}
                 onClick={handleMint}
-                disabled={!isWalletConnected || isMinting || isMinted}
+                disabled={!isWalletConnected || isMinting || isMinted || isMintClosed}
               >
                 {isMinted
                   ? "민팅 완료"
+                  : isMintClosed
+                  ? "민팅 마감"
                   : isMinting
                   ? "민팅 처리 중..."
                   : "민팅하기"}
@@ -201,7 +188,7 @@ export default function Participate({ walletAddress, events = [] }) {
               </div>
 
               <div className="info-row">
-                <span>당첨자 수</span>
+                <span>당첨 수</span>
                 <span>{status.winners}</span>
               </div>
 
@@ -213,10 +200,7 @@ export default function Participate({ walletAddress, events = [] }) {
               </div>
 
               <div className="progress-track">
-                <div
-                  className="progress-fill orange"
-                  style={{ width: `${status.progress}%` }}
-                />
+                <div className="progress-fill orange" style={{ width: `${status.progress}%` }} />
               </div>
             </div>
 
@@ -264,19 +248,15 @@ export default function Participate({ walletAddress, events = [] }) {
         <div className="participate-guide-card">
           <h3>참여 안내</h3>
           <ul>
-            <li>이벤트 상태와 보상 정보를 확인한 뒤 참여할 수 있습니다.</li>
+            <li>이벤트 상태와 당첨 정보를 확인한 뒤 참여할 수 있습니다.</li>
             <li>미스터리 박스를 민팅하면 이벤트 참여가 완료됩니다.</li>
-            <li>당첨 결과는 내 지갑 또는 드로우 현황에서 확인할 수 있습니다.</li>
+            <li>당첨 결과는 드로우 현황 또는 내 지갑에서 확인할 수 있습니다.</li>
             <li>모든 추첨 과정은 투명성 센터에서 검증 가능합니다.</li>
           </ul>
         </div>
       </section>
 
-      <SimpleToast
-        open={toast.open}
-        message={toast.message}
-        type={toast.type}
-      />
+      <SimpleToast open={toast.open} message={toast.message} type={toast.type} />
     </>
   );
 }

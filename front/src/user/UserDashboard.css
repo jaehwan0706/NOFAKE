@@ -831,6 +831,35 @@ section p {
   gap: 14px;
 }
 
+.draw-product-thumb {
+  width: 88px;
+  height: 88px;
+  border-radius: 18px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid #2a2f3a;
+  background: #0f1117;
+}
+
+.draw-product-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.draw-product-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb16f;
+  font-size: 14px;
+  font-weight: 800;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(15, 23, 42, 0.8));
+}
+
 .rank-badge {
   background: rgba(255, 106, 0, 0.2);
   border: 1px solid rgba(255, 106, 0, 0.35);
@@ -877,6 +906,11 @@ section p {
 
   .draw-banner h3 {
     font-size: 28px;
+  }
+
+  .draw-product-thumb {
+    width: 72px;
+    height: 72px;
   }
 }
 
@@ -939,7 +973,7 @@ section p {
 
 .draw-live-status-top {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -956,6 +990,68 @@ section p {
   font-size: 28px;
   font-weight: 800;
   color: #ffffff;
+}
+
+.draw-current-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 24px;
+  border-radius: 18px;
+  border: 1px solid rgba(249, 115, 22, 0.24);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(15, 23, 42, 0.88));
+}
+
+.draw-current-status-copy {
+  min-width: 0;
+}
+
+.draw-current-status-copy strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  line-height: 1.1;
+  color: #ffffff;
+}
+
+.draw-current-status-copy p {
+  margin: 10px 0 0;
+  color: #d7dce6;
+  font-size: 15px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.draw-current-status-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 108px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.draw-current-status-pill--live {
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #6ee7b7;
+}
+
+.draw-current-status-pill--closed {
+  background: rgba(249, 115, 22, 0.16);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  color: #fdba74;
+}
+
+.draw-current-status-pill--revealed {
+  background: rgba(96, 165, 250, 0.16);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  color: #93c5fd;
 }
 
 .draw-live-progress-header {
@@ -994,6 +1090,15 @@ section p {
 
   .draw-live-status-item strong {
     font-size: 22px;
+  }
+
+  .draw-current-status-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .draw-current-status-copy strong {
+    font-size: 24px;
   }
 }
 

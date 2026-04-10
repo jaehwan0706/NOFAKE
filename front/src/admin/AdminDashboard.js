@@ -829,7 +829,8 @@ const AdminDashboard = () => {
                   </div>
 
                   <div className="raffle-table-cell raffle-table-cell--strong">
-                    1등 {raffle.firstPrize}명
+                    <div>1등 {raffle.firstPrize}명</div>
+                    <div className="table-muted">2등 {raffle.secondPrize}명</div>
                   </div>
 
                   <div className="raffle-actions">

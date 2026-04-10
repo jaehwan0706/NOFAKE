@@ -44,26 +44,38 @@ const getStatusMeta = (status, startAt, endAt) => {
   const end = endAt ? new Date(endAt).getTime() : null;
 
   if (status === "REVEALED") {
-    return { statusText: "결과 공개", mintClosed: true, remainingTime: "공개 완료" };
+    return { statusText: "결과공개", mintClosed: true, remainingTime: "결과 공개 완료" };
   }
 
   if (status === "CLOSED") {
-    return { statusText: "종료", mintClosed: true, remainingTime: "종료됨" };
+    return { statusText: "종료", mintClosed: true, remainingTime: "민팅 마감" };
   }
 
   if (status === "MINTING") {
-    return { statusText: "민팅 중", mintClosed: false, remainingTime: endAt ? `${formatDateLabel(endAt)} 마감` : "진행 중" };
+    if (end && now > end) {
+      return { statusText: "종료", mintClosed: true, remainingTime: "기간 종료" };
+    }
+
+    return {
+      statusText: "진행중",
+      mintClosed: false,
+      remainingTime: endAt ? `${formatDateLabel(endAt)} 마감` : "진행중",
+    };
   }
 
   if (start && now < start) {
-    return { statusText: "오픈 예정", mintClosed: true, remainingTime: `${formatDateLabel(startAt)} 시작` };
+    return { statusText: "예정", mintClosed: true, remainingTime: `${formatDateLabel(startAt)} 시작` };
   }
 
   if (end && now > end) {
-    return { statusText: "종료", mintClosed: true, remainingTime: "종료됨" };
+    return { statusText: "종료", mintClosed: true, remainingTime: "기간 종료" };
   }
 
-  return { statusText: "진행 중", mintClosed: false, remainingTime: endAt ? `${formatDateLabel(endAt)} 마감` : "진행 중" };
+  return {
+    statusText: "진행중",
+    mintClosed: false,
+    remainingTime: endAt ? `${formatDateLabel(endAt)} 마감` : "진행중",
+  };
 };
 
 const mapRaffleToEvent = (raffle, revealState = {}) => {
@@ -73,8 +85,8 @@ const mapRaffleToEvent = (raffle, revealState = {}) => {
   return {
     id: raffle.id,
     slug,
-    title: raffle.title,
-    shortTitle: raffle.title,
+    title: raffle.title || "래플",
+    shortTitle: raffle.title || "래플",
     thumbnail: raffle.imageUrl || "",
     description: raffle.category
       ? `${raffle.category} 카테고리 래플입니다. 응모 기간과 당첨 정보를 확인해보세요.`
@@ -82,29 +94,29 @@ const mapRaffleToEvent = (raffle, revealState = {}) => {
     overviewSubtitle: raffle.category
       ? `${raffle.category} 카테고리 래플 이벤트입니다.`
       : "래플 이벤트 상세 정보를 확인해보세요.",
-    result: "pending",
+    result: revealState[slug]?.result || "lose",
     status: {
-      participants: 0,
-      maxParticipants: Math.max((raffle.firstPrizeCount || 0) + (raffle.secondPrizeCount || 0), 1),
-      winners: (raffle.firstPrizeCount || 0) + (raffle.secondPrizeCount || 0),
+      participants: Number(raffle.participants || 0),
+      maxParticipants: Math.max(Number(raffle.firstPrizeCount || 0) + Number(raffle.secondPrizeCount || 0), 1),
+      winners: Number(raffle.firstPrizeCount || 0) + Number(raffle.secondPrizeCount || 0),
       statusText: statusMeta.statusText,
       progress: 0,
       mintClosed: statusMeta.mintClosed,
-      isRevealed: revealState[slug] ?? raffle.status === "REVEALED",
+      isRevealed: revealState[slug]?.isRevealed ?? raffle.status === "REVEALED",
       remainingTime: statusMeta.remainingTime,
     },
     transparency: {
       contractAddress: raffle.contractAddress || "-",
       provenanceHash: raffle.provenanceHash || "-",
-      description1: "모든 래플 데이터는 서버 DB와 온체인 정보 기준으로 관리됩니다.",
+      description1: "모든 래플 데이터는 서버 DB와 블록체인 정보 기준으로 관리됩니다.",
       description2: "컨트랙트 주소와 provenance hash를 통해 무결성을 확인할 수 있습니다.",
     },
     rewardInfo: {
       title: "당첨 정보",
-      first: `1등 ${raffle.firstPrizeCount || 0}명`,
-      second: `2등 ${raffle.secondPrizeCount || 0}명`,
+      first: `1등 ${Number(raffle.firstPrizeCount || 0)}명`,
+      second: `2등 ${Number(raffle.secondPrizeCount || 0)}명`,
     },
-    mintTitle: `${raffle.title} 래플에 참여해보세요`,
+    mintTitle: `${raffle.title || "래플"}에 참여해보세요`,
     mintDescription: raffle.category
       ? `${raffle.category} 래플 응모를 위해 민팅을 진행합니다.`
       : "래플 응모를 위해 민팅을 진행합니다.",
@@ -133,14 +145,14 @@ function ProtectedLayout({ children, walletAddress, onLogout }) {
 
 function UserDashboard() {
   const location = useLocation();
-  const [walletAddress, setWalletAddress] = useState(
-    () => localStorage.getItem("testWalletAddress") || ""
-  );
-
-  const [revealState, setRevealState] = useState(
-    () => JSON.parse(localStorage.getItem("revealState") || "{}")
-  );
-  const [apiEvents, setApiEvents] = useState([]);
+  const [walletAddress, setWalletAddress] = useState(() => localStorage.getItem("testWalletAddress") || "");
+  const [revealState, setRevealState] = useState(() => JSON.parse(localStorage.getItem("revealState") || "{}"));
+  const [allEvents, setAllEvents] = useState([]);
+  const [mintedEventIds, setMintedEventIds] = useState(() => {
+    const saved = localStorage.getItem("mintedEventsById");
+    const parsed = saved ? JSON.parse(saved) : {};
+    return Object.keys(parsed).filter((key) => parsed[key]);
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -154,16 +166,12 @@ function UserDashboard() {
           throw new Error("Failed to load raffles");
         }
 
-        if (!isMounted) {
-          return;
-        }
-
-        const liveRaffles = data.filter((raffle) => raffle.status === "MINTING");
-        setApiEvents(liveRaffles.map((raffle) => mapRaffleToEvent(raffle, revealState)));
+        if (!isMounted) return;
+        setAllEvents(data.map((raffle) => mapRaffleToEvent(raffle, revealState)));
       } catch (error) {
         console.error("Failed to fetch user raffles:", error);
         if (isMounted) {
-          setApiEvents([]);
+          setAllEvents([]);
         }
       }
     };
@@ -175,15 +183,45 @@ function UserDashboard() {
     };
   }, [revealState]);
 
-  const events = useMemo(() => apiEvents, [apiEvents]);
+  useEffect(() => {
+    const syncMintedEventIds = () => {
+      const saved = localStorage.getItem("mintedEventsById");
+      const parsed = saved ? JSON.parse(saved) : {};
+      setMintedEventIds(Object.keys(parsed).filter((key) => parsed[key]));
+    };
+
+    syncMintedEventIds();
+    window.addEventListener("minted-events-updated", syncMintedEventIds);
+
+    return () => {
+      window.removeEventListener("minted-events-updated", syncMintedEventIds);
+    };
+  }, []);
+
+  const homeEvents = useMemo(
+    () => allEvents.filter((event) => event.status.statusText === "진행중" && !event.status.isRevealed),
+    [allEvents]
+  );
+
+  const drawEvents = useMemo(
+    () =>
+      allEvents.filter(
+        (event) =>
+          mintedEventIds.includes(String(event.id)) &&
+          ["진행중", "종료", "결과공개"].includes(event.status.statusText)
+      ),
+    [allEvents, mintedEventIds]
+  );
 
   const handleDisconnectWallet = () => {
     localStorage.removeItem("testWalletAddress");
     localStorage.removeItem("mintedEvents");
+    localStorage.removeItem("mintedEventsById");
     localStorage.removeItem("mintedTickets");
     localStorage.removeItem("revealState");
     setWalletAddress("");
     setRevealState({});
+    setMintedEventIds([]);
   };
 
   const handleLoginSuccess = (newWalletAddress) => {
@@ -194,17 +232,13 @@ function UserDashboard() {
   const pathname = location.pathname;
 
   if (pathname === "/" || pathname === "/login") {
-    return walletAddress ? (
-      <Navigate to="/home" replace />
-    ) : (
-      <Login onLoginSuccess={handleLoginSuccess} />
-    );
+    return walletAddress ? <Navigate to="/home" replace /> : <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
   if (pathname === "/home") {
     return (
       <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
-        <Home events={events} />
+        <Home events={homeEvents} />
       </ProtectedLayout>
     );
   }
@@ -212,7 +246,7 @@ function UserDashboard() {
   if (pathname.startsWith("/participate/")) {
     return (
       <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
-        <Participate walletAddress={walletAddress} events={events} />
+        <Participate walletAddress={walletAddress} events={allEvents} />
       </ProtectedLayout>
     );
   }
@@ -220,7 +254,7 @@ function UserDashboard() {
   if (pathname === "/draw-status") {
     return (
       <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
-        <DrawStatus events={events} revealState={revealState} />
+        <DrawStatus events={drawEvents} revealState={revealState} />
       </ProtectedLayout>
     );
   }
