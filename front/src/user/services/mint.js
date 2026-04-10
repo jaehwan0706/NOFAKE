@@ -1,24 +1,30 @@
-let mintAttemptCount = 0;
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:3001";
 
-export async function mintMysteryBox({ eventSlug, walletAddress }) {
+export async function mintMysteryBox({ raffleId, walletAddress }) {
   if (!walletAddress) {
     throw new Error("WALLET_NOT_CONNECTED");
   }
 
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  mintAttemptCount += 1;
-
-  const isSuccess = mintAttemptCount % 2 === 1;
-
-  if (!isSuccess) {
-    throw new Error("MINT_FAILED");
+  if (!raffleId) {
+    throw new Error("RAFFLE_ID_REQUIRED");
   }
 
-  return {
-    success: true,
-    eventSlug,
-    walletAddress,
-    txHash: `0xmocktx${mintAttemptCount}`,
-  };
+  const response = await fetch(`${API_BASE_URL}/api/mint`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      userAddress: walletAddress,
+      raffleId,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || "MINT_FAILED");
+  }
+
+  return data;
 }
