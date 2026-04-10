@@ -13,32 +13,71 @@ import {
 } from "lucide-react";
 import "./AdminDashboard.css";
 
-const RAFFLE_STORAGE_KEY = "nofake_admin_raffles";
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:3001";
 const initialParticipantSeries = Array(7).fill(0);
-const toLocalInput = (date) => {
-  const pad = (value) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+
+const STATUS_LABELS = {
+  READY: "예정",
+  MINTING: "진행중",
+  CLOSED: "종료",
+  REVEALED: "결과공개",
 };
+
+const CATEGORY_OPTIONS = ["스니커즈", "의류", "액세서리", "기타"];
 
 const defaultImage =
   "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80";
 
-const defaultRaffles = [];
-const seededRaffleIds = new Set([1, 2, 3]);
-const seededRaffleNames = new Set(["백석신발", "나이키 x 트래비스", "에어맥스 90 골프"]);
-
 const defaultLogs = [
-  { id: 1, title: "래플 생성", detail: "트래비스 래플이 생성되었습니다.", time: "방금 전" },
-  { id: 2, title: "당첨 설정 변경", detail: "에어맥스 90 골프 당첨 수가 업데이트되었습니다.", time: "12분 전" },
-  { id: 3, title: "참여자 급증", detail: "동일 시간대 유입량이 평소보다 38% 증가했습니다.", time: "27분 전" },
+  {
+    id: 1,
+    title: "래플 운영 준비",
+    detail: "관리자 대시보드가 정상적으로 연결되었습니다.",
+    time: "방금 전",
+  },
+  {
+    id: 2,
+    title: "상태 점검 완료",
+    detail: "백엔드 API와 DB 연결 상태를 확인했습니다.",
+    time: "1분 전",
+  },
 ];
 
 const roleItems = [
-  { name: "슈퍼 어드민", description: "설정, 마감, 결과 공개, 내보내기 전부 가능", active: true },
-  { name: "운영자", description: "래플 생성과 운영 가능, 민감 설정은 제한", active: true },
-  { name: "뷰어", description: "대시보드 조회만 가능", active: false },
+  {
+    name: "슈퍼 관리자",
+    description: "래플 생성, 운영, 종료, 결과 공개까지 전체 기능을 사용할 수 있습니다.",
+    active: true,
+  },
+  {
+    name: "운영자",
+    description: "래플 생성과 운영 기능을 사용할 수 있으며 민감한 설정은 제한됩니다.",
+    active: true,
+  },
+  {
+    name: "뷰어",
+    description: "대시보드 조회만 가능합니다.",
+    active: false,
+  },
 ];
+
+const toLocalInput = (date) => {
+  const pad = (value) => String(value).padStart(2, "0");
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
+};
+
+const formatDisplayDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${mm}.${dd}`;
+};
 
 const createInitialForm = () => ({
   name: "",
@@ -47,8 +86,45 @@ const createInitialForm = () => ({
   startAt: toLocalInput(new Date()),
   endAt: toLocalInput(new Date(Date.now() + 3 * 86400000)),
   firstPrize: 1,
-  secondPrize: 3,
+  secondPrize: 0,
   description: "",
+});
+
+const normalizeSearchValue = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .trim();
+
+const getStatusLabel = (status) => STATUS_LABELS[status] || "예정";
+
+const getStatusTone = (status) => {
+  if (status === "MINTING") return "live";
+  if (status === "CLOSED" || status === "REVEALED") return "done";
+  return "draft";
+};
+
+const mapApiRaffleToUi = (raffle) => ({
+  id: raffle.id,
+  name: raffle.title || "",
+  status: raffle.status || "READY",
+  statusLabel: getStatusLabel(raffle.status || "READY"),
+  participants: Number(raffle.participants || 0),
+  category: raffle.category || "기타",
+  conversionRate: Number(raffle.conversionRate || 0),
+  dropoutRate: Number(raffle.dropoutRate || 0),
+  avgEntryMinutes: Number(raffle.avgEntryMinutes || 0),
+  createdAt: raffle.createdAt || new Date().toISOString(),
+  imageUrl: raffle.imageUrl || "",
+  description: raffle.description || "",
+  startAt: raffle.startAt ? toLocalInput(new Date(raffle.startAt)) : toLocalInput(new Date()),
+  endAt: raffle.endAt
+    ? toLocalInput(new Date(raffle.endAt))
+    : toLocalInput(new Date(Date.now() + 86400000)),
+  firstPrize: Number(raffle.firstPrizeCount || 0),
+  secondPrize: Number(raffle.secondPrizeCount || 0),
+  contractAddress: raffle.contractAddress || "",
+  provenanceHash: raffle.provenanceHash || "",
 });
 
 const ParticipantTrendChart = ({ data }) => {
@@ -60,7 +136,7 @@ const ParticipantTrendChart = ({ data }) => {
 
   const points = data
     .map((value, index) => {
-      const x = (index / (data.length - 1)) * width;
+      const x = (index / Math.max(data.length - 1, 1)) * width;
       const y = height - ((value - min) / range) * height;
       return `${x},${y}`;
     })
@@ -69,8 +145,8 @@ const ParticipantTrendChart = ({ data }) => {
   return (
     <div className="participant-chart-wrap">
       <div className="participant-chart-meta">
-        <span>최근 유입 추이</span>
-        <strong>실시간</strong>
+        <span>최근 참여 추이</span>
+        <strong>실시간 반영</strong>
       </div>
       <svg className="participant-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
         <defs>
@@ -94,92 +170,18 @@ const ParticipantTrendChart = ({ data }) => {
         />
       </svg>
       <div className="participant-chart-labels">
-        <span>6분 전</span>
+        <span>6회 전</span>
         <span>지금</span>
       </div>
     </div>
   );
 };
 
-const loadStoredRaffles = () => {
-  try {
-    const raw = window.localStorage.getItem(RAFFLE_STORAGE_KEY);
-    if (!raw) return defaultRaffles;
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return defaultRaffles;
-    }
-
-    return parsed
-      .filter((raffle) => !seededRaffleIds.has(raffle.id) && !seededRaffleNames.has(raffle.name))
-      .map((raffle) => ({
-      category: "기타",
-      conversionRate: 0,
-      dropoutRate: 0,
-      avgEntryMinutes: 0,
-      createdAt: new Date().toISOString(),
-      imageUrl: "",
-      description: "",
-      startAt: toLocalInput(new Date()),
-      endAt: toLocalInput(new Date(Date.now() + 86400000)),
-      firstPrize: 1,
-      secondPrize: 3,
-        ...raffle,
-      }));
-  } catch (error) {
-    console.error("Failed to load raffles:", error);
-    return defaultRaffles;
-  }
-};
-
-const normalizeSearchValue = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .replace(/\s+/g, "")
-    .trim();
-
-const STATUS_LABELS = {
-  READY: "예정",
-  MINTING: "진행중",
-  CLOSED: "종료",
-  REVEALED: "결과공개",
-};
-
-const getStatusLabel = (status) => STATUS_LABELS[status] || status || "예정";
-
-const getStatusTone = (status) => {
-  if (status === "MINTING") return "live";
-  if (status === "CLOSED" || status === "REVEALED") return "done";
-  return "draft";
-};
-
-const mapApiRaffleToUi = (raffle) => ({
-  id: raffle.id,
-  name: raffle.title || "",
-  status: raffle.status || "READY",
-  statusLabel: getStatusLabel(raffle.status || "READY"),
-  participants: raffle.participants || 0,
-  category: raffle.category || "기타",
-  conversionRate: raffle.conversionRate || 0,
-  dropoutRate: raffle.dropoutRate || 0,
-  avgEntryMinutes: raffle.avgEntryMinutes || 0,
-  createdAt: raffle.createdAt || new Date().toISOString(),
-  imageUrl: raffle.imageUrl || "",
-  description: raffle.description || "",
-  startAt: raffle.startAt ? toLocalInput(new Date(raffle.startAt)) : toLocalInput(new Date()),
-  endAt: raffle.endAt ? toLocalInput(new Date(raffle.endAt)) : toLocalInput(new Date(Date.now() + 86400000)),
-  firstPrize: raffle.firstPrizeCount || 0,
-  secondPrize: raffle.secondPrizeCount || 0,
-  contractAddress: raffle.contractAddress || "",
-  provenanceHash: raffle.provenanceHash || "",
-});
-
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [participantSeries, setParticipantSeries] = useState(initialParticipantSeries);
   const [participantFetchError, setParticipantFetchError] = useState("");
-  const [raffles, setRaffles] = useState(loadStoredRaffles);
+  const [raffles, setRaffles] = useState([]);
   const [logs, setLogs] = useState(defaultLogs);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [raffleForm, setRaffleForm] = useState(createInitialForm);
@@ -200,38 +202,29 @@ const AdminDashboard = () => {
           throw new Error(data.error || "Failed to load contract stats");
         }
 
+        if (!isMounted) return;
+
         const nextValue = Number(data.totalParticipants || 0);
-
-        if (!isMounted) {
-          return;
-        }
-
         setParticipantFetchError("");
         setParticipantSeries((prev) => {
           const hasLoadedValue = prev.some((value) => value !== 0);
-
           if (!hasLoadedValue) {
             return Array(prev.length).fill(nextValue);
           }
-
           return [...prev.slice(1), nextValue];
         });
       } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        console.error("Failed to fetch contract participant stats:", error);
-        setParticipantFetchError(error.message || "Failed to load contract stats");
+        if (!isMounted) return;
+        setParticipantFetchError("참여 통계 API가 연결되지 않아 기본값으로 표시 중입니다.");
       }
     };
 
     fetchParticipantStats();
-    const id = setInterval(fetchParticipantStats, 15000);
+    const intervalId = setInterval(fetchParticipantStats, 15000);
 
     return () => {
       isMounted = false;
-      clearInterval(id);
+      clearInterval(intervalId);
     };
   }, []);
 
@@ -247,10 +240,7 @@ const AdminDashboard = () => {
           throw new Error(data.error || "Failed to load raffles");
         }
 
-        if (!isMounted) {
-          return;
-        }
-
+        if (!isMounted) return;
         setRaffles(Array.isArray(data.data) ? data.data.map(mapApiRaffleToUi) : []);
       } catch (error) {
         console.error("Failed to fetch admin raffles:", error);
@@ -264,17 +254,13 @@ const AdminDashboard = () => {
     };
   }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem(RAFFLE_STORAGE_KEY, JSON.stringify(raffles));
-  }, [raffles]);
-
   const categories = useMemo(() => {
     const values = new Set(raffles.map((raffle) => raffle.category || "기타"));
     return ["전체", ...Array.from(values)];
   }, [raffles]);
 
   const filteredRaffles = useMemo(() => {
-    const nowDate = Date.now();
+    const now = Date.now();
     const rangeDays =
       rangeFilter === "7일" ? 7 : rangeFilter === "30일" ? 30 : rangeFilter === "90일" ? 90 : null;
     const normalizedSearch = normalizeSearchValue(searchTerm);
@@ -283,19 +269,19 @@ const AdminDashboard = () => {
       const target = normalizeSearchValue(
         `${raffle.name} ${raffle.category || ""} ${raffle.description || ""}`
       );
-      const matchesSearch =
-        !normalizedSearch || target.includes(normalizedSearch);
-      const matchesStatus = statusFilter === "전체" || raffle.status === statusFilter;
+      const matchesSearch = !normalizedSearch || target.includes(normalizedSearch);
+      const matchesStatus =
+        statusFilter === "전체" || raffle.status === statusFilter || raffle.statusLabel === statusFilter;
       const matchesCategory = categoryFilter === "전체" || raffle.category === categoryFilter;
       const matchesRange =
-        !rangeDays || nowDate - new Date(raffle.createdAt).getTime() <= rangeDays * 86400000;
+        !rangeDays || now - new Date(raffle.createdAt).getTime() <= rangeDays * 86400000;
 
       return matchesSearch && matchesStatus && matchesCategory && matchesRange;
     });
   }, [raffles, searchTerm, statusFilter, categoryFilter, rangeFilter]);
 
   const totalParticipants = participantSeries[participantSeries.length - 1].toLocaleString();
-  const activeRaffles = raffles.filter((raffle) => raffle.status === "진행 중");
+  const activeRaffles = raffles.filter((raffle) => raffle.status === "MINTING");
   const avgConversion = raffles.length
     ? (raffles.reduce((sum, raffle) => sum + (raffle.conversionRate || 0), 0) / raffles.length).toFixed(1)
     : "0.0";
@@ -305,67 +291,73 @@ const AdminDashboard = () => {
   const avgParticipationTime = raffles.length
     ? (raffles.reduce((sum, raffle) => sum + (raffle.avgEntryMinutes || 0), 0) / raffles.length).toFixed(1)
     : "0.0";
+  const previewImage = raffleForm.imageUrl.trim() || defaultImage;
 
   const alerts = useMemo(() => {
+    if (raffles.length === 0) {
+      return [
+        {
+          level: "warning",
+          title: "등록된 래플이 없습니다",
+          detail: "관리자 페이지에서 새 래플을 추가하면 여기에서 운영 현황을 확인할 수 있습니다.",
+          pill: "확인 필요",
+        },
+      ];
+    }
+
     const items = [];
 
-    raffles.forEach((raffle) => {
-      if (raffle.participants >= 8000) {
-        items.push({
-          id: `traffic-${raffle.id}`,
-          level: "critical",
-          title: `${raffle.name} 유입 급증`,
-          detail: "짧은 시간에 참여자가 몰리고 있어 어뷰징 로그를 함께 확인하는 것이 좋습니다.",
-        });
-      }
-
-      if (raffle.status === "설정 전") {
-        items.push({
-          id: `draft-${raffle.id}`,
-          level: "warning",
-          title: `${raffle.name} 설정 대기`,
-          detail: "생성은 되었지만 기간 또는 당첨 수가 아직 확정되지 않았습니다.",
-        });
-      }
-    });
-
-    if (!items.length) {
+    if (activeRaffles.length === 0) {
       items.push({
-        id: "healthy",
+        level: "warning",
+        title: "진행중인 래플이 없습니다",
+        detail: "래플을 생성하면 바로 사용자 홈에 노출되며, 필요하면 관리 화면에서 수정할 수 있습니다.",
+        pill: "대기중",
+      });
+    } else {
+      items.push({
         level: "good",
-        title: "이상 징후 없음",
-        detail: "현재 대시보드에서 확인된 주요 경고는 없습니다.",
+        title: `${activeRaffles.length}개의 래플이 진행중입니다`,
+        detail: "사용자 메인 홈에는 진행중 상태의 래플만 노출됩니다.",
+        pill: "정상",
       });
     }
 
-    return items.slice(0, 4);
-  }, [raffles]);
+    const revealCount = raffles.filter((raffle) => raffle.status === "REVEALED").length;
+    if (revealCount > 0) {
+      items.push({
+        level: "critical",
+        title: "결과 공개된 래플이 있습니다",
+        detail: "공개된 래플은 종료 후 공지 및 후속 관리를 확인해 주세요.",
+        pill: `${revealCount}건`,
+      });
+    }
 
-  const previewImage = raffleForm.imageUrl.trim() || defaultImage;
+    return items;
+  }, [raffles, activeRaffles.length]);
 
   const handleFormChange = (field, value) => {
     setRaffleForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleDeleteRaffle = async (raffleId, raffleName) => {
-    if (!window.confirm(`${raffleName} 래플을 삭제할까요?`)) {
-      return;
-    }
+    const shouldDelete = window.confirm(`"${raffleName}" 래플을 삭제할까요?`);
+    if (!shouldDelete) return;
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/raffles/${raffleId}`, {
         method: "DELETE",
       });
-      const result = await response.json();
+      const data = await response.json();
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Failed to delete raffle");
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to delete raffle");
       }
 
       setRaffles((prev) => prev.filter((raffle) => raffle.id !== raffleId));
       setLogs((prev) => [
         {
-          id: Date.now() + 1,
+          id: Date.now(),
           title: "래플 삭제",
           detail: `${raffleName} 래플이 삭제되었습니다.`,
           time: "방금 전",
@@ -373,117 +365,92 @@ const AdminDashboard = () => {
         ...prev,
       ]);
     } catch (error) {
-      console.error("Failed to delete raffle:", error);
-      window.alert(error.message || "래플 삭제에 실패했습니다.");
+      window.alert(error.message || "래플 삭제 중 오류가 발생했습니다.");
     }
   };
 
   const handleAddRaffleToApi = async () => {
-    const trimmedName = raffleForm.name.trim();
-    if (!trimmedName) return;
-    if (new Date(raffleForm.startAt) >= new Date(raffleForm.endAt)) return;
-
     const payload = {
-      title: trimmedName,
+      title: raffleForm.name.trim(),
       category: raffleForm.category,
       imageUrl: raffleForm.imageUrl.trim(),
       startAt: new Date(raffleForm.startAt).toISOString(),
       endAt: new Date(raffleForm.endAt).toISOString(),
       firstPrizeCount: Number(raffleForm.firstPrize) || 0,
       secondPrizeCount: Number(raffleForm.secondPrize) || 0,
+      description: raffleForm.description.trim(),
     };
+
+    if (!payload.title) {
+      window.alert("래플명을 입력해 주세요.");
+      return;
+    }
+
+    if (!payload.startAt || !payload.endAt || new Date(payload.startAt) >= new Date(payload.endAt)) {
+      window.alert("기간을 올바르게 설정해 주세요.");
+      return;
+    }
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/raffles`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
-      const result = await response.json();
+      const data = await response.json();
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Failed to create raffle");
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to create raffle");
       }
 
-      const savedRaffle = mapApiRaffleToUi(result.data);
-      setRaffles((prev) => [savedRaffle, ...prev]);
+      const nextRaffle = mapApiRaffleToUi(data.data);
+      setRaffles((prev) => [nextRaffle, ...prev]);
       setLogs((prev) => [
         {
-          id: Date.now() + 1,
+          id: Date.now(),
           title: "래플 생성",
-          detail: `${trimmedName} 래플이 ${raffleForm.category} 카테고리로 DB에 저장되었습니다.`,
+          detail: `${nextRaffle.name} 래플이 추가되었습니다.`,
           time: "방금 전",
         },
         ...prev,
       ]);
       setRaffleForm(createInitialForm());
       setIsAddOpen(false);
+      window.alert("래플이 생성되어 바로 사용자 홈에 노출됩니다.");
     } catch (error) {
-      console.error("Failed to create raffle:", error);
-      window.alert(error.message || "래플 생성에 실패했습니다.");
+      window.alert(error.message || "래플 생성 중 오류가 발생했습니다.");
     }
   };
 
-  const handleAddRaffle = () => {
-    const trimmedName = raffleForm.name.trim();
-    if (!trimmedName) return;
-    if (new Date(raffleForm.startAt) >= new Date(raffleForm.endAt)) return;
-
-    const nextRaffle = {
-      id: Date.now(),
-      name: trimmedName,
-      status: "설정 전",
-      participants: 0,
-      category: raffleForm.category,
-      conversionRate: 0,
-      dropoutRate: 0,
-      avgEntryMinutes: 0,
-      createdAt: new Date().toISOString(),
-      imageUrl: raffleForm.imageUrl.trim(),
-      description: raffleForm.description.trim(),
-      startAt: raffleForm.startAt,
-      endAt: raffleForm.endAt,
-      firstPrize: Number(raffleForm.firstPrize) || 0,
-      secondPrize: Number(raffleForm.secondPrize) || 0,
-    };
-
-    setRaffles((prev) => [nextRaffle, ...prev]);
-    setLogs((prev) => [
-      {
-        id: Date.now() + 1,
-        title: "래플 생성",
-        detail: `${trimmedName} 래플이 ${raffleForm.category} 카테고리로 추가되었습니다.`,
-        time: "방금 전",
-      },
-      ...prev,
-    ]);
-    setRaffleForm(createInitialForm());
-    setIsAddOpen(false);
-  };
-
   const handleExportCsv = () => {
-    const header = ["id", "name", "status", "category", "participants", "firstPrize", "startAt", "endAt"];
-    const rows = filteredRaffles.map((raffle) =>
-      [
-        raffle.id,
+    if (filteredRaffles.length === 0) {
+      window.alert("내보낼 래플 데이터가 없습니다.");
+      return;
+    }
+
+    const rows = [
+      ["래플명", "상태", "카테고리", "참여자", "1등 수량", "2등 수량", "시작일", "종료일"],
+      ...filteredRaffles.map((raffle) => [
         raffle.name,
-        raffle.status,
+        raffle.statusLabel,
         raffle.category,
         raffle.participants,
         raffle.firstPrize,
+        raffle.secondPrize,
         raffle.startAt,
         raffle.endAt,
-      ]
-        .map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`)
-        .join(",")
-    );
+      ]),
+    ];
 
-    const csvContent = [header.join(","), ...rows].join("\n");
-    const blob = new Blob([`\uFEFF${csvContent}`], { type: "text/csv;charset=utf-8;" });
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
+
     link.href = url;
-    link.setAttribute("download", `nofake-raffles-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", "raffles.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -493,23 +460,25 @@ const AdminDashboard = () => {
   return (
     <div className="admin-container">
       <div className="admin-shell">
-        <header className="admin-header admin-header--left">
-          <div>
-            <h1>NOFAKE 관리자 대시보드</h1>
-            
-          </div>
-          <div className="header-role-badge">
-            <Shield size={16} />
-            슈퍼 어드민
+        <header className="admin-header">
+          <div className="admin-header--left">
+            <div>
+              <h1>래플 관리자 대시보드</h1>
+              <p>DB에 저장된 래플을 추가하고 상태를 관리하는 운영 화면입니다.</p>
+            </div>
+            <div className="header-role-badge">
+              <Shield size={18} />
+              운영 권한 활성화
+            </div>
           </div>
         </header>
 
         <section className="toolbar-card">
           <div className="toolbar-search">
-            <Search size={16} />
+            <Search size={18} />
             <input
               type="text"
-              placeholder="래플명 또는 카테고리 검색"
+              placeholder="래플명, 카테고리, 설명 검색"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
             />
@@ -517,34 +486,39 @@ const AdminDashboard = () => {
 
           <div className="toolbar-filters">
             <div className="toolbar-select">
-              <Filter size={15} />
-              <select value={rangeFilter} onChange={(event) => setRangeFilter(event.target.value)}>
-                <option>7일</option>
-                <option>30일</option>
-                <option>90일</option>
-                <option>전체</option>
-              </select>
-            </div>
-
-            <div className="toolbar-select">
+              <Filter size={16} />
               <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                <option>전체</option>
-                <option>진행 중</option>
-                <option>설정 전</option>
-                <option>종료</option>
+                <option value="전체">전체 상태</option>
+                <option value="READY">예정</option>
+                <option value="MINTING">진행중</option>
+                <option value="CLOSED">종료</option>
+                <option value="REVEALED">결과공개</option>
               </select>
             </div>
 
             <div className="toolbar-select">
+              <Filter size={16} />
               <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
                 {categories.map((category) => (
-                  <option key={category}>{category}</option>
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
                 ))}
               </select>
             </div>
 
-            <button className="toolbar-export-btn" onClick={handleExportCsv}>
-              <Download size={15} />
+            <div className="toolbar-select">
+              <Filter size={16} />
+              <select value={rangeFilter} onChange={(event) => setRangeFilter(event.target.value)}>
+                <option value="7일">최근 7일</option>
+                <option value="30일">최근 30일</option>
+                <option value="90일">최근 90일</option>
+                <option value="전체">전체 기간</option>
+              </select>
+            </div>
+
+            <button className="toolbar-export-btn" type="button" onClick={handleExportCsv}>
+              <Download size={16} />
               CSV 내보내기
             </button>
           </div>
@@ -553,42 +527,40 @@ const AdminDashboard = () => {
         <section className="kpi-grid">
           <article className="kpi-card kpi-card--primary">
             <div className="kpi-top">
-              <div className="stat-icon" style={{ backgroundColor: "#4F46E5" }}>
-                <Users />
+              <div className="stat-icon" style={{ background: "linear-gradient(135deg, #6257ff, #4338ca)" }}>
+                <Users size={28} />
               </div>
               <div className="stat-info">
-                <span>총 참여자</span>
-                <h3>{totalParticipants}명</h3>
+                <span>현재 누적 참여자</span>
+                <h3>{totalParticipants}</h3>
               </div>
             </div>
             <ParticipantTrendChart data={participantSeries} />
-            {participantFetchError && (
-              <p className="kpi-footnote">NoFake.sol totalSupply 조회 실패: {participantFetchError}</p>
-            )}
+            {participantFetchError && <p className="kpi-footnote">{participantFetchError}</p>}
           </article>
 
           <article className="kpi-card">
-            <span className="kpi-label">진행 중 래플</span>
-            <strong>{activeRaffles.length}개</strong>
-            <p>현재 운영 중인 래플 수</p>
+            <span className="kpi-label">진행중 래플</span>
+            <strong>{activeRaffles.length}</strong>
+            <p>사용자 홈에 노출 중인 래플 수입니다.</p>
           </article>
 
           <article className="kpi-card">
             <span className="kpi-label">평균 전환율</span>
             <strong>{avgConversion}%</strong>
-            <p>페이지 진입 대비 참여 완료 기준</p>
+            <p>계약 통계가 연결되면 더 정확하게 반영됩니다.</p>
           </article>
 
           <article className="kpi-card">
-            <span className="kpi-label">평균 이탈율</span>
+            <span className="kpi-label">평균 이탈률</span>
             <strong>{avgDropout}%</strong>
-            <p>참여 직전 이탈 사용자 비중</p>
+            <p>참여 흐름 분석용 지표입니다.</p>
           </article>
 
           <article className="kpi-card">
             <span className="kpi-label">평균 참여 시간</span>
             <strong>{avgParticipationTime}분</strong>
-            <p>유입 후 참여 완료까지 걸린 시간</p>
+            <p>사용자 진입 후 완료까지의 평균 시간입니다.</p>
           </article>
         </section>
 
@@ -596,21 +568,19 @@ const AdminDashboard = () => {
           <article className="panel-card">
             <div className="panel-header">
               <div>
-                <span className="panel-eyebrow">알림 & 이상 감지</span>
-                <h2>운영 경고 센터</h2>
+                <span className="panel-eyebrow">운영 알림</span>
+                <h2>지금 확인할 항목</h2>
               </div>
               <AlertTriangle size={18} />
             </div>
             <div className="alert-list">
-              {alerts.map((alert) => (
-                <div key={alert.id} className={`alert-item alert-item--${alert.level}`}>
+              {alerts.map((alert, index) => (
+                <div key={`${alert.title}-${index}`} className={`alert-item alert-item--${alert.level}`}>
                   <div>
                     <strong>{alert.title}</strong>
                     <p>{alert.detail}</p>
                   </div>
-                  <span className="alert-pill">
-                    {alert.level === "critical" ? "즉시 확인" : alert.level === "warning" ? "추가 필요" : "정상"}
-                  </span>
+                  <span className="alert-pill">{alert.pill}</span>
                 </div>
               ))}
             </div>
@@ -670,7 +640,7 @@ const AdminDashboard = () => {
                 <span className="panel-eyebrow">래플 운영</span>
                 <h2>래플 목록</h2>
               </div>
-              <button className="add-raffle-btn" onClick={() => setIsAddOpen((prev) => !prev)}>
+              <button className="add-raffle-btn" type="button" onClick={() => setIsAddOpen((prev) => !prev)}>
                 <Plus size={16} />
                 래플 추가
               </button>
@@ -681,7 +651,7 @@ const AdminDashboard = () => {
                 <div className="add-raffle-head">
                   <div>
                     <span className="add-raffle-kicker">래플 생성</span>
-                    <h3>기간, 이미지, 당첨 수를 한 번에 설정</h3>
+                    <h3>기본 정보를 입력해 새 래플을 등록하세요.</h3>
                   </div>
                 </div>
 
@@ -713,7 +683,7 @@ const AdminDashboard = () => {
                         <input
                           className="add-raffle-input"
                           type="text"
-                          placeholder="예: 덩크 로우 레트로"
+                          placeholder="예: 백석대 콜라보 한정 드로우"
                           value={raffleForm.name}
                           onChange={(event) => handleFormChange("name", event.target.value)}
                         />
@@ -726,10 +696,11 @@ const AdminDashboard = () => {
                           value={raffleForm.category}
                           onChange={(event) => handleFormChange("category", event.target.value)}
                         >
-                          <option>스니커즈</option>
-                          <option>의류</option>
-                          <option>패션</option>
-                          <option>액세서리</option>
+                          {CATEGORY_OPTIONS.map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
                         </select>
                       </div>
 
@@ -745,7 +716,7 @@ const AdminDashboard = () => {
                       </div>
 
                       <div className="field-block">
-                        <label className="add-raffle-label">시작 시각</label>
+                        <label className="add-raffle-label">시작 시간</label>
                         <input
                           className="add-raffle-input"
                           type="datetime-local"
@@ -755,7 +726,7 @@ const AdminDashboard = () => {
                       </div>
 
                       <div className="field-block">
-                        <label className="add-raffle-label">종료 시각</label>
+                        <label className="add-raffle-label">종료 시간</label>
                         <input
                           className="add-raffle-input"
                           type="datetime-local"
@@ -765,7 +736,7 @@ const AdminDashboard = () => {
                       </div>
 
                       <div className="field-block">
-                        <label className="add-raffle-label">1등 수</label>
+                        <label className="add-raffle-label">1등 수량</label>
                         <input
                           className="add-raffle-input"
                           type="number"
@@ -776,7 +747,7 @@ const AdminDashboard = () => {
                       </div>
 
                       <div className="field-block">
-                        <label className="add-raffle-label">2등 수</label>
+                        <label className="add-raffle-label">2등 수량</label>
                         <input
                           className="add-raffle-input"
                           type="number"
@@ -790,7 +761,7 @@ const AdminDashboard = () => {
                         <label className="add-raffle-label">설명</label>
                         <textarea
                           className="add-raffle-input add-raffle-textarea"
-                          placeholder="사용자에게 보여줄 간단한 설명"
+                          placeholder="관리용 메모 또는 간단한 안내 문구"
                           value={raffleForm.description}
                           onChange={(event) => handleFormChange("description", event.target.value)}
                         />
@@ -799,9 +770,10 @@ const AdminDashboard = () => {
 
                     <div className="add-raffle-actions">
                       <p className="add-raffle-help">
-                        생성과 동시에 기간, 이미지, 당첨 수가 저장됩니다. 이후 관리 화면에서 세부 조정만 하면 됩니다.
+                        래플을 생성하면 바로 진행중 상태로 저장되어 사용자 홈에 노출됩니다. 이후 관리 화면에서는
+                        기간과 당첨 수를 수정하거나 민팅 마감, 결과 공개를 진행할 수 있습니다.
                       </p>
-                      <button className="add-raffle-submit" onClick={handleAddRaffleToApi}>
+                      <button className="add-raffle-submit" type="button" onClick={handleAddRaffleToApi}>
                         래플 생성
                       </button>
                     </div>
@@ -819,11 +791,16 @@ const AdminDashboard = () => {
                 <span>당첨</span>
                 <span>관리</span>
               </div>
+
               {filteredRaffles.map((raffle) => (
                 <div key={raffle.id} className="raffle-row">
                   <div className="raffle-main raffle-main--table">
                     <div className="raffle-thumb raffle-thumb--table">
-                      {raffle.imageUrl ? <img src={raffle.imageUrl} alt={raffle.name} /> : <div className="raffle-thumb-placeholder" />}
+                      {raffle.imageUrl ? (
+                        <img src={raffle.imageUrl} alt={raffle.name} />
+                      ) : (
+                        <div className="raffle-thumb-placeholder" />
+                      )}
                     </div>
                     <div className="raffle-copy raffle-copy--table">
                       <strong>{raffle.name}</strong>
@@ -839,38 +816,44 @@ const AdminDashboard = () => {
 
                   <div className="raffle-table-cell">
                     <span className={`mini-raffle-status mini-raffle-status--${getStatusTone(raffle.status)}`}>
-                      {raffle.statusLabel || getStatusLabel(raffle.status)}
+                      {raffle.statusLabel}
                     </span>
                   </div>
 
                   <div className="raffle-table-cell raffle-table-cell--strong">
-                    {raffle.startAt.slice(5, 10).replace("-", ".")}-{raffle.endAt.slice(5, 10).replace("-", ".")}
+                    {formatDisplayDate(raffle.startAt)}-{formatDisplayDate(raffle.endAt)}
                   </div>
 
                   <div className="raffle-table-cell raffle-table-cell--strong">
-                    {raffle.participants.toLocaleString()}?
+                    {raffle.participants.toLocaleString()}명
                   </div>
 
                   <div className="raffle-table-cell raffle-table-cell--strong">
-                    1? {raffle.firstPrize}?
+                    1등 {raffle.firstPrize}명
                   </div>
 
                   <div className="raffle-actions">
-                    <button className="mini-manage-btn" type="button" onClick={() => navigate(`/admin/raffle/${raffle.id}`)}>
+                    <button
+                      className="mini-manage-btn"
+                      type="button"
+                      onClick={() => navigate(`/admin/raffle/${raffle.id}`)}
+                    >
                       <Settings size={14} />
-                      ??
+                      관리
                     </button>
-                    <button className="mini-delete-btn" type="button" onClick={() => handleDeleteRaffle(raffle.id, raffle.name)}>
-                      ??
+                    <button
+                      className="mini-delete-btn"
+                      type="button"
+                      onClick={() => handleDeleteRaffle(raffle.id, raffle.name)}
+                    >
+                      삭제
                     </button>
                   </div>
                 </div>
               ))}
 
               {filteredRaffles.length === 0 && (
-                <div className="raffle-empty-state">
-                  검색 조건에 맞는 래플이 없습니다.
-                </div>
+                <div className="raffle-empty-state">조건에 맞는 래플이 없습니다.</div>
               )}
             </div>
           </article>

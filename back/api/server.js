@@ -51,7 +51,7 @@ const normalizeRafflePayload = (body = {}) => ({
   endAt: body.endAt || null,
   firstPrizeCount: Number(body.firstPrizeCount ?? body.firstPrize ?? 0) || 0,
   secondPrizeCount: Number(body.secondPrizeCount ?? body.secondPrize ?? 0) || 0,
-  status: body.status || 'READY'
+  status: body.status || 'MINTING'
 });
 
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);

@@ -14,8 +14,6 @@ import PuzzleExchange from "./pages/PuzzleExchange";
 import Marketplace from "./pages/Marketplace";
 import TransparencyCenter from "./pages/TransparencyCenter";
 
-import mockEvents from "./data/mockEvents";
-
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:3001";
 
 const toSlug = (value) =>
@@ -177,19 +175,7 @@ function UserDashboard() {
     };
   }, [revealState]);
 
-  const events = useMemo(() => {
-    if (apiEvents.length > 0) {
-      return apiEvents;
-    }
-
-    return mockEvents.map((event) => ({
-      ...event,
-      status: {
-        ...event.status,
-        isRevealed: revealState[event.slug] ?? false,
-      },
-    }));
-  }, [apiEvents, revealState]);
+  const events = useMemo(() => apiEvents, [apiEvents]);
 
   const handleDisconnectWallet = () => {
     localStorage.removeItem("testWalletAddress");
