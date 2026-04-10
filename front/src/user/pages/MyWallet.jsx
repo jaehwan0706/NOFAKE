@@ -19,7 +19,13 @@ export default function MyWallet({ revealState = {} }) {
 
   const ticketsWithDisplayStatus = useMemo(() => {
     return allTickets.map((ticket) => {
-      const isEventRevealed = revealState[ticket.eventSlug] ?? false;
+      const revealKey =
+        ticket.eventSlug ||
+        ticket.slug ||
+        ticket.event?.slug ||
+        "";
+
+      const isEventRevealed = revealState[revealKey] ?? false;
 
       return {
         ...ticket,

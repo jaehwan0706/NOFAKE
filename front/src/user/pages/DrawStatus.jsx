@@ -25,8 +25,8 @@ export default function DrawStatus({ events = [] }) {
     );
   }
 
-  const { products, result, eventName, banner } = selectedDraw;
-  const { status } = selectedEvent;
+  const { products, eventName, banner } = selectedDraw;
+  const { status, result } = selectedEvent;
 
   const isRevealed = status?.isRevealed ?? false;
   const participantCount = status?.participants ?? 0;

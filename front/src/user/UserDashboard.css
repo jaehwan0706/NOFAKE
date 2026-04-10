@@ -3039,3 +3039,46 @@ section p {
 .dev-wallet-btn.reveal-reset {
   background: #1e293b;
 }
+
+
+/* 사용자 화면 전체 공통 폭 */
+.app-main {
+  width: 100%;
+}
+
+.page-shell {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* 각 페이지가 page-shell 안에서 꽉 차게 */
+.page-shell > section,
+.page-shell > div {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 드로우 현황 안에서 따로 너무 넓어지는 요소 방지 */
+.draw-page,
+.participate-page,
+.wallet-page,
+.home-page,
+.puzzle-exchange-page {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 2열 카드 영역이 부모보다 넘치지 않게 */
+.draw-content-grid,
+.wallet-summary-grid,
+.participate-overview-grid {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.draw-content-grid .home-card,
+.wallet-summary-grid .home-card,
+.participate-overview-grid .home-card {
+  min-width: 0;
+}

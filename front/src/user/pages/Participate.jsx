@@ -70,29 +70,52 @@ export default function Participate({ walletAddress, events = [] }) {
       const mintedTickets = savedMintedTickets ? JSON.parse(savedMintedTickets) : [];
 
       const alreadyExists = mintedTickets.some(
-        (ticket) => ticket.eventSlug === event.slug
+        (ticket) =>
+          ticket.eventSlug === event.slug &&
+          ticket.source === "minted"
       );
 
       if (!alreadyExists) {
-        const newTicket = {
-          id: Date.now(),
-          eventSlug: event.slug,
-          title: `${event.shortTitle} 미스터리 박스`,
-          eventName: event.shortTitle,
-          image: "",
-          contractAddress: event.transparency.contractAddress,
-          mintedDate: new Date().toLocaleDateString("ko-KR"),
-          expiryDate: "2026-12-31",
-          status: "미공개",
-          reward: "미공개",
-          usageGuide: "리빌 이후 결과를 확인할 수 있습니다.",
-          isPrePurchaseReward: false,
-          source: "minted",
-        };
+  const statusText =
+    event.result === "first"
+      ? "1등"
+      : event.result === "second"
+      ? "2등"
+      : "미당첨";
 
-        const nextTickets = [...mintedTickets, newTicket];
-        localStorage.setItem("mintedTickets", JSON.stringify(nextTickets));
-      }
+  const rewardText =
+    event.result === "first"
+      ? event.rewardInfo?.first || "1등 보상"
+      : event.result === "second"
+      ? event.rewardInfo?.second || "2등 보상"
+      : "당첨 내역 없음";
+
+  const usageGuideText =
+    event.result === "first"
+      ? "당첨 보상을 확인하고 사용 안내를 확인하세요."
+      : event.result === "second"
+      ? "퍼즐 조각 보상을 확인하세요."
+      : "아쉽지만 이번 이벤트는 미당첨입니다.";
+
+  const newTicket = {
+    id: Date.now(),
+    eventSlug: event.slug,
+    title: `${event.shortTitle} 미스터리 박스`,
+    eventName: event.shortTitle,
+    image: "",
+    contractAddress: event.transparency.contractAddress,
+    mintedDate: new Date().toLocaleDateString("ko-KR"),
+    expiryDate: "2026-12-31",
+    status: statusText,
+    reward: rewardText,
+    usageGuide: usageGuideText,
+    isPrePurchaseReward: event.result === "first",
+    source: "minted",
+  };
+
+  const nextTickets = [...mintedTickets, newTicket];
+  localStorage.setItem("mintedTickets", JSON.stringify(nextTickets));
+}
 
       showToast("민팅되었습니다.", "success");
     } catch (error) {

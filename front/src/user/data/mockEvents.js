@@ -9,6 +9,7 @@ const mockEvents = [
       "한정판 조던 신발 선구매 기회를 위한 래플 이벤트입니다. 이벤트 개요를 확인하고 참여할 수 있습니다.",
     overviewSubtitle:
       "한정판 조던 신발 선구매 기회를 위한 래플 이벤트입니다.",
+    result: "first",
     status: {
       participants: 12,
       maxParticipants: 30,
@@ -47,6 +48,7 @@ const mockEvents = [
       "백석대 콜라보 굿즈와 특별 혜택을 위한 이벤트입니다. 현재 진행 상태와 보상 정보를 확인할 수 있습니다.",
     overviewSubtitle:
       "백석대 콜라보 굿즈와 특별 혜택을 위한 이벤트입니다.",
+    result: "second",
     status: {
       participants: 18,
       maxParticipants: 50,
