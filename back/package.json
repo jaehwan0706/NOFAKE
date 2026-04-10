@@ -5,23 +5,19 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "compile": "hardhat compile",
-    "deploy": "hardhat run scripts/deploy.cjs --network sepolia",
-    "mint": "hardhat run scripts/mint.cjs --network sepolia",
-    "gen-hash": "node scripts/gen-provenance.js",
-    "server": "node server.js"
+    "deploy": "hardhat run scripts/deploy.js",
+    "mint": "hardhat run scripts/mint.js",
+    "gen-hash": "node scripts/gen-provenance.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.454.0",
-    "@openzeppelin/contracts": "^5.0.2",
-    "axios": "^1.13.1",
+    "@openzeppelin/contracts": "^4.9.6",
     "cors": "^2.8.5",
     "dotenv": "^17.4.1",
-    "ethers": "^6.16.0",
+    "ethers": "^6.11.1",
     "express": "^4.22.1",
     "jsonwebtoken": "^9.0.3",
-    "jwks-rsa": "^4.0.1",
-    "qrcode.react": "^4.2.0"
+    "jwks-rsa": "^4.0.1"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

@@ -70,7 +70,7 @@ contract NoFakePlatform is ERC721, Ownable {
      * @dev [수정됨] 1.json ~ 30.json 규격에 맞춘 동적 매핑 (+1 연산)
      */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_exists(tokenId), "Nonexistent token");
+        require(_ownerOf(tokenId) != address(0), "Nonexistent token");
         uint256 raffleId = tokenToRaffleId[tokenId];
 
         if (block.timestamp > mintTimestamp[tokenId] + EXPIRY_DURATION) return "ipfs://expired";
