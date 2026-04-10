@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CHAIN_NAMESPACES, WALLET_ADAPTERS } from "@web3auth/base";
+import { CHAIN_NAMESPACES } from "@web3auth/base";
 import { Web3Auth } from "@web3auth/modal";
 import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider"; // ✅ 추가

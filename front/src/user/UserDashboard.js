@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./UserDashboard.css";
 
 import Header from "./components/Header";
@@ -10,7 +10,6 @@ import Participate from "./pages/Participate";
 import DrawStatus from "./pages/DrawStatus";
 import MyWallet from "./pages/MyWallet";
 import PuzzleExchange from "./pages/PuzzleExchange";
-import Transparency from "./pages/Transparency";
 import EventOverview from "./pages/EventOverview";
 
  //import AdminDashboard from "./admin/pages/AdminDashboard"; //

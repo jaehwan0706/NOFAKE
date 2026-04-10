@@ -59,12 +59,48 @@ const verifyTokenMiddleware = (req, res, next) => {
 const s3Client = new S3Client({ region: 'ap-northeast-2' });
 const BUCKET_NAME = process.env.BUCKET_NAME;
 let isRevealed = process.env.IS_REVEALED === 'true';
+const participants = [];
+
+const upsertParticipant = (participant) => {
+    const existingIndex = participants.findIndex((item) => item.walletAddress === participant.walletAddress);
+
+    if (existingIndex >= 0) {
+        participants[existingIndex] = {
+            ...participants[existingIndex],
+            ...participant,
+        };
+        return participants[existingIndex];
+    }
+
+    const nextParticipant = {
+        id: participants.length + 1,
+        ...participant,
+    };
+
+    participants.unshift(nextParticipant);
+    return nextParticipant;
+};
 
 // ==========================================
 // [API] 로그인 및 사용자 확인 (백엔드 C)
 // ==========================================
 app.post('/api/login', verifyTokenMiddleware, (req, res) => {
-    res.json({ success: true, user: req.user });
+    const participant = upsertParticipant({
+        name: req.body.name || req.user.email || `참여자 ${req.user.walletAddress?.slice(-4) || ''}`,
+        email: req.body.email || req.user.email || '',
+        walletAddress: req.user.walletAddress,
+        joinedAt: req.body.joinedAt || new Date().toISOString(),
+        loginProvider: req.body.loginProvider || 'kakao-web3auth'
+    });
+
+    res.json({ success: true, user: req.user, participant });
+});
+
+app.get('/api/participants', (req, res) => {
+    res.json({
+        success: true,
+        participants
+    });
 });
 
 // ==========================================

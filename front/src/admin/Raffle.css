@@ -766,3 +766,24 @@
 .nf-confirm-ok--green {
   background: #16a34a;
 }
+
+.nf-page-header {
+  display: flex;
+  align-items: center; /* 버튼과 제목 높이 맞춤 */
+  margin-bottom: 30px;
+  border-bottom: 1px solid #2a2a2a;
+  padding-bottom: 20px;
+}
+
+.nf-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* 관리하기 페이지 전용 타이틀 강조 */
+.nf-title {
+  font-size: 24px;
+  background: linear-gradient(to right, #fff, #888);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

@@ -1,0 +1,149 @@
+/* AdminDashboard.css */
+
+:root {
+  --bg-dark: #121218;
+  --card-bg: #1e1e26;
+  --primary-blue: #4f46e5;
+  --primary-green: #10b981;
+  --text-main: #ffffff;
+  --text-sub: #9ca3af;
+  --border-color: #2e2e38;
+}
+
+.admin-container {
+  padding: 40px;
+  background-color: var(--bg-dark);
+  min-height: 100vh;
+  color: var(--text-main);
+  font-family: 'Inter', -apple-system, sans-serif;
+}
+
+.admin-header {
+  margin-bottom: 40px;
+}
+
+.admin-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.admin-header p {
+  color: var(--text-sub);
+}
+
+/* 통계 카드 그리드 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 24px;
+  margin-bottom: 48px;
+}
+
+.stat-card {
+  background: var(--card-bg);
+  padding: 24px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  border: 1px solid var(--border-color);
+  transition: transform 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+}
+
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.stat-info span {
+  font-size: 14px;
+  color: var(--text-sub);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.stat-info h3 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* 래플 목록 섹션 */
+.raffle-list-section h2 {
+  font-size: 20px;
+  margin-bottom: 20px;
+}
+
+.raffle-table {
+  background: var(--card-bg);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+  color: var(--text-sub);
+  font-size: 14px;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  padding: 20px 24px;
+  align-items: center;
+  border-top: 1px solid var(--border-color);
+  transition: background 0.2s ease;
+}
+
+.table-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.table-row .name {
+  font-weight: 600;
+}
+
+.status.active {
+  color: var(--primary-green);
+  background: rgba(16, 185, 129, 0.1);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  display: inline-block;
+}
+
+/* 관리 버튼 */
+.btn-manage {
+  background: transparent;
+  border: 1px solid var(--primary-blue);
+  color: var(--primary-blue);
+  padding: 8px 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  width: fit-content;
+}
+
+.btn-manage:hover {
+  background: var(--primary-blue);
+  color: white;
+}
