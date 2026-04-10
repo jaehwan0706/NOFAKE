@@ -8,7 +8,7 @@ async function main() {
 
     // 민팅 대상 정보 (테스트용)
     const userAddress = "0x8Fe4737A81c8ac3ee7269390B0D27C3BE7B237B0"; 
-    const raffleId = 1; // 상품 번호
+    const raffleId = 13; // 상품 번호
 
     console.log(`${userAddress}에게 ${raffleId}번 상품 티켓 발행 중...`);
 
