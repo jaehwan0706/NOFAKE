@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 
 // ABI 로드
-const contractData = JSON.parse(fs.readFileSync('./artifacts/contracts/NoFakePlatform.sol/NoFakePlatform.json', 'utf8'));
+const contractData = JSON.parse(fs.readFileSync('./artifacts/contracts/NoFake.sol/NoFakePlatform.json', 'utf8'));
 
 app.post('/api/mint', async (req, res) => {
   const { userAddress, raffleId } = req.body;
