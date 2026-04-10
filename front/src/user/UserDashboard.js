@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useMemo, useState } from "react";
 import "./UserDashboard.css";
 
@@ -110,6 +110,7 @@ function ProtectedLayout({
 }
 
 function App() {
+  const location = useLocation();
   const [walletAddress, setWalletAddress] = useState(
     () => localStorage.getItem("testWalletAddress") || ""
   );
@@ -171,104 +172,86 @@ function App() {
     setWalletAddress(newWalletAddress);
   };
 
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            walletAddress ? (
-              <Navigate to="/home" replace />
-            ) : (
-              <Login onLoginSuccess={handleLoginSuccess} />
-            )
-          }
-        />
+  const pathname = location.pathname;
 
-        <Route
-          path="/home"
-          element={
-            <ProtectedLayout
-              walletAddress={walletAddress}
-              onConnectWallet={handleConnectWallet}
-              onDisconnectWallet={handleDisconnectWallet}
-              onResetMint={handleResetMint}
-              onRevealAll={handleRevealAll}
-              onResetReveal={handleResetReveal}
-            >
-              <Home events={events} />
-            </ProtectedLayout>
-          }
-        />
+  let pageContent = null;
 
-        <Route
-          path="/participate/:slug"
-          element={
-            <ProtectedLayout
-              walletAddress={walletAddress}
-              onConnectWallet={handleConnectWallet}
-              onDisconnectWallet={handleDisconnectWallet}
-              onResetMint={handleResetMint}
-              onRevealAll={handleRevealAll}
-              onResetReveal={handleResetReveal}
-            >
-              <Participate walletAddress={walletAddress} events={events} />
-            </ProtectedLayout>
-          }
-        />
+  if (pathname === "/" || pathname === "/login") {
+    pageContent = walletAddress ? (
+      <Navigate to="/home" replace />
+    ) : (
+      <Login onLoginSuccess={handleLoginSuccess} />
+    );
+  } else if (pathname === "/home") {
+    pageContent = (
+      <ProtectedLayout
+        walletAddress={walletAddress}
+        onConnectWallet={handleConnectWallet}
+        onDisconnectWallet={handleDisconnectWallet}
+        onResetMint={handleResetMint}
+        onRevealAll={handleRevealAll}
+        onResetReveal={handleResetReveal}
+      >
+        <Home events={events} />
+      </ProtectedLayout>
+    );
+  } else if (pathname.startsWith("/participate/")) {
+    pageContent = (
+      <ProtectedLayout
+        walletAddress={walletAddress}
+        onConnectWallet={handleConnectWallet}
+        onDisconnectWallet={handleDisconnectWallet}
+        onResetMint={handleResetMint}
+        onRevealAll={handleRevealAll}
+        onResetReveal={handleResetReveal}
+      >
+        <Participate walletAddress={walletAddress} events={events} />
+      </ProtectedLayout>
+    );
+  } else if (pathname === "/draw-status") {
+    pageContent = (
+      <ProtectedLayout
+        walletAddress={walletAddress}
+        onConnectWallet={handleConnectWallet}
+        onDisconnectWallet={handleDisconnectWallet}
+        onResetMint={handleResetMint}
+        onRevealAll={handleRevealAll}
+        onResetReveal={handleResetReveal}
+      >
+        <DrawStatus events={events} revealState={revealState} />
+      </ProtectedLayout>
+    );
+  } else if (pathname === "/my-wallet") {
+    pageContent = (
+      <ProtectedLayout
+        walletAddress={walletAddress}
+        onConnectWallet={handleConnectWallet}
+        onDisconnectWallet={handleDisconnectWallet}
+        onResetMint={handleResetMint}
+        onRevealAll={handleRevealAll}
+        onResetReveal={handleResetReveal}
+      >
+        <MyWallet revealState={revealState} />
+      </ProtectedLayout>
+    );
+  } else if (pathname === "/puzzle-exchange") {
+    pageContent = (
+      <ProtectedLayout
+        walletAddress={walletAddress}
+        onConnectWallet={handleConnectWallet}
+        onDisconnectWallet={handleDisconnectWallet}
+        onResetMint={handleResetMint}
+        onRevealAll={handleRevealAll}
+        onResetReveal={handleResetReveal}
+      >
+        <PuzzleExchange />
+      </ProtectedLayout>
+    );
+  } else {
+    pageContent = <Navigate to="/home" replace />;
+  }
 
-        <Route
-          path="/draw-status"
-          element={
-            <ProtectedLayout
-              walletAddress={walletAddress}
-              onConnectWallet={handleConnectWallet}
-              onDisconnectWallet={handleDisconnectWallet}
-              onResetMint={handleResetMint}
-              onRevealAll={handleRevealAll}
-              onResetReveal={handleResetReveal}
-            >
-              <DrawStatus events={events} revealState={revealState} />
-            </ProtectedLayout>
-          }
-        />
-
-        <Route
-          path="/my-wallet"
-          element={
-            <ProtectedLayout
-              walletAddress={walletAddress}
-              onConnectWallet={handleConnectWallet}
-              onDisconnectWallet={handleDisconnectWallet}
-              onResetMint={handleResetMint}
-              onRevealAll={handleRevealAll}
-              onResetReveal={handleResetReveal}
-            >
-              <MyWallet revealState={revealState} />
-            </ProtectedLayout>
-          }
-        />
-
-        <Route
-          path="/puzzle-exchange"
-          element={
-            <ProtectedLayout
-              walletAddress={walletAddress}
-              onConnectWallet={handleConnectWallet}
-              onDisconnectWallet={handleDisconnectWallet}
-              onResetMint={handleResetMint}
-              onRevealAll={handleRevealAll}
-              onResetReveal={handleResetReveal}
-            >
-              <PuzzleExchange />
-            </ProtectedLayout>
-          }
-        />
-
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
-  );
+  return pageContent;
 }
 
 export default App;
