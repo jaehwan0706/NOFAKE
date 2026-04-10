@@ -1,12 +1,12 @@
 import { NavLink } from "react-router-dom";
 
 const menus = [
-  { to: "/", label: "메인 홈" },
+  { to: "/home", label: "메인 홈" },
   { to: "/draw-status", label: "드로우 현황" },
   { to: "/my-wallet", label: "내 지갑" },
   { to: "/puzzle-exchange", label: "퍼즐 교환소" },
 //   { to: "/transparency", label: "투명성 센터" },
-  { to: "/event-overview", label: "이벤트 개요" },
+ // { to: "/event-overview", label: "이벤트 개요" },
 ];
 
 export default function Navbar() {

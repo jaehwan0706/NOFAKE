@@ -1,10 +1,25 @@
 import { Link } from "react-router-dom";
-import mockHome from "../data/mockHome";
-import mockEvents from "../data/mockEvents";
+import { useState } from "react";
 
-export default function Home() {
-  const { rewards, puzzleExchange } = mockHome;
+function EventCardImage({ thumbnail, title }) {
+  const [hasError, setHasError] = useState(false);
 
+  if (!thumbnail || hasError) {
+    return null;
+  }
+
+  return (
+    <div className="event-poster-image">
+      <img
+        src={thumbnail}
+        alt={title}
+        onError={() => setHasError(true)}
+      />
+    </div>
+  );
+}
+
+export default function Home({ events = [] }) {
   return (
     <section className="home-page">
       <div className="page-heading">
@@ -16,8 +31,13 @@ export default function Home() {
         <h3 className="section-title">진행중인 이벤트</h3>
 
         <div className="ongoing-events-grid">
-          {mockEvents.map((event) => (
+          {events.map((event) => (
             <div key={event.id} className="event-poster-card">
+              <EventCardImage
+                thumbnail={event.thumbnail}
+                title={event.title}
+              />
+
               <span className="event-badge">진행 중</span>
 
               <div className="event-poster-content">
@@ -27,13 +47,6 @@ export default function Home() {
 
               <div className="button-row">
                 <Link
-                  to={`/event-overview/${event.slug}`}
-                  className="half-btn link-btn"
-                >
-                  이벤트 개요 보기
-                </Link>
-
-                <Link
                   to={`/participate/${event.slug}`}
                   className="half-btn link-btn"
                 >
@@ -42,76 +55,6 @@ export default function Home() {
               </div>
             </div>
           ))}
-        </div>
-      </section>
-
-      <section className="home-bottom-grid">
-        <div className="home-card">
-          <h3 className="card-title">내 보상</h3>
-
-          <div className="reward-box">
-            <div className="info-row">
-              <span>퍼즐 조각</span>
-              <span>
-                {rewards.puzzleCount} / {rewards.puzzleGoal}
-              </span>
-            </div>
-
-            <div className="progress-track">
-              <div
-                className="progress-fill purple"
-                style={{
-                  width: `${(rewards.puzzleCount / rewards.puzzleGoal) * 100}%`,
-                }}
-              />
-            </div>
-          </div>
-
-          {rewards.hasPrePurchase && (
-            <div className="prepurchase-box">
-              <strong>선구매권</strong>
-              <p>{rewards.prePurchaseText}</p>
-            </div>
-          )}
-          
-          <div className="button-row">
-            <Link to="/my-wallet" className="half-btn link-btn">
-              내 지갑 보기
-            </Link>
-            <Link to="/puzzle-exchange" className="half-btn link-btn">
-                교환소 이동
-            </Link>
-          </div>
-        </div>
-
-        <div className="home-card">
-          <h3 className="card-title">퍼즐 교환소</h3>
-
-          <div className="puzzle-big-number">
-            <span>현재 보유 퍼즐 조각</span>
-            <strong>
-              {puzzleExchange.currentPieces} / {puzzleExchange.targetPieces}
-            </strong>
-          </div>
-
-          <div className="progress-track">
-            <div
-              className="progress-fill gradient"
-              style={{
-                width: `${
-                  (puzzleExchange.currentPieces / puzzleExchange.targetPieces) * 100
-                }%`,
-              }}
-            />
-          </div>
-
-          <div className="reward-preview">
-            <span className="info-label">교환 가능 보상</span>
-            <strong>{puzzleExchange.rewardName}</strong>
-          </div>
-
-          <div className="disabled-box">{puzzleExchange.neededText}</div>
-          <p className="helper-text">{puzzleExchange.guideText}</p>
         </div>
       </section>
     </section>

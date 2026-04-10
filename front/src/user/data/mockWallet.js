@@ -1,65 +1,98 @@
+import { normalizeTicketMetadata } from "../utils/normalizeTicketMetadata";
 
-///////
+const rawTicketMetadataList = [
+  {
+    name: "NOFAKE Mystery Ticket",
+    description:
+      "어떤 상품이 들어있을까요? 주최자의 리빌(Reveal)을 기다려주세요!",
+    image:
+      "https://nofake.s3.ap-northeast-2.amazonaws.com/images/pre-reveal/unrevealed.png",
+    attributes: [
+      { trait_type: "Event Name", value: "나이키X백석 콜라보이벤트" },
+      { trait_type: "Status", value: "Unrevealed" },
+    ],
+  },
+  {
+    name: "NOFAKE #1",
+    description:
+      "주최자도 개입할 수 없는 투명한 추첨 시스템, NOFAKE를 통한 나이키X백석대 콜라보 이벤트 당첨 티켓입니다.",
+    image:
+      "https://nofake.s3.ap-northeast-2.amazonaws.com/images/post-reveal/1.png",
+    attributes: [
+      { trait_type: "Event Name", value: "나이키X백석대 콜라보이벤트" },
+      { trait_type: "Issuer", value: "NIKE X BAEKSEOK" },
+      { trait_type: "Contract Address", value: "" },
+      { display_type: "date", trait_type: "Minted Date", value: 0 },
+      { trait_type: "Status", value: "Revealed" },
+      { trait_type: "Winning Prize", value: "1등: 나이키 한정판 선구매권" },
+      { trait_type: "Provenance Hash", value: "" },
+      { trait_type: "Shoe Serial Number", value: "SN-XXXX-XXXX" },
+    ],
+  },
+  {
+    name: "NOFAKE #2",
+    description:
+      "주최자도 개입할 수 없는 투명한 추첨 시스템, NOFAKE를 통한 나이키X백석대 콜라보 이벤트 당첨 티켓입니다.",
+    image:
+      "https://nofake.s3.ap-northeast-2.amazonaws.com/images/post-reveal/2.png",
+    attributes: [
+      { trait_type: "Event Name", value: "나이키X백석대 콜라보이벤트" },
+      { trait_type: "Issuer", value: "NIKE X BAEKSEOK" },
+      { trait_type: "Contract Address", value: "" },
+      { display_type: "date", trait_type: "Minted Date", value: 0 },
+      { trait_type: "Status", value: "Revealed" },
+      { trait_type: "Winning Prize", value: "2등: 스니커즈 퍼즐 조각" },
+      { trait_type: "Provenance Hash", value: "" },
+      { display_type: "date", trait_type: "Ticket Expiration", value: 0 },
+    ],
+  },
+  {
+    name: "NOFAKE #8",
+    description:
+      "주최자도 개입할 수 없는 투명한 추첨 시스템, NOFAKE를 통한 나이키X백석대 콜라보 이벤트 참여 기념 티켓입니다.",
+    image:
+      "https://nofake.s3.ap-northeast-2.amazonaws.com/images/post-reveal/gg.png",
+    attributes: [
+      { trait_type: "Event Name", value: "나이키X백석대 콜라보이벤트" },
+      { trait_type: "Issuer", value: "NIKE X BAEKSEOK" },
+      { trait_type: "Contract Address", value: "" },
+      { display_type: "date", trait_type: "Minted Date", value: 0 },
+      { trait_type: "Status", value: "Revealed" },
+      { trait_type: "Winning Prize", value: "꽝: 일반 기념 티켓" },
+      { trait_type: "Provenance Hash", value: "" },
+    ],
+  },
+];
+
+const tickets = rawTicketMetadataList.map((metadata, index) =>
+  normalizeTicketMetadata(metadata, {
+    id: index + 1,
+    eventSlug: "baekseok-collab",
+  })
+);
 
 const mockWallet = {
   summary: {
-    ticketCount: 2,
+    ticketCount: tickets.length,
     puzzleCount: 3,
-    prePurchaseCount: 1,
   },
 
-  tickets: [
-    {
-      id: 1,
-      title: "티켓 #1",
-      image: "https://placehold.co/600x400/111827/FFFFFF?text=NFT+Ticket+1",
-      contractAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0EbDb",
-      eventName: "4월 이벤트",
-      mintedDate: "2026-04-01",
-      expiryDate: "2026-04-14까지 사용 가능",
-      status: "미공개",
-      reward: "-",
-      usageGuide: "결과 공개 후 내 지갑에서 당첨 여부를 확인할 수 있습니다.",
-    },
-    {
-      id: 2,
-      title: "티켓 #2",
-      image: "https://placehold.co/600x400/1f2937/FFFFFF?text=NFT+Ticket+2",
-      contractAddress: "0x8e12b7A5d3f6C2B12aB9424A95dD8E1F8d5Bc123",
-      eventName: "3월 이벤트",
-      mintedDate: "2026-03-15",
-      expiryDate: "2026-03-29까지 사용 가능",
-      status: "당첨",
-      reward: "선구매권",
-      usageGuide:
-        "유효기간 내 선구매권을 사용하면 상품 결제가 가능하며, 사용 후에는 더 이상 이용할 수 없습니다.",
-    },
-  ],
+  tickets,
 
   puzzles: [
     {
       id: 1234,
       type: "퍼즐 조각",
-      rarity: "희귀",
     },
     {
       id: 2345,
       type: "퍼즐 조각",
-      rarity: "일반",
     },
     {
       id: 3456,
       type: "퍼즐 조각",
-      rarity: "희귀",
     },
   ],
-
-  prePurchase: {
-    title: "특별 NFT 선구매권",
-    usable: true,
-    expiryDate: "2026-06-30",
-    buttonText: "사용하기",
-  },
 };
 
 export default mockWallet;

@@ -1,36 +1,86 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import DrawResultModal from "../components/DrawResultModal";
 import mockDraw from "../data/mockDraw";
 
-export default function DrawStatus() {
-  const { isRevealed, summary, products, liveEntries } = mockDraw;
+export default function DrawStatus({ events = [] }) {
   const [isResultOpen, setIsResultOpen] = useState(false);
+  const [selectedEventSlug, setSelectedEventSlug] = useState(mockDraw[0]?.slug || "");
 
-  const drawResult = mockDraw.result || "first";
+  const selectedDraw = useMemo(() => {
+    return mockDraw.find((event) => event.slug === selectedEventSlug) || mockDraw[0];
+  }, [selectedEventSlug]);
+
+  const selectedEvent = useMemo(() => {
+    return events.find((event) => event.slug === selectedEventSlug) || events[0];
+  }, [events, selectedEventSlug]);
+
+  if (!selectedDraw || !selectedEvent) {
+    return (
+      <section className="draw-page">
+        <div className="page-heading">
+          <h2>드로우 현황</h2>
+          <p>표시할 이벤트가 없습니다.</p>
+        </div>
+      </section>
+    );
+  }
+
+  const { products, result, eventName, banner } = selectedDraw;
+  const { status } = selectedEvent;
+
+  const isRevealed = status?.isRevealed ?? false;
+  const participantCount = status?.participants ?? 0;
+  const maxParticipants = status?.maxParticipants ?? 0;
+  const remainingTime = status?.remainingTime ?? "-";
+  const progressPercent =
+    status?.progress ??
+    (maxParticipants > 0
+      ? Math.min(Math.round((participantCount / maxParticipants) * 100), 100)
+      : 0);
 
   const bannerTitle = isRevealed
-    ? "이벤트 당첨 결과 확인"
+    ? banner?.title || "이벤트 당첨 결과 확인"
     : "이벤트 결과 공개 대기 중";
 
   const bannerDescription = isRevealed
-    ? "추첨이 완료되었습니다. 내 지갑에서 당첨 결과를 확인하세요"
-    : "관리자 리빌 이후 당첨 결과를 확인할 수 있습니다.";
+    ? banner?.revealedDescription ||
+      "추첨이 완료되었습니다. 내 지갑에서 당첨 결과를 확인하세요."
+    : banner?.waitingDescription ||
+      "관리자 리빌 이후 당첨 결과를 확인할 수 있습니다.";
 
   const bannerButtonText = isRevealed
-    ? "당첨 확인하기"
+    ? banner?.revealedButtonText || "당첨 확인하기"
     : "결과 공개 대기 중";
 
   return (
     <section className="draw-page">
       <div className="page-heading">
         <h2>드로우 현황</h2>
-        <p>실시간 응모자 수와 상품 정보를 확인하세요</p>
+        <p>이벤트 참여 현황과 상품 정보를 확인하세요</p>
+      </div>
+
+      <div className="draw-event-tabs">
+        {mockDraw.map((event) => (
+          <button
+            key={event.slug}
+            type="button"
+            className={`draw-event-tab ${selectedEventSlug === event.slug ? "active" : ""}`}
+            onClick={() => {
+              setSelectedEventSlug(event.slug);
+              setIsResultOpen(false);
+            }}
+          >
+            {event.eventName}
+          </button>
+        ))}
+      </div>
+
+      <div className="selected-event-label">
+        <strong>{eventName}</strong>
       </div>
 
       <div className={`draw-banner ${isRevealed ? "revealed" : "waiting"}`}>
-        <div className="draw-banner-icon">
-          {isRevealed ? "✓" : "⏳"}
-        </div>
+        <div className="draw-banner-icon">{isRevealed ? "✓" : "⏳"}</div>
         <h3>{bannerTitle}</h3>
         <p>{bannerDescription}</p>
 
@@ -44,23 +94,6 @@ export default function DrawStatus() {
         >
           {bannerButtonText}
         </button>
-      </div>
-
-      <div className="draw-summary-grid">
-        <div className="draw-summary-card">
-          <span className="summary-label">총 응모자</span>
-          <strong>{summary.participants}명</strong>
-        </div>
-
-        <div className="draw-summary-card">
-          <span className="summary-label">총 상품 수</span>
-          <strong>{summary.totalProducts}개</strong>
-        </div>
-
-        <div className="draw-summary-card">
-          <span className="summary-label">남은 시간</span>
-          <strong>{summary.remainingTime}</strong>
-        </div>
       </div>
 
       <div className="draw-content-grid">
@@ -86,26 +119,47 @@ export default function DrawStatus() {
         <div className="home-card">
           <h3 className="card-title">실시간 참여 현황</h3>
 
-          <div className="live-entry-list">
-            {liveEntries.map((entry, index) => (
-              <div key={index} className="live-entry-item">
-                <div>
-                  <strong>{entry.address}</strong>
-                  <p>{entry.time}</p>
-                </div>
-                <span className="entry-amount">{entry.amount}</span>
+          <div className="draw-live-status-card">
+            <div className="draw-live-status-top">
+              <div className="draw-live-status-item">
+                <span className="summary-label">참여자 수</span>
+                <strong>{participantCount}명</strong>
               </div>
-            ))}
-          </div>
 
-          <p className="helper-text center-text">실시간으로 업데이트됩니다</p>
+              <div className="draw-live-status-item">
+                <span className="summary-label">모집 인원</span>
+                <strong>{maxParticipants}명</strong>
+              </div>
+
+              <div className="draw-live-status-item">
+                <span className="summary-label">남은 시간</span>
+                <strong>{remainingTime}</strong>
+              </div>
+            </div>
+
+            <div className="draw-live-progress-header">
+              <span>
+                {participantCount} / {maxParticipants} 참여 중
+              </span>
+              <strong>{progressPercent}%</strong>
+            </div>
+
+            <div className="draw-live-progress-bar">
+              <div
+                className="draw-live-progress-fill"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            <p className="helper-text center-text">실시간으로 업데이트됩니다</p>
+          </div>
         </div>
       </div>
 
       <DrawResultModal
         isOpen={isResultOpen}
         onClose={() => setIsResultOpen(false)}
-        result={drawResult}
+        result={result}
       />
     </section>
   );
