@@ -238,6 +238,12 @@
   font-size: 14px;
 }
 
+.kpi-footnote {
+  margin-top: 12px;
+  color: #fca5a5;
+  font-size: 13px;
+}
+
 .participant-chart-wrap {
   padding: 20px 22px;
   border-radius: 22px;

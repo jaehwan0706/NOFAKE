@@ -14,7 +14,8 @@ import {
 import "./AdminDashboard.css";
 
 const RAFFLE_STORAGE_KEY = "nofake_admin_raffles";
-const initialParticipantSeries = [11240, 11480, 11620, 11810, 11940, 12110, 12482];
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:3001";
+const initialParticipantSeries = Array(7).fill(0);
 const toLocalInput = (date) => {
   const pad = (value) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -141,6 +142,7 @@ const normalizeSearchValue = (value) =>
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [participantSeries, setParticipantSeries] = useState(initialParticipantSeries);
+  const [participantFetchError, setParticipantFetchError] = useState("");
   const [raffles, setRaffles] = useState(loadStoredRaffles);
   const [logs, setLogs] = useState(defaultLogs);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -151,16 +153,50 @@ const AdminDashboard = () => {
   const [rangeFilter, setRangeFilter] = useState("30일");
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setParticipantSeries((prev) => {
-        const lastValue = prev[prev.length - 1];
-        const delta = Math.floor(Math.random() * 90) - 10;
-        const nextValue = Math.max(lastValue + delta, 10000);
-        return [...prev.slice(1), nextValue];
-      });
-    }, 3000);
+    let isMounted = true;
 
-    return () => clearInterval(id);
+    const fetchParticipantStats = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/admin/contract-stats`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "Failed to load contract stats");
+        }
+
+        const nextValue = Number(data.totalParticipants || 0);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setParticipantFetchError("");
+        setParticipantSeries((prev) => {
+          const hasLoadedValue = prev.some((value) => value !== 0);
+
+          if (!hasLoadedValue) {
+            return Array(prev.length).fill(nextValue);
+          }
+
+          return [...prev.slice(1), nextValue];
+        });
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        console.error("Failed to fetch contract participant stats:", error);
+        setParticipantFetchError(error.message || "Failed to load contract stats");
+      }
+    };
+
+    fetchParticipantStats();
+    const id = setInterval(fetchParticipantStats, 15000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(id);
+    };
   }, []);
 
   useEffect(() => {
@@ -384,6 +420,9 @@ const AdminDashboard = () => {
               </div>
             </div>
             <ParticipantTrendChart data={participantSeries} />
+            {participantFetchError && (
+              <p className="kpi-footnote">NoFake.sol totalSupply 조회 실패: {participantFetchError}</p>
+            )}
           </article>
 
           <article className="kpi-card">
