@@ -58,7 +58,7 @@ export default function Participate({ walletAddress, events = [] }) {
       setIsMinting(true);
 
       await mintMysteryBox({
-        eventSlug: event.slug,
+        raffleId: event.id,
         walletAddress,
       });
 
@@ -141,21 +141,6 @@ export default function Participate({ walletAddress, events = [] }) {
 
               <p className="mint-card-title">{event.mintTitle}</p>
               <p className="mint-card-desc">{event.mintDescription}</p>
-
-              <div className="mint-cost-box">
-                <div>
-                  <span>민팅 비용</span>
-                  <strong>{event.mintPrice}</strong>
-                </div>
-                <div>
-                  <span>가스비 예상</span>
-                  <strong>{event.gasEstimate}</strong>
-                </div>
-                <div>
-                  <span>총 비용</span>
-                  <strong>{event.totalCost}</strong>
-                </div>
-              </div>
 
               <button
                 type="button"

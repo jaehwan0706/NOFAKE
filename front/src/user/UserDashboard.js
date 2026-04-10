@@ -153,6 +153,7 @@ function UserDashboard() {
     const parsed = saved ? JSON.parse(saved) : {};
     return Object.keys(parsed).filter((key) => parsed[key]);
   });
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -181,13 +182,14 @@ function UserDashboard() {
     return () => {
       isMounted = false;
     };
-  }, [revealState]);
+  }, [revealState, refreshKey]);
 
   useEffect(() => {
     const syncMintedEventIds = () => {
       const saved = localStorage.getItem("mintedEventsById");
       const parsed = saved ? JSON.parse(saved) : {};
       setMintedEventIds(Object.keys(parsed).filter((key) => parsed[key]));
+      setRefreshKey((prev) => prev + 1);
     };
 
     syncMintedEventIds();
