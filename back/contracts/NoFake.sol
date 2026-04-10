@@ -30,9 +30,6 @@ contract NoFakePlatform is ERC721, Ownable {
         string memory _unrevealedURI
     ) ERC721("NoFake Raffle Platform", "NFP") {
         unrevealedURI = _unrevealedURI;
-        // 현재 시간 기준 유효기간 계산 (1일 = 86400초)
-        PRE_PURCHASE_EXPIRY = block.timestamp + (_preExpiryDays * 86400);
-        PUZZLE_EXPIRY = block.timestamp + (_puzzleMonth * 30 * 86400);
     }
 
     // 관리자 기능: 마감 및 봉인
@@ -92,7 +89,6 @@ contract NoFakePlatform is ERC721, Ownable {
             _burn(tokenIds[i]); 
         }
         totalSupply++;
-        hasParticipated[_raffleId][_to] = true;
-        _safeMint(_to, totalSupply);
+        _safeMint(msg.sender, totalSupply);
     }
 }

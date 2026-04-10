@@ -1,20 +1,31 @@
 import { Link } from "react-router-dom";
 
-export default function Header() {
+function formatWalletAddress(address) {
+  if (!address) return "";
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+export default function Header({ walletAddress }) {
+  const isConnected = Boolean(walletAddress);
+
   return (
     <header className="header">
       <div className="header-left">
-        <Link to="/" className="logo-link">
+        <Link to="/home" className="logo-link">
           <h1 className="logo">NoFAKE</h1>
         </Link>
         <p className="subtitle">공정하고 투명한 이벤트에 참여하세요</p>
       </div>
 
       <div className="header-actions">
-        <Link to="/participate" className="primary-btn">
-          참여하기
-        </Link>
-        <button className="wallet-btn">지갑 연결됨</button>
+        {isConnected && (
+          <div className="wallet-status connected">
+            <span className="wallet-status-label">지갑 연동됨</span>
+            <strong className="wallet-status-address">
+              {formatWalletAddress(walletAddress)}
+            </strong>
+          </div>
+        )}
       </div>
     </header>
   );

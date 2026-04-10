@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route} from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // 우리가 만든 컴포넌트들
 import NikeWebsite from './Nike'           // 1단계: 나이키 홈 페이지 
@@ -31,7 +31,12 @@ function App() {
           <Route path="/auth/kakao/callback" element={<KakaoCallback />} />
 
           {/* [4단계] 목적지: 사용자 대시보드 */}
-          <Route path="/dashboard/*" element={<UserDashboard />} />
+          <Route path="/dashboard/*" element={<Navigate to="/home" replace />} />
+          <Route path="/home" element={<UserDashboard />} />
+          <Route path="/participate/:slug" element={<UserDashboard />} />
+          <Route path="/draw-status" element={<UserDashboard />} />
+          <Route path="/my-wallet" element={<UserDashboard />} />
+          <Route path="/puzzle-exchange" element={<UserDashboard />} />
 
           {/* 관리자 흐름 */}
           {/* 1. 전체 상황판 (통계 및 목록) */}
