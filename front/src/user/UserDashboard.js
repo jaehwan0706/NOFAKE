@@ -4,7 +4,7 @@ import "./UserDashboard.css";
 import Header from "./components/Header";
 import Navbar from "./components/Navbar";
 
-import Login from "./pages/Login";
+import Login from "./pages/KakaoLogin";
 import Home from "./pages/Home";
 import Participate from "./pages/Participate";
 import DrawStatus from "./pages/DrawStatus";
