@@ -1,23 +1,99 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom'; // ✅ 이동을 위해 추가
-import { Users, Ticket, CheckCircle, Settings } from 'lucide-react';
-import './AdminDashboard.css';
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Users, Ticket, CheckCircle, Settings } from "lucide-react";
+import "./AdminDashboard.css";
+
+const initialParticipantSeries = [11240, 11480, 11620, 11810, 11940, 12110, 12482];
+
+const raffleList = [
+  { id: 1, name: "나이키 x 트래비스 스캇 조던 1", status: "진행 중", participants: 8432 },
+  { id: 2, name: "에어맥스 90 골프", status: "진행 중", participants: 4050 },
+];
+
+const ParticipantTrendChart = ({ data }) => {
+  const width = 100;
+  const height = 44;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = Math.max(max - min, 1);
+
+  const points = data
+    .map((value, index) => {
+      const x = (index / (data.length - 1)) * width;
+      const y = height - ((value - min) / range) * height;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="participant-chart-wrap">
+      <div className="participant-chart-meta">
+        <span>최근 유입 추이</span>
+        <strong>실시간</strong>
+      </div>
+      <svg className="participant-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="participantLine" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#7c73ff" />
+            <stop offset="100%" stopColor="#4f46e5" />
+          </linearGradient>
+          <linearGradient id="participantArea" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="rgba(79, 70, 229, 0.45)" />
+            <stop offset="100%" stopColor="rgba(79, 70, 229, 0.02)" />
+          </linearGradient>
+        </defs>
+        <polyline
+          fill="url(#participantArea)"
+          stroke="none"
+          points={`0,${height} ${points} ${width},${height}`}
+        />
+        <polyline
+          fill="none"
+          stroke="url(#participantLine)"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={points}
+        />
+      </svg>
+      <div className="participant-chart-labels">
+        <span>6분 전</span>
+        <span>지금</span>
+      </div>
+    </div>
+  );
+};
 
 const AdminDashboard = () => {
-  const navigate = useNavigate(); // ✅ 네비게이트 함수 생성
+  const navigate = useNavigate();
+  const [participantSeries, setParticipantSeries] = useState(initialParticipantSeries);
 
-  // 통계 데이터
-  const stats = [
-    { title: '총 참여자', count: '12,482', icon: <Users />, color: '#4F46E5' },
-    { title: '진행 중인 래플', count: '3', icon: <Ticket />, color: '#10B981' },
-    { title: '완료된 추첨', count: '24', icon: <CheckCircle />, color: '#F59E0B' },
-  ];
+  useEffect(() => {
+    const id = setInterval(() => {
+      setParticipantSeries((prev) => {
+        const lastValue = prev[prev.length - 1];
+        const delta = Math.floor(Math.random() * 90) - 10;
+        const nextValue = Math.max(lastValue + delta, 10000);
+        return [...prev.slice(1), nextValue];
+      });
+    }, 3000);
 
-  // 래플 목록 데이터
-  const raffleList = [
-    { id: 1, name: '나이키 x 트래비스 스캇 조던 1', status: '진행 중', participants: 8432 },
-    { id: 2, name: '에어맥스 90 골프', status: '진행 중', participants: 4050 },
-  ];
+    return () => clearInterval(id);
+  }, []);
+
+  const stats = useMemo(
+    () => [
+      {
+        title: "총 참여자",
+        count: participantSeries[participantSeries.length - 1].toLocaleString(),
+        icon: <Users />,
+        color: "#4F46E5",
+      },
+      { title: "진행 중인 래플", count: "3", icon: <Ticket />, color: "#10B981" },
+      { title: "완료된 추첨", count: "24", icon: <CheckCircle />, color: "#F59E0B" },
+    ],
+    [participantSeries]
+  );
 
   return (
     <div className="admin-container">
@@ -26,36 +102,37 @@ const AdminDashboard = () => {
         <p>서비스 전체 현황을 실시간으로 모니터링합니다.</p>
       </header>
 
-      {/* 1. 상단 통계 카드 */}
       <div className="stats-grid">
         {stats.map((item, idx) => (
-          <div key={idx} className="stat-card">
-            <div className="stat-icon" style={{ backgroundColor: item.color }}>{item.icon}</div>
-            <div className="stat-info">
-              <span>{item.title}</span>
-              <h3>{item.count}명</h3>
+          <div key={idx} className={`stat-card${idx === 0 ? " stat-card--participants" : ""}`}>
+            <div className="stat-card-top">
+              <div className="stat-icon" style={{ backgroundColor: item.color }}>
+                {item.icon}
+              </div>
+              <div className="stat-info">
+                <span>{item.title}</span>
+                <h3>{item.count}명</h3>
+              </div>
             </div>
+            {idx === 0 && <ParticipantTrendChart data={participantSeries} />}
           </div>
         ))}
       </div>
 
-      {/* 2. 래플 관리 목록 */}
       <section className="raffle-list-section">
         <h2>래플 관리 목록</h2>
         <div className="raffle-table">
           <div className="table-header">
-            <span>제품명</span>
+            <span>상품명</span>
             <span>상태</span>
             <span>참여인원</span>
             <span>관리</span>
           </div>
-          {raffleList.map(raffle => (
+          {raffleList.map((raffle) => (
             <div key={raffle.id} className="table-row">
               <span className="name">{raffle.name}</span>
               <span className="status active">{raffle.status}</span>
               <span>{raffle.participants.toLocaleString()}명</span>
-              
-              {/* ✅ 버튼 클릭 시 특정 래플의 상세 관리 페이지(/admin/raffle/1)로 이동 */}
               <button className="btn-manage" onClick={() => navigate(`/admin/raffle/${raffle.id}`)}>
                 <Settings size={16} /> 관리하기
               </button>
