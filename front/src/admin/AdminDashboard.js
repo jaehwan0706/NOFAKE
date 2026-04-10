@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Ticket, CheckCircle, Settings } from "lucide-react";
+import { Plus, Settings, Ticket, Users } from "lucide-react";
 import "./AdminDashboard.css";
 
+const RAFFLE_STORAGE_KEY = "nofake_admin_raffles";
 const initialParticipantSeries = [11240, 11480, 11620, 11810, 11940, 12110, 12482];
-
-const raffleList = [
+const defaultRaffles = [
   { id: 1, name: "나이키 x 트래비스 스캇 조던 1", status: "진행 중", participants: 8432 },
   { id: 2, name: "에어맥스 90 골프", status: "진행 중", participants: 4050 },
 ];
@@ -42,11 +42,7 @@ const ParticipantTrendChart = ({ data }) => {
             <stop offset="100%" stopColor="rgba(79, 70, 229, 0.02)" />
           </linearGradient>
         </defs>
-        <polyline
-          fill="url(#participantArea)"
-          stroke="none"
-          points={`0,${height} ${points} ${width},${height}`}
-        />
+        <polyline fill="url(#participantArea)" stroke="none" points={`0,${height} ${points} ${width},${height}`} />
         <polyline
           fill="none"
           stroke="url(#participantLine)"
@@ -64,9 +60,29 @@ const ParticipantTrendChart = ({ data }) => {
   );
 };
 
+const loadStoredRaffles = () => {
+  try {
+    const raw = window.localStorage.getItem(RAFFLE_STORAGE_KEY);
+    if (!raw) return defaultRaffles;
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return defaultRaffles;
+    }
+
+    return parsed;
+  } catch (error) {
+    console.error("Failed to load raffles:", error);
+    return defaultRaffles;
+  }
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [participantSeries, setParticipantSeries] = useState(initialParticipantSeries);
+  const [raffles, setRaffles] = useState(loadStoredRaffles);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [raffleName, setRaffleName] = useState("");
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -81,65 +97,126 @@ const AdminDashboard = () => {
     return () => clearInterval(id);
   }, []);
 
-  const stats = useMemo(
-    () => [
-      {
-        title: "총 참여자",
-        count: participantSeries[participantSeries.length - 1].toLocaleString(),
-        icon: <Users />,
-        color: "#4F46E5",
-      },
-      { title: "진행 중인 래플", count: "3", icon: <Ticket />, color: "#10B981" },
-      { title: "완료된 추첨", count: "24", icon: <CheckCircle />, color: "#F59E0B" },
-    ],
-    [participantSeries]
+  useEffect(() => {
+    window.localStorage.setItem(RAFFLE_STORAGE_KEY, JSON.stringify(raffles));
+  }, [raffles]);
+
+  const activeRaffleCount = useMemo(
+    () => raffles.filter((raffle) => raffle.status !== "종료").length,
+    [raffles]
   );
+
+  const totalParticipants = participantSeries[participantSeries.length - 1].toLocaleString();
+
+  const handleAddRaffle = () => {
+    const trimmedName = raffleName.trim();
+
+    if (!trimmedName) {
+      return;
+    }
+
+    const nextRaffle = {
+      id: Date.now(),
+      name: trimmedName,
+      status: "설정 전",
+      participants: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    setRaffles((prev) => [nextRaffle, ...prev]);
+    setRaffleName("");
+    setIsAddOpen(false);
+  };
 
   return (
     <div className="admin-container">
-      <header className="admin-header">
-        <h1>NOFAKE 관리자 상황판</h1>
-        <p>서비스 전체 현황을 실시간으로 모니터링합니다.</p>
-      </header>
+      <div className="admin-shell">
+        <header className="admin-header">
+          <h1>NOFAKE 관리자 대시보드</h1>
+          <p>서비스 전체 현황을 실시간으로 모니터링합니다.</p>
+        </header>
 
-      <div className="stats-grid">
-        {stats.map((item, idx) => (
-          <div key={idx} className={`stat-card${idx === 0 ? " stat-card--participants" : ""}`}>
+        <div className="dashboard-stack">
+          <section className="stat-card stat-card--participants">
             <div className="stat-card-top">
-              <div className="stat-icon" style={{ backgroundColor: item.color }}>
-                {item.icon}
+              <div className="stat-icon" style={{ backgroundColor: "#4F46E5" }}>
+                <Users />
               </div>
               <div className="stat-info">
-                <span>{item.title}</span>
-                <h3>{item.count}명</h3>
+                <span>총 참여자</span>
+                <h3>{totalParticipants}명</h3>
               </div>
             </div>
-            {idx === 0 && <ParticipantTrendChart data={participantSeries} />}
-          </div>
-        ))}
-      </div>
+            <ParticipantTrendChart data={participantSeries} />
+          </section>
 
-      <section className="raffle-list-section">
-        <h2>래플 관리 목록</h2>
-        <div className="raffle-table">
-          <div className="table-header">
-            <span>상품명</span>
-            <span>상태</span>
-            <span>참여인원</span>
-            <span>관리</span>
-          </div>
-          {raffleList.map((raffle) => (
-            <div key={raffle.id} className="table-row">
-              <span className="name">{raffle.name}</span>
-              <span className="status active">{raffle.status}</span>
-              <span>{raffle.participants.toLocaleString()}명</span>
-              <button className="btn-manage" onClick={() => navigate(`/admin/raffle/${raffle.id}`)}>
-                <Settings size={16} /> 관리하기
+          <section className="stat-card stat-card--raffles">
+            <div className="stat-card-top stat-card-top--between">
+              <div className="stat-card-top">
+                <div className="stat-icon" style={{ backgroundColor: "#10B981" }}>
+                  <Ticket />
+                </div>
+                <div className="stat-info">
+                  <span>진행 중인 래플</span>
+                  <h3>{activeRaffleCount}개</h3>
+                </div>
+              </div>
+
+              <button className="add-raffle-btn" onClick={() => setIsAddOpen((prev) => !prev)}>
+                <Plus size={16} />
+                래플 추가
               </button>
             </div>
-          ))}
+
+            {isAddOpen && (
+              <div className="add-raffle-panel">
+                <label className="add-raffle-label" htmlFor="raffleName">
+                  새 래플 이름
+                </label>
+                <div className="add-raffle-row">
+                  <input
+                    id="raffleName"
+                    className="add-raffle-input"
+                    type="text"
+                    placeholder="예: 덩크 로우 레트로"
+                    value={raffleName}
+                    onChange={(event) => setRaffleName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        handleAddRaffle();
+                      }
+                    }}
+                  />
+                  <button className="add-raffle-submit" onClick={handleAddRaffle}>
+                    저장
+                  </button>
+                </div>
+                <p className="add-raffle-help">추가한 래플은 이 브라우저에 저장되고, 관리 버튼으로 상세 설정 화면으로 이동할 수 있습니다.</p>
+              </div>
+            )}
+
+            <div className="mini-raffle-list">
+              {raffles.map((raffle) => (
+                <div key={raffle.id} className="mini-raffle-item">
+                  <div className="mini-raffle-copy">
+                    <div className="mini-raffle-title-row">
+                      <strong>{raffle.name}</strong>
+                      <span className={`mini-raffle-status mini-raffle-status--${raffle.status === "진행 중" ? "live" : raffle.status === "종료" ? "done" : "draft"}`}>
+                        {raffle.status}
+                      </span>
+                    </div>
+                    <span>{raffle.participants.toLocaleString()}명 참여</span>
+                  </div>
+                  <button className="mini-manage-btn" onClick={() => navigate(`/admin/raffle/${raffle.id}`)}>
+                    <Settings size={14} />
+                    관리
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </div>
   );
 };

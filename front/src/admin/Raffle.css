@@ -787,3 +787,211 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+/* ===== Layout Polish Overrides ===== */
+.nf-app {
+  max-width: 1160px;
+  gap: 22px;
+}
+
+.nf-page-header {
+  align-items: flex-start;
+  padding-bottom: 24px;
+  margin-bottom: 10px;
+}
+
+.nf-title {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.nf-subtitle {
+  margin-top: 6px;
+  font-size: 15px;
+}
+
+.nf-grid {
+  grid-template-columns: minmax(340px, 1fr) minmax(460px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.nf-col {
+  gap: 18px;
+}
+
+.nf-card,
+.nf-finalize {
+  border-radius: 22px;
+  padding: 24px 26px;
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.14);
+}
+
+.nf-card-title,
+.nf-section-label {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.nf-hash-box {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nf-stat-row {
+  padding: 16px 0;
+}
+
+.nf-stat-value {
+  font-size: 48px;
+  letter-spacing: -0.04em;
+}
+
+.nf-stat-sub {
+  font-size: 15px;
+}
+
+.nf-progress-bar {
+  width: 180px;
+  height: 6px;
+  margin-top: 12px;
+}
+
+.nf-winner-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nf-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nf-input-group label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.nf-date-input,
+.nf-prize-row input {
+  width: 100%;
+  min-height: 50px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #3a3a4f;
+  background: #12121a;
+  color: #fff;
+  font-size: 15px;
+  box-sizing: border-box;
+}
+
+.nf-date-input:focus,
+.nf-prize-row input:focus {
+  outline: none;
+  border-color: #5b55ff;
+  box-shadow: 0 0 0 3px rgba(91, 85, 255, 0.14);
+}
+
+.nf-prize-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nf-prize-row {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.nf-prize-row span {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.nf-btn-apply--full,
+.nf-btn-mint,
+.nf-btn-reveal {
+  min-height: 58px;
+  border-radius: 14px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.nf-status-badge {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+}
+
+.nf-countdown-text {
+  margin-top: 8px;
+  font-size: 16px;
+  color: var(--color-text);
+}
+
+.nf-finalize {
+  padding-top: 26px;
+}
+
+.nf-action-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.nf-action-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 0 0;
+}
+
+.nf-action-card + .nf-action-card {
+  border-top: 1px solid var(--color-border);
+  padding-top: 22px;
+}
+
+.nf-action-card h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #fff;
+}
+
+.nf-action-card p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-sub);
+  line-height: 1.65;
+}
+
+.nf-warning-box {
+  margin-top: 10px;
+  border-radius: 14px;
+}
+
+@media (max-width: 860px) {
+  .nf-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nf-title {
+    font-size: 32px;
+  }
+
+  .nf-card,
+  .nf-finalize {
+    padding: 20px;
+  }
+}
