@@ -52,11 +52,17 @@ export default function Participate({ walletAddress, events = [] }) {
     try {
       setIsMinting(true);
 
+<<<<<<< HEAD
       // 2. 관리자 서버(server.js) API 호출
       // 사용자 지갑(walletAddress)을 인식하여 서버로 넘깁니다.
       const response = await axios.post("http://localhost:3001/api/mint", {
         userAddress: walletAddress, // 인식된 사용자 지갑 주소
         raffleId: 13,               // 시연용 래플 ID (DB나 event 객체에서 가져오도록 수정 가능)
+=======
+      const mintResult = await mintMysteryBox({
+        raffleId: event.id,
+        walletAddress,
+>>>>>>> fd12bdce2a1041e48bfc58465394d8ad60d57e7a
       });
 
       if (response.data.success) {
@@ -83,6 +89,7 @@ export default function Participate({ walletAddress, events = [] }) {
           const rewardText = event.result === "first" ? event.rewardInfo?.first || "1등 보상" : event.result === "second" ? event.rewardInfo?.second || "2등 보상" : "당첨 내역 없음";
           const usageGuideText = event.result === "first" ? "당첨 보상을 확인하고 사용 안내를 확인하세요." : event.result === "second" ? "퍼즐 조각 보상을 확인하세요." : "아쉽지만 이번 이벤트는 미당첨입니다.";
 
+<<<<<<< HEAD
           const newTicket = {
             id: Date.now(),
             eventSlug: event.slug,
@@ -98,6 +105,26 @@ export default function Participate({ walletAddress, events = [] }) {
             isPrePurchaseReward: event.result === "first",
             source: "minted",
           };
+=======
+      if (!alreadyExists) {
+        const newTicket = {
+          id: Date.now(),
+          eventId: event.id,
+          eventSlug: event.slug,
+          title: `${event.shortTitle} 미스터리 박스`,
+          eventName: event.shortTitle,
+          image: "",
+          contractAddress: event.transparency.contractAddress,
+          mintedDate: new Date().toLocaleDateString("ko-KR"),
+          expiryDate: "2026-12-31",
+          status: "결과 대기",
+          reward: "결과 공개 전",
+          usageGuide: "관리자 결과 공개 후 당첨 여부를 확인할 수 있습니다.",
+          isPrePurchaseReward: false,
+          mintOrder: Number(mintResult?.participants || 0),
+          source: "minted",
+        };
+>>>>>>> fd12bdce2a1041e48bfc58465394d8ad60d57e7a
 
           const nextTickets = [...mintedTickets, newTicket];
           localStorage.setItem("mintedTickets", JSON.stringify(nextTickets));

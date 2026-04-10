@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import mockWallet from "../data/mockWallet";
 import NFTDetailModal from "../components/NFTDetailModal";
+import { derivePuzzlePieces } from "../utils/derivePuzzlePieces";
 
 export default function MyWallet({ revealState = {} }) {
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -8,9 +9,18 @@ export default function MyWallet({ revealState = {} }) {
   const [mintedTickets, setMintedTickets] = useState([]);
 
   useEffect(() => {
-    const savedMintedTickets = localStorage.getItem("mintedTickets");
-    const parsedTickets = savedMintedTickets ? JSON.parse(savedMintedTickets) : [];
-    setMintedTickets(parsedTickets);
+    const loadMintedTickets = () => {
+      const savedMintedTickets = localStorage.getItem("mintedTickets");
+      const parsedTickets = savedMintedTickets ? JSON.parse(savedMintedTickets) : [];
+      setMintedTickets(parsedTickets);
+    };
+
+    loadMintedTickets();
+    window.addEventListener("minted-events-updated", loadMintedTickets);
+
+    return () => {
+      window.removeEventListener("minted-events-updated", loadMintedTickets);
+    };
   }, []);
 
   const allTickets = useMemo(() => {
@@ -19,24 +29,41 @@ export default function MyWallet({ revealState = {} }) {
 
   const ticketsWithDisplayStatus = useMemo(() => {
     return allTickets.map((ticket) => {
-      const revealKey =
-        ticket.eventSlug ||
-        ticket.slug ||
-        ticket.event?.slug ||
-        "";
+      const revealKey = ticket.eventSlug || ticket.slug || ticket.event?.slug || "";
+      const revealMeta = revealState[revealKey] || {};
+      const isEventRevealed = revealMeta.isRevealed ?? false;
+      const resolvedResult = revealMeta.result;
 
-      const isEventRevealed = revealState[revealKey] ?? false;
+      const displayStatus = isEventRevealed
+        ? resolvedResult === "second"
+          ? "2등"
+          : resolvedResult === "first"
+          ? "당첨"
+          : ticket.status
+        : "미공개";
+
+      const displayReward = isEventRevealed
+        ? resolvedResult === "second"
+          ? "2등: 퍼즐 조각"
+          : resolvedResult === "first"
+          ? ticket.reward
+          : ticket.reward
+        : "미공개";
 
       return {
         ...ticket,
-        displayStatus: isEventRevealed ? ticket.status : "미공개",
-        displayReward: isEventRevealed ? ticket.reward : "미공개",
+        displayStatus,
+        displayReward,
         displayUsageGuide: isEventRevealed
-          ? ticket.usageGuide
-          : "리빌 이후 결과를 확인할 수 있습니다.",
+          ? resolvedResult === "second"
+            ? "2등 당첨으로 퍼즐 조각 1개가 적립되었습니다."
+            : ticket.usageGuide
+          : "리빌 후 결과를 확인할 수 있습니다.",
       };
     });
   }, [allTickets, revealState]);
+
+  const puzzlePieces = useMemo(() => derivePuzzlePieces(mintedTickets, revealState), [mintedTickets, revealState]);
 
   const handleOpenDetail = (ticket) => {
     setSelectedTicket(ticket);
@@ -53,20 +80,18 @@ export default function MyWallet({ revealState = {} }) {
       <section className="wallet-page">
         <div className="page-heading">
           <h2>내 지갑</h2>
-          <p>보유 중인 NFT 티켓과 퍼즐 조각을 확인하세요.</p>
+          <p>보유 중인 NFT 티켓과 퍼즐 조각을 확인할 수 있습니다.</p>
         </div>
 
         <div className="wallet-summary-grid">
           <div className="home-card wallet-summary-card">
             <span className="summary-label">NFT 티켓</span>
-            <strong className="summary-value">
-              {ticketsWithDisplayStatus.length}
-            </strong>
+            <strong className="summary-value">{ticketsWithDisplayStatus.length}</strong>
           </div>
 
           <div className="home-card wallet-summary-card">
             <span className="summary-label">퍼즐 조각</span>
-            <strong className="summary-value">{mockWallet.puzzles.length}</strong>
+            <strong className="summary-value">{puzzlePieces.length}</strong>
           </div>
         </div>
 
@@ -90,9 +115,7 @@ export default function MyWallet({ revealState = {} }) {
                   <div className="wallet-ticket-body">
                     <strong className="wallet-ticket-title">{ticket.title}</strong>
                     <p className="wallet-ticket-event">{ticket.eventName}</p>
-                    <span className="ticket-status-badge">
-                      {ticket.displayStatus}
-                    </span>
+                    <span className="ticket-status-badge">{ticket.displayStatus}</span>
 
                     <button
                       type="button"
@@ -111,14 +134,14 @@ export default function MyWallet({ revealState = {} }) {
         <div className="home-card">
           <h3 className="card-title">퍼즐 조각</h3>
 
-          {mockWallet.puzzles.length === 0 ? (
-            <p className="helper-text">보유 중인 퍼즐 조각이 없습니다.</p>
+          {puzzlePieces.length === 0 ? (
+            <p className="helper-text">2등 당첨 시 퍼즐 조각이 이곳에 적립됩니다.</p>
           ) : (
             <div className="wallet-puzzle-list">
-              {mockWallet.puzzles.map((puzzle) => (
+              {puzzlePieces.map((puzzle) => (
                 <div key={puzzle.id} className="info-row">
                   <span>{puzzle.type}</span>
-                  <strong>ID: {puzzle.id}</strong>
+                  <strong>{puzzle.title}</strong>
                 </div>
               ))}
             </div>
