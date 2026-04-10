@@ -57,7 +57,7 @@ export default function Participate({ walletAddress, events = [] }) {
     try {
       setIsMinting(true);
 
-      await mintMysteryBox({
+      const mintResult = await mintMysteryBox({
         raffleId: event.id,
         walletAddress,
       });
@@ -95,6 +95,7 @@ export default function Participate({ walletAddress, events = [] }) {
           reward: "결과 공개 전",
           usageGuide: "관리자 결과 공개 후 당첨 여부를 확인할 수 있습니다.",
           isPrePurchaseReward: false,
+          mintOrder: Number(mintResult?.participants || 0),
           source: "minted",
         };
 

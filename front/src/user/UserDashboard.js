@@ -78,9 +78,28 @@ const getStatusMeta = (status, startAt, endAt) => {
   };
 };
 
+const inferRevealResult = (raffle) => {
+  const participantCount = Number(raffle.participants || 0);
+  const firstPrizeCount = Number(raffle.firstPrizeCount || 0);
+  const secondPrizeCount = Number(raffle.secondPrizeCount || 0);
+
+  if (raffle.status !== "REVEALED") {
+    return null;
+  }
+
+  if (participantCount === 1) {
+    if (firstPrizeCount >= 1) return "first";
+    if (secondPrizeCount >= 1) return "second";
+  }
+
+  return "lose";
+};
+
 const mapRaffleToEvent = (raffle, revealState = {}) => {
   const slug = toSlug(raffle.title || raffle.id);
   const statusMeta = getStatusMeta(raffle.status, raffle.startAt, raffle.endAt);
+  const revealMeta = revealState[slug] || {};
+  const resolvedResult = revealMeta.result || inferRevealResult(raffle) || "lose";
 
   return {
     id: raffle.id,
@@ -94,7 +113,7 @@ const mapRaffleToEvent = (raffle, revealState = {}) => {
     overviewSubtitle: raffle.category
       ? `${raffle.category} 카테고리 래플 이벤트입니다.`
       : "래플 이벤트 상세 정보를 확인해보세요.",
-    result: revealState[slug]?.result || "lose",
+    result: resolvedResult,
     status: {
       participants: Number(raffle.participants || 0),
       maxParticipants: Math.max(Number(raffle.firstPrizeCount || 0) + Number(raffle.secondPrizeCount || 0), 1),
@@ -102,7 +121,7 @@ const mapRaffleToEvent = (raffle, revealState = {}) => {
       statusText: statusMeta.statusText,
       progress: 0,
       mintClosed: statusMeta.mintClosed,
-      isRevealed: revealState[slug]?.isRevealed ?? raffle.status === "REVEALED",
+      isRevealed: revealMeta.isRevealed ?? raffle.status === "REVEALED",
       remainingTime: statusMeta.remainingTime,
     },
     transparency: {
@@ -120,9 +139,6 @@ const mapRaffleToEvent = (raffle, revealState = {}) => {
     mintDescription: raffle.category
       ? `${raffle.category} 래플 응모를 위해 민팅을 진행합니다.`
       : "래플 응모를 위해 민팅을 진행합니다.",
-    mintPrice: "0.01 ETH",
-    gasEstimate: "~0.002 ETH",
-    totalCost: "~0.012 ETH",
   };
 };
 
@@ -135,7 +151,6 @@ function ProtectedLayout({ children, walletAddress, onLogout }) {
     <div>
       <Header walletAddress={walletAddress} onLogout={onLogout} />
       <Navbar />
-
       <main className="app-main">
         <div className="page-shell">{children}</div>
       </main>
@@ -153,13 +168,26 @@ function UserDashboard() {
     const parsed = saved ? JSON.parse(saved) : {};
     return Object.keys(parsed).filter((key) => parsed[key]);
   });
-  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    let isMounted = true;
+    let cancelled = false;
+
+    const syncLocalState = () => {
+      const savedRevealState = localStorage.getItem("revealState");
+      const savedMintedEvents = localStorage.getItem("mintedEventsById");
+      const parsedRevealState = savedRevealState ? JSON.parse(savedRevealState) : {};
+      const parsedMintedEvents = savedMintedEvents ? JSON.parse(savedMintedEvents) : {};
+
+      if (!cancelled) {
+        setRevealState(parsedRevealState);
+        setMintedEventIds(Object.keys(parsedMintedEvents).filter((key) => parsedMintedEvents[key]));
+      }
+    };
 
     const fetchRaffles = async () => {
       try {
+        syncLocalState();
+
         const response = await fetch(`${API_BASE_URL}/api/raffles`);
         const data = await response.json();
 
@@ -167,36 +195,41 @@ function UserDashboard() {
           throw new Error("Failed to load raffles");
         }
 
-        if (!isMounted) return;
-        setAllEvents(data.map((raffle) => mapRaffleToEvent(raffle, revealState)));
+        if (!cancelled) {
+          const latestRevealState = JSON.parse(localStorage.getItem("revealState") || "{}");
+          setAllEvents(data.map((raffle) => mapRaffleToEvent(raffle, latestRevealState)));
+        }
       } catch (error) {
         console.error("Failed to fetch user raffles:", error);
-        if (isMounted) {
+        if (!cancelled) {
           setAllEvents([]);
         }
       }
     };
 
+    const handleSyncEvent = () => {
+      fetchRaffles();
+    };
+
+    const handleStorage = (event) => {
+      if (event.key === "revealState" || event.key === "mintedEventsById" || event.key === "mintedTickets") {
+        fetchRaffles();
+      }
+    };
+
     fetchRaffles();
+    const intervalId = setInterval(fetchRaffles, 5000);
+
+    window.addEventListener("minted-events-updated", handleSyncEvent);
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleSyncEvent);
 
     return () => {
-      isMounted = false;
-    };
-  }, [revealState, refreshKey]);
-
-  useEffect(() => {
-    const syncMintedEventIds = () => {
-      const saved = localStorage.getItem("mintedEventsById");
-      const parsed = saved ? JSON.parse(saved) : {};
-      setMintedEventIds(Object.keys(parsed).filter((key) => parsed[key]));
-      setRefreshKey((prev) => prev + 1);
-    };
-
-    syncMintedEventIds();
-    window.addEventListener("minted-events-updated", syncMintedEventIds);
-
-    return () => {
-      window.removeEventListener("minted-events-updated", syncMintedEventIds);
+      cancelled = true;
+      clearInterval(intervalId);
+      window.removeEventListener("minted-events-updated", handleSyncEvent);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleSyncEvent);
     };
   }, []);
 
@@ -272,7 +305,7 @@ function UserDashboard() {
   if (pathname === "/puzzle-exchange") {
     return (
       <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
-        <PuzzleExchange />
+        <PuzzleExchange revealState={revealState} />
       </ProtectedLayout>
     );
   }
