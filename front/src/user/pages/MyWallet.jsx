@@ -23,9 +23,7 @@ export default function MyWallet({ revealState = {} }) {
     };
   }, []);
 
-  const allTickets = useMemo(() => {
-    return [...mockWallet.tickets, ...mintedTickets];
-  }, [mintedTickets]);
+  const allTickets = useMemo(() => [...mockWallet.tickets, ...mintedTickets], [mintedTickets]);
 
   const ticketsWithDisplayStatus = useMemo(() => {
     return allTickets.map((ticket) => {
@@ -44,9 +42,7 @@ export default function MyWallet({ revealState = {} }) {
 
       const displayReward = isEventRevealed
         ? resolvedResult === "second"
-          ? "2등: 퍼즐 조각"
-          : resolvedResult === "first"
-          ? ticket.reward
+          ? "2등 퍼즐 조각"
           : ticket.reward
         : "미공개";
 
@@ -56,7 +52,7 @@ export default function MyWallet({ revealState = {} }) {
         displayReward,
         displayUsageGuide: isEventRevealed
           ? resolvedResult === "second"
-            ? "2등 당첨으로 퍼즐 조각 1개가 적립되었습니다."
+            ? "2등 당첨으로 퍼즐 조각 1개가 지급되었습니다."
             : ticket.usageGuide
           : "리빌 후 결과를 확인할 수 있습니다.",
       };
@@ -135,7 +131,7 @@ export default function MyWallet({ revealState = {} }) {
           <h3 className="card-title">퍼즐 조각</h3>
 
           {puzzlePieces.length === 0 ? (
-            <p className="helper-text">2등 당첨 시 퍼즐 조각이 이곳에 적립됩니다.</p>
+            <p className="helper-text">2등 당첨 시 퍼즐 조각이 지급됩니다.</p>
           ) : (
             <div className="wallet-puzzle-list">
               {puzzlePieces.map((puzzle) => (

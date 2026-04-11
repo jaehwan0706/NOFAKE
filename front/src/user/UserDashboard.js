@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from "react-router-dom";
+﻿import { Navigate, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import "./UserDashboard.css";
 
@@ -95,11 +95,20 @@ const inferRevealResult = (raffle) => {
   return "lose";
 };
 
+const getResultStatusLabel = (result, hasCheckedResult) => {
+  if (!hasCheckedResult) return "결과공개";
+  if (result === "first") return "1등";
+  if (result === "second") return "2등";
+  return "꽝";
+};
+
 const mapRaffleToEvent = (raffle, revealState = {}) => {
   const slug = toSlug(raffle.title || raffle.id);
   const statusMeta = getStatusMeta(raffle.status, raffle.startAt, raffle.endAt);
   const revealMeta = revealState[slug] || {};
   const resolvedResult = revealMeta.result || inferRevealResult(raffle) || "lose";
+  const isRevealed = revealMeta.isRevealed ?? raffle.status === "REVEALED";
+  const hasCheckedResult = Boolean(revealMeta.hasCheckedResult);
 
   return {
     id: raffle.id,
@@ -118,16 +127,21 @@ const mapRaffleToEvent = (raffle, revealState = {}) => {
       participants: Number(raffle.participants || 0),
       maxParticipants: Math.max(Number(raffle.firstPrizeCount || 0) + Number(raffle.secondPrizeCount || 0), 1),
       winners: Number(raffle.firstPrizeCount || 0) + Number(raffle.secondPrizeCount || 0),
-      statusText: statusMeta.statusText,
+      statusText: isRevealed ? getResultStatusLabel(resolvedResult, hasCheckedResult) : statusMeta.statusText,
       progress: 0,
       mintClosed: statusMeta.mintClosed,
-      isRevealed: revealMeta.isRevealed ?? raffle.status === "REVEALED",
-      remainingTime: statusMeta.remainingTime,
+      isRevealed,
+      hasCheckedResult,
+      remainingTime: isRevealed
+        ? hasCheckedResult
+          ? "당첨 결과 확인 완료"
+          : "결과 공개 완료"
+        : statusMeta.remainingTime,
     },
     transparency: {
       contractAddress: raffle.contractAddress || "-",
       provenanceHash: raffle.provenanceHash || "-",
-      description1: "모든 래플 데이터는 서버 DB와 블록체인 정보 기준으로 관리됩니다.",
+      description1: "모든 래플 데이터는 서버 DB와 블록체인 정보를 기준으로 관리됩니다.",
       description2: "컨트랙트 주소와 provenance hash를 통해 무결성을 확인할 수 있습니다.",
     },
     rewardInfo: {
@@ -243,7 +257,7 @@ function UserDashboard() {
       allEvents.filter(
         (event) =>
           mintedEventIds.includes(String(event.id)) &&
-          ["진행중", "종료", "결과공개"].includes(event.status.statusText)
+          (event.status.isRevealed || ["진행중", "종료"].includes(event.status.statusText))
       ),
     [allEvents, mintedEventIds]
   );
@@ -289,7 +303,7 @@ function UserDashboard() {
   if (pathname === "/draw-status") {
     return (
       <ProtectedLayout walletAddress={walletAddress} onLogout={handleDisconnectWallet}>
-        <DrawStatus events={drawEvents} revealState={revealState} />
+        <DrawStatus events={drawEvents} />
       </ProtectedLayout>
     );
   }

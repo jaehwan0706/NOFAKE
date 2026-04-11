@@ -1,21 +1,33 @@
-version: '3.8'
+version: "3.8"
+
 services:
-  # 🛡️ 백엔드 API 서버 (오늘 완성한 index.js)
   nofake-api:
     build:
       context: .
-      dockerfile: Dockerfile.backend
-    container_name: nofake-api-server
-    ports:
-      - "3001:3001"
+      dockerfile: back/Dockerfile.backend
+    container_name: nofake-api
     env_file:
-      - .env #
+      - .env
+    environment:
+      PORT: 3001
+      DB_STORAGE_PATH: /data/database.sqlite
+    volumes:
+      - nofake_sqlite:/data
     restart: always
 
-  # 🌐 프론트엔드 및 Nginx (기존 설정 유지)
-  raffle-web:
-    build: .
-    container_name: nofake-web-proxy
+  nofake-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL}
+        REACT_APP_BASE_URL: ${REACT_APP_BASE_URL}
+    container_name: nofake-web
+    depends_on:
+      - nofake-api
     ports:
       - "80:80"
     restart: always
+
+volumes:
+  nofake_sqlite:

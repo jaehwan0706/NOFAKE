@@ -1,6 +1,25 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app/front
+
+COPY front/package*.json ./
+RUN npm ci
+
+COPY front ./
+
+ARG REACT_APP_API_BASE_URL
+ARG REACT_APP_BASE_URL
+
+ENV REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL}
+ENV REACT_APP_BASE_URL=${REACT_APP_BASE_URL}
+
+RUN npm run build
+
 FROM nginx:alpine
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-# 나중에 프론트엔드 팀의 dist 폴더가 나오면 아래 주석을 해제할 예정입니다.
-# COPY ./dist /usr/share/nginx/html
+COPY --from=builder /app/front/build /usr/share/nginx/html
+
 EXPOSE 80
+
 CMD ["nginx", "-g", "daemon off;"]
