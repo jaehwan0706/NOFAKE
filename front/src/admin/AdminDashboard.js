@@ -111,6 +111,9 @@ const mapApiRaffleToUi = (raffle) => ({
   statusLabel: getStatusLabel(raffle.status || "READY"),
   participants: Number(raffle.participants || 0),
   category: raffle.category || "기타",
+  views: Number(raffle.views || 0),
+  completions: Number(raffle.completions || 0),
+  dropouts: Number(raffle.dropouts || 0),
   conversionRate: Number(raffle.conversionRate || 0),
   dropoutRate: Number(raffle.dropoutRate || 0),
   avgEntryMinutes: Number(raffle.avgEntryMinutes || 0),
@@ -267,7 +270,9 @@ const AdminDashboard = () => {
 
     return raffles.filter((raffle) => {
       const target = normalizeSearchValue(
-        `${raffle.name} ${raffle.category || ""} ${raffle.description || ""}`
+        `${raffle.id} ${raffle.name} ${raffle.category || ""} ${raffle.description || ""} ${
+          raffle.statusLabel || ""
+        } ${raffle.contractAddress || ""}`
       );
       const matchesSearch = !normalizedSearch || target.includes(normalizedSearch);
       const matchesStatus =
@@ -281,15 +286,25 @@ const AdminDashboard = () => {
   }, [raffles, searchTerm, statusFilter, categoryFilter, rangeFilter]);
 
   const totalParticipants = participantSeries[participantSeries.length - 1].toLocaleString();
-  const activeRaffles = raffles.filter((raffle) => raffle.status === "MINTING");
-  const avgConversion = raffles.length
-    ? (raffles.reduce((sum, raffle) => sum + (raffle.conversionRate || 0), 0) / raffles.length).toFixed(1)
+  const analyticsRaffles = filteredRaffles;
+  const activeRaffles = analyticsRaffles.filter((raffle) => raffle.status === "MINTING");
+  const avgConversion = analyticsRaffles.length
+    ? (
+        analyticsRaffles.reduce((sum, raffle) => sum + (raffle.conversionRate || 0), 0) /
+        analyticsRaffles.length
+      ).toFixed(1)
     : "0.0";
-  const avgDropout = raffles.length
-    ? (raffles.reduce((sum, raffle) => sum + (raffle.dropoutRate || 0), 0) / raffles.length).toFixed(1)
+  const avgDropout = analyticsRaffles.length
+    ? (
+        analyticsRaffles.reduce((sum, raffle) => sum + (raffle.dropoutRate || 0), 0) /
+        analyticsRaffles.length
+      ).toFixed(1)
     : "0.0";
-  const avgParticipationTime = raffles.length
-    ? (raffles.reduce((sum, raffle) => sum + (raffle.avgEntryMinutes || 0), 0) / raffles.length).toFixed(1)
+  const avgParticipationTime = analyticsRaffles.length
+    ? (
+        analyticsRaffles.reduce((sum, raffle) => sum + (raffle.avgEntryMinutes || 0), 0) /
+        analyticsRaffles.length
+      ).toFixed(1)
     : "0.0";
   const previewImage = raffleForm.imageUrl.trim() || defaultImage;
 

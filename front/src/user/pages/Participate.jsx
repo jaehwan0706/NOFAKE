@@ -1,13 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { mintMysteryBox } from "../services/mint";
 import SimpleToast from "../components/SimpleToast";
 
 const MINTED_STORAGE_KEY = "mintedEventsById";
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:3001";
 
 export default function Participate({ walletAddress, events = [] }) {
   const { slug } = useParams();
   const [isMinting, setIsMinting] = useState(false);
+  const sessionRef = useRef(null);
   const [mintedEventsById, setMintedEventsById] = useState(() => {
     const saved = localStorage.getItem(MINTED_STORAGE_KEY);
     return saved ? JSON.parse(saved) : {};
@@ -23,6 +25,38 @@ export default function Participate({ walletAddress, events = [] }) {
   const mintedKey = event ? String(event.id) : "";
   const isMinted = event ? Boolean(mintedEventsById[mintedKey]) : false;
   const isMintClosed = event?.status?.mintClosed ?? false;
+
+  useEffect(() => {
+    if (!event?.id) return;
+
+    const sessionId =
+      window.crypto?.randomUUID?.() || `raffle-session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const startedAt = new Date().toISOString();
+
+    sessionRef.current = {
+      raffleId: event.id,
+      sessionId,
+      startedAt,
+      completed: false,
+    };
+
+    fetch(`${API_BASE_URL}/api/analytics/raffles/${event.id}/session/start`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sessionId,
+        startedAt,
+      }),
+    }).catch((error) => {
+      console.error("Failed to start raffle analytics session:", error);
+    });
+
+    return () => {
+      sessionRef.current = null;
+    };
+  }, [event?.id]);
 
   const showToast = (message, type) => {
     setToast({
@@ -61,6 +95,31 @@ export default function Participate({ walletAddress, events = [] }) {
         raffleId: event.id,
         walletAddress,
       });
+
+      const activeSession = sessionRef.current;
+      if (activeSession && activeSession.raffleId === event.id && !activeSession.completed) {
+        const completedAt = new Date().toISOString();
+        const durationSeconds = Math.max(
+          1,
+          Math.round((new Date(completedAt).getTime() - new Date(activeSession.startedAt).getTime()) / 1000)
+        );
+
+        activeSession.completed = true;
+        fetch(`${API_BASE_URL}/api/analytics/raffles/${event.id}/session/complete`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId: activeSession.sessionId,
+            startedAt: activeSession.startedAt,
+            completedAt,
+            durationSeconds,
+          }),
+        }).catch((error) => {
+          console.error("Failed to complete raffle analytics session:", error);
+        });
+      }
 
       setMintedEventsById((prev) => {
         const next = {

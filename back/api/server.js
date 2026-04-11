@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import cors from "cors";
-import { Sequelize, DataTypes } from "sequelize";
+import { Sequelize, DataTypes, Op } from "sequelize";
 import crypto from "crypto";
 
 dotenv.config();
@@ -21,10 +21,13 @@ const PORT = 3002;
 const RPC_URL = process.env.RPC_URL || "";
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "";
 const OWNER_PRIVATE_KEY = process.env.OWNER_PRIVATE_KEY || process.env.PRIVATE_KEY || "";
+const DB_STORAGE_PATH = process.env.DB_STORAGE_PATH || path.join(__dirname, "database.sqlite");
+
+fs.mkdirSync(path.dirname(DB_STORAGE_PATH), { recursive: true });
 
 const sequelize = new Sequelize({
   dialect: "sqlite",
-  storage: path.join(__dirname, "database.sqlite"),
+  storage: DB_STORAGE_PATH,
   logging: false,
 });
 
@@ -32,6 +35,7 @@ const Raffle = sequelize.define("Raffle", {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   title: { type: DataTypes.STRING, allowNull: false },
   category: { type: DataTypes.STRING },
+  description: { type: DataTypes.TEXT },
   imageUrl: { type: DataTypes.STRING },
   startAt: { type: DataTypes.DATE },
   endAt: { type: DataTypes.DATE },
@@ -45,9 +49,30 @@ const Raffle = sequelize.define("Raffle", {
   provenanceHash: { type: DataTypes.STRING },
 });
 
+const RaffleSession = sequelize.define(
+  "RaffleSession",
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    raffleId: { type: DataTypes.INTEGER, allowNull: false },
+    sessionId: { type: DataTypes.STRING, allowNull: false },
+    startedAt: { type: DataTypes.DATE, allowNull: false },
+    completedAt: { type: DataTypes.DATE, allowNull: true },
+    durationSeconds: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+    status: {
+      type: DataTypes.ENUM("STARTED", "COMPLETED"),
+      allowNull: false,
+      defaultValue: "STARTED",
+    },
+  },
+  {
+    indexes: [{ unique: true, fields: ["raffleId", "sessionId"] }],
+  }
+);
+
 const normalizeRafflePayload = (body = {}) => ({
   title: String(body.title ?? body.name ?? "").trim(),
   category: String(body.category ?? "").trim() || null,
+  description: String(body.description ?? "").trim() || null,
   imageUrl: String(body.imageUrl ?? "").trim() || null,
   startAt: body.startAt || null,
   endAt: body.endAt || null,
@@ -134,11 +159,82 @@ const getContractParticipantStats = async () => {
   };
 };
 
-const serializeRaffle = (raffle, participantStats = {}) => {
+const buildAnalyticsByRaffleId = (sessions = []) => {
+  const analyticsMap = {};
+
+  sessions.forEach((session) => {
+    const plain = session.toJSON ? session.toJSON() : session;
+    const raffleId = Number(plain.raffleId);
+
+    if (!analyticsMap[raffleId]) {
+      analyticsMap[raffleId] = {
+        startedCount: 0,
+        completedCount: 0,
+        totalDurationSeconds: 0,
+      };
+    }
+
+    analyticsMap[raffleId].startedCount += 1;
+
+    if (plain.status === "COMPLETED" || plain.completedAt) {
+      analyticsMap[raffleId].completedCount += 1;
+      analyticsMap[raffleId].totalDurationSeconds += Math.max(Number(plain.durationSeconds || 0), 0);
+    }
+  });
+
+  return Object.fromEntries(
+    Object.entries(analyticsMap).map(([raffleId, metrics]) => {
+      const startedCount = metrics.startedCount;
+      const completedCount = metrics.completedCount;
+      const dropoutCount = Math.max(startedCount - completedCount, 0);
+      const conversionRate = startedCount ? (completedCount / startedCount) * 100 : 0;
+      const dropoutRate = startedCount ? (dropoutCount / startedCount) * 100 : 0;
+      const avgEntryMinutes = completedCount ? metrics.totalDurationSeconds / completedCount / 60 : 0;
+
+      return [
+        raffleId,
+        {
+          views: startedCount,
+          completions: completedCount,
+          dropouts: dropoutCount,
+          conversionRate,
+          dropoutRate,
+          avgEntryMinutes,
+        },
+      ];
+    })
+  );
+};
+
+const getRaffleAnalyticsByIds = async (raffleIds = []) => {
+  if (raffleIds.length === 0) {
+    return {};
+  }
+
+  const sessions = await RaffleSession.findAll({
+    where: {
+      raffleId: {
+        [Op.in]: raffleIds,
+      },
+    },
+  });
+
+  return buildAnalyticsByRaffleId(sessions);
+};
+
+const serializeRaffle = (raffle, participantStats = {}, analyticsByRaffleId = {}) => {
   const plain = raffle.toJSON ? raffle.toJSON() : raffle;
+  const analytics = analyticsByRaffleId[plain.id] || {};
+
   return {
     ...plain,
     participants: participantStats[plain.id] || 0,
+    views: Number(analytics.views || 0),
+    completions: Number(analytics.completions || 0),
+    dropouts: Number(analytics.dropouts || 0),
+    conversionRate: Number(analytics.conversionRate || 0),
+    dropoutRate: Number(analytics.dropoutRate || 0),
+    avgEntryMinutes: Number(analytics.avgEntryMinutes || 0),
   };
 };
 
@@ -181,7 +277,8 @@ app.get("/api/raffles", async (req, res) => {
   try {
     const raffles = await Raffle.findAll({ order: [["createdAt", "DESC"]] });
     const stats = await getContractParticipantStats().catch(() => ({ totalParticipants: 0, byRaffleId: {} }));
-    res.json(raffles.map((raffle) => serializeRaffle(raffle, stats.byRaffleId)));
+    const analyticsByRaffleId = await getRaffleAnalyticsByIds(raffles.map((raffle) => Number(raffle.id)));
+    res.json(raffles.map((raffle) => serializeRaffle(raffle, stats.byRaffleId, analyticsByRaffleId)));
   } catch (error) {
     console.error("Failed to fetch raffles:", error);
     res.status(500).json({ error: "Failed to load raffles." });
@@ -192,9 +289,10 @@ app.get("/api/admin/raffles", async (req, res) => {
   try {
     const raffles = await Raffle.findAll({ order: [["createdAt", "DESC"]] });
     const stats = await getContractParticipantStats().catch(() => ({ totalParticipants: 0, byRaffleId: {} }));
+    const analyticsByRaffleId = await getRaffleAnalyticsByIds(raffles.map((raffle) => Number(raffle.id)));
     res.json({
       success: true,
-      data: raffles.map((raffle) => serializeRaffle(raffle, stats.byRaffleId)),
+      data: raffles.map((raffle) => serializeRaffle(raffle, stats.byRaffleId, analyticsByRaffleId)),
     });
   } catch (error) {
     console.error("Failed to load admin raffles:", error);
@@ -211,10 +309,73 @@ app.get("/api/admin/raffles/:id", async (req, res) => {
     }
 
     const stats = await getContractParticipantStats().catch(() => ({ totalParticipants: 0, byRaffleId: {} }));
-    res.json({ success: true, data: serializeRaffle(raffle, stats.byRaffleId) });
+    const analyticsByRaffleId = await getRaffleAnalyticsByIds([Number(req.params.id)]);
+    res.json({ success: true, data: serializeRaffle(raffle, stats.byRaffleId, analyticsByRaffleId) });
   } catch (error) {
     console.error("Failed to load raffle detail:", error);
     res.status(500).json({ success: false, error: "Failed to load raffle detail." });
+  }
+});
+
+app.post("/api/analytics/raffles/:id/session/start", async (req, res) => {
+  try {
+    const raffleId = Number(req.params.id);
+    const sessionId = String(req.body?.sessionId || "").trim();
+    const startedAt = req.body?.startedAt ? new Date(req.body.startedAt) : new Date();
+
+    if (!raffleId || !sessionId) {
+      return res.status(400).json({ success: false, error: "raffleId and sessionId are required." });
+    }
+
+    const raffle = await Raffle.findByPk(raffleId);
+    if (!raffle) {
+      return res.status(404).json({ success: false, error: "Raffle not found." });
+    }
+
+    await RaffleSession.upsert({
+      raffleId,
+      sessionId,
+      startedAt,
+      status: "STARTED",
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to start raffle session:", error);
+    res.status(400).json({ success: false, error: "Failed to start raffle session." });
+  }
+});
+
+app.post("/api/analytics/raffles/:id/session/complete", async (req, res) => {
+  try {
+    const raffleId = Number(req.params.id);
+    const sessionId = String(req.body?.sessionId || "").trim();
+    const startedAt = req.body?.startedAt ? new Date(req.body.startedAt) : new Date();
+    const completedAt = req.body?.completedAt ? new Date(req.body.completedAt) : new Date();
+    const durationSeconds = Math.max(Number(req.body?.durationSeconds || 0), 0);
+
+    if (!raffleId || !sessionId) {
+      return res.status(400).json({ success: false, error: "raffleId and sessionId are required." });
+    }
+
+    const raffle = await Raffle.findByPk(raffleId);
+    if (!raffle) {
+      return res.status(404).json({ success: false, error: "Raffle not found." });
+    }
+
+    await RaffleSession.upsert({
+      raffleId,
+      sessionId,
+      startedAt,
+      completedAt,
+      durationSeconds,
+      status: "COMPLETED",
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to complete raffle session:", error);
+    res.status(400).json({ success: false, error: "Failed to complete raffle session." });
   }
 });
 
@@ -417,7 +578,23 @@ app.get("/api/metadata/:tokenId", async (req, res) => {
   }
 });
 
-sequelize.sync().then(() => {
+const ensureSchema = async () => {
+  await sequelize.sync();
+
+  const queryInterface = sequelize.getQueryInterface();
+  const raffleTable = await queryInterface.describeTable("Raffles");
+
+  if (!raffleTable.description) {
+    await queryInterface.addColumn("Raffles", "description", {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    });
+  }
+
+  await RaffleSession.sync();
+};
+
+ensureSchema().then(() => {
   console.log(`DB synced (Contract: ${CONTRACT_ADDRESS || "not configured"})`);
   app.listen(PORT, () => {
     console.log(`NOFAKE Server running on http://localhost:${PORT}`);

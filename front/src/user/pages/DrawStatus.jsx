@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import DrawResultModal from "../components/DrawResultModal";
 
 const PUZZLE_IMAGE_URL =
@@ -21,9 +21,31 @@ const getProductsFromEvent = (event) => [
   },
 ];
 
+const getStoredRevealState = () => {
+  try {
+    return JSON.parse(localStorage.getItem("revealState") || "{}");
+  } catch (error) {
+    console.error("Failed to parse revealState:", error);
+    return {};
+  }
+};
+
+const getResultLabel = (result) => {
+  if (result === "first") return "1등";
+  if (result === "second") return "2등";
+  return "꽝";
+};
+
 export default function DrawStatus({ events = [] }) {
   const [isResultOpen, setIsResultOpen] = useState(false);
   const [selectedEventSlug, setSelectedEventSlug] = useState("");
+  const [checkedResults, setCheckedResults] = useState(() => {
+    const revealState = getStoredRevealState();
+
+    return Object.fromEntries(
+      Object.entries(revealState).map(([slug, meta]) => [slug, Boolean(meta?.hasCheckedResult)])
+    );
+  });
 
   useEffect(() => {
     if (!events.length) {
@@ -35,6 +57,26 @@ export default function DrawStatus({ events = [] }) {
       prev && events.some((event) => event.slug === prev) ? prev : events[0].slug
     );
   }, [events]);
+
+  useEffect(() => {
+    const syncCheckedResults = () => {
+      const revealState = getStoredRevealState();
+
+      setCheckedResults(
+        Object.fromEntries(
+          Object.entries(revealState).map(([slug, meta]) => [slug, Boolean(meta?.hasCheckedResult)])
+        )
+      );
+    };
+
+    window.addEventListener("storage", syncCheckedResults);
+    window.addEventListener("focus", syncCheckedResults);
+
+    return () => {
+      window.removeEventListener("storage", syncCheckedResults);
+      window.removeEventListener("focus", syncCheckedResults);
+    };
+  }, []);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.slug === selectedEventSlug) || events[0],
@@ -56,7 +98,18 @@ export default function DrawStatus({ events = [] }) {
   const isRevealed = status?.isRevealed ?? false;
   const participantCount = status?.participants ?? 0;
   const maxParticipants = status?.maxParticipants ?? 0;
-  const remainingTime = status?.remainingTime ?? "-";
+  const hasCheckedResult = checkedResults[selectedEvent.slug] || Boolean(status?.hasCheckedResult);
+  const currentStatusLabel = isRevealed
+    ? hasCheckedResult
+      ? getResultLabel(result)
+      : "결과공개"
+    : status?.statusText || "-";
+  const currentStatusPill = isRevealed ? currentStatusLabel : status?.mintClosed ? "마감" : "진행중";
+  const remainingTime = isRevealed
+    ? hasCheckedResult
+      ? "당첨 결과 확인 완료"
+      : "결과 공개 완료"
+    : status?.remainingTime ?? "-";
   const progressPercent =
     status?.progress ??
     (maxParticipants > 0 ? Math.min(Math.round((participantCount / maxParticipants) * 100), 100) : 0);
@@ -67,6 +120,23 @@ export default function DrawStatus({ events = [] }) {
     ? "관리자가 결과를 공개했습니다. 당첨 결과를 확인해보세요."
     : "래플이 종료되면 관리자가 결과를 공개합니다.";
   const bannerButtonText = isRevealed ? "당첨 결과 확인" : "결과 공개 대기중";
+
+  const handleOpenResult = () => {
+    if (!isRevealed) return;
+
+    const revealState = getStoredRevealState();
+    const nextRevealState = {
+      ...revealState,
+      [selectedEvent.slug]: {
+        ...(revealState[selectedEvent.slug] || {}),
+        hasCheckedResult: true,
+      },
+    };
+
+    localStorage.setItem("revealState", JSON.stringify(nextRevealState));
+    setCheckedResults((prev) => ({ ...prev, [selectedEvent.slug]: true }));
+    setIsResultOpen(true);
+  };
 
   return (
     <section className="draw-page">
@@ -103,9 +173,7 @@ export default function DrawStatus({ events = [] }) {
         <button
           type="button"
           className={`banner-btn ${!isRevealed ? "disabled" : ""}`}
-          onClick={() => {
-            if (isRevealed) setIsResultOpen(true);
-          }}
+          onClick={handleOpenResult}
           disabled={!isRevealed}
         >
           {bannerButtonText}
@@ -158,7 +226,7 @@ export default function DrawStatus({ events = [] }) {
             <div className="draw-current-status-card">
               <div className="draw-current-status-copy">
                 <span className="summary-label">현재 상태</span>
-                <strong>{status?.statusText || "-"}</strong>
+                <strong>{currentStatusLabel}</strong>
                 <p>{remainingTime}</p>
               </div>
               <div
@@ -166,7 +234,7 @@ export default function DrawStatus({ events = [] }) {
                   isRevealed ? "revealed" : status?.mintClosed ? "closed" : "live"
                 }`}
               >
-                {isRevealed ? "결과 공개" : status?.mintClosed ? "마감" : "진행중"}
+                {currentStatusPill}
               </div>
             </div>
 
@@ -181,7 +249,7 @@ export default function DrawStatus({ events = [] }) {
               <div className="draw-live-progress-fill" style={{ width: `${progressPercent}%` }} />
             </div>
 
-            <p className="helper-text center-text">상태는 DB 기준으로 유지됩니다.</p>
+            <p className="helper-text center-text">상태값은 DB 기준으로 반영됩니다.</p>
           </div>
         </div>
       </div>
