@@ -9,7 +9,8 @@ import { FAQ } from "./pages/support/FAQ";
 import { Notice } from "./pages/support/Notice";
 import { Terms } from "./pages/support/Terms";
 import { Privacy } from "./pages/support/Privacy";
-import { Login } from "./pages/auth/Login";
+import { Login } from "./pages/auth/KakaoLogin";
+import { KakaoCallback } from "./pages/auth/KakaoCallback";
 import { Partnership } from "./pages/partnership/Partnership";
 import { ContactSupport } from "./pages/support/ContactSupport";
 import { NOFAKEservicePage } from "./pages/about/NOFAKEservicePage";
@@ -106,6 +107,7 @@ export default function App() {
 
           {/* 7. 로그인  */}
           <Route path="login" element={<Login />} />
+          <Route path="/auth/kakao/callback" element={<KakaoCallback />} />
           
           
           {/* 8. 마이페이지 (로그인 후 활성화) */}
