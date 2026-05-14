@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import cors from "cors";
+import axios from "axios";
 import { Sequelize, DataTypes, Op } from "sequelize";
 import crypto from "crypto";
 
@@ -371,6 +372,25 @@ app.get("/health", (req, res) => {
     contractConfigured: Boolean(readContract),
     writeWalletConfigured: Boolean(writeContract),
   });
+});
+app.post("/api/auth/kakao", async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: "인가 코드가 없습니다." });
+
+  try {
+    const response = await axios.post("https://kauth.kakao.com/oauth/token", new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: "d9c3641e6babf0f0d91c93a7ec557c40",
+      redirect_uri: "http://localhost:5173/auth/kakao/callback",
+      code,
+    }), {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error("카카오 토큰 교환 실패:", error.response?.data || error.message);
+    res.status(500).json({ error: "카카오 통신 중 오류 발생" });
+  }
 });
 
 app.get("/api/admin/contract-stats", async (req, res) => {

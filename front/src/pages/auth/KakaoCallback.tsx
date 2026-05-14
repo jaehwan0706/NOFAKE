@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://outrage-overboard-unrevised.ngrok-free.dev";
 const REDIRECT_URI =
   import.meta.env.VITE_KAKAO_REDIRECT_URI ?? `${window.location.origin}/auth/kakao/callback`;
 const LOGIN_TOKEN_KEY = "nofakeAccessToken";
@@ -34,13 +34,15 @@ export function KakaoCallback() {
       }
 
       try {
-        const response = await fetch("/api/auth/kakao", {
+        const response = await fetch(`${API_BASE_URL}/api/auth/kakao`, { // ⭐ 주소 앞에 API_BASE_URL 추가
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "ngrok-skip-browser-warning": "69420" // ⭐ ngrok 경고창 때문에 HTML이 넘어와서 에러나는 걸 방지
+          },
           credentials: "include",
           body: JSON.stringify({ code, redirectUri: REDIRECT_URI }),
         });
-
         const data = (await response.json().catch(() => ({}))) as KakaoLoginResponse;
 
         if (!response.ok || data.success === false) {
