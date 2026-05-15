@@ -30,6 +30,7 @@ export function Login() {
       response_type: "code",
       client_id: KAKAO_REST_API_KEY,
       redirect_uri: REDIRECT_URI,
+      prompt: "login", // ✅ 카카오 쿠키가 있어도 강제로 로그인 창을 띄우는 핵심 옵션
     });
 
     return `https://kauth.kakao.com/oauth/authorize?${params.toString()}`;

@@ -374,22 +374,77 @@ app.get("/health", (req, res) => {
   });
 });
 app.post("/api/auth/kakao", async (req, res) => {
-  const { code } = req.body;
+  const { code, redirectUri } = req.body;
   if (!code) return res.status(400).json({ error: "인가 코드가 없습니다." });
-
+ 
   try {
-    const response = await axios.post("https://kauth.kakao.com/oauth/token", new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: "d9c3641e6babf0f0d91c93a7ec557c40",
-      redirect_uri: "http://localhost:5173/auth/kakao/callback",
-      code,
-    }), {
-      headers: { "Content-Type": "application/x-www-form-urlencoded" }
+    // Step 1: 카카오 토큰 교환
+    const tokenResponse = await axios.post(
+      "https://kauth.kakao.com/oauth/token",
+      new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: process.env.KAKAO_REST_API_KEY || "d9c3641e6babf0f0d91c93a7ec557c40",
+        redirect_uri: redirectUri || process.env.KAKAO_REDIRECT_URI || "http://localhost:5173/auth/kakao/callback",
+        code,
+      }),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+ 
+    const { access_token } = tokenResponse.data;
+ 
+    // Step 2: 카카오 유저 정보 조회
+    const userResponse = await axios.get("https://kapi.kakao.com/v2/user/me", {
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+      },
     });
-    res.json(response.data);
+ 
+    const kakaoAccount = userResponse.data.kakao_account ?? {};
+    const profile = kakaoAccount.profile ?? {};
+ 
+    const name = profile.nickname ?? "사용자";
+    const email = kakaoAccount.email ?? "";
+ 
+    // Step 3: 프론트가 필요한 형태로 반환
+    res.json({
+      success: true,
+      accessToken: access_token,
+      name,
+      email,
+    });
   } catch (error) {
-    console.error("카카오 토큰 교환 실패:", error.response?.data || error.message);
-    res.status(500).json({ error: "카카오 통신 중 오류 발생" });
+    console.error("카카오 로그인 실패:", error.response?.data || error.message);
+    res.status(500).json({ success: false, error: "카카오 통신 중 오류 발생" });
+  }
+});
+
+app.get("/api/auth/me", async (req, res) => {
+  const authHeader = req.headers.authorization ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
+ 
+  if (!token) return res.status(401).json({ success: false, error: "토큰이 없습니다." });
+ 
+  try {
+    const userResponse = await axios.get("https://kapi.kakao.com/v2/user/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+      },
+    });
+ 
+    const kakaoAccount = userResponse.data.kakao_account ?? {};
+    const profile = kakaoAccount.profile ?? {};
+ 
+    res.json({
+      success: true,
+      name: profile.nickname ?? "사용자",
+      email: kakaoAccount.email ?? "",
+    });
+  } catch (error) {
+    console.error("/api/auth/me 실패:", error.response?.data || error.message);
+    // 토큰 만료 or 유효하지 않음
+    res.status(401).json({ success: false, error: "유효하지 않은 토큰입니다." });
   }
 });
 
