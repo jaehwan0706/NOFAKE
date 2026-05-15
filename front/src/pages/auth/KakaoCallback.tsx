@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
+import { loginUser } from "../../components/Header";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://outrage-overboard-unrevised.ngrok-free.dev";
 const REDIRECT_URI =
   import.meta.env.VITE_KAKAO_REDIRECT_URI ?? `${window.location.origin}/auth/kakao/callback`;
+
+// ✅ Header와 반드시 동일한 키 이름
 const LOGIN_TOKEN_KEY = "nofakeAccessToken";
 
 type KakaoLoginResponse = {
   success?: boolean;
   accessToken?: string;
   token?: string;
+  name?: string;
+  email?: string;
   message?: string;
   error?: string;
 };
@@ -34,15 +40,16 @@ export function KakaoCallback() {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/kakao`, { // ⭐ 주소 앞에 API_BASE_URL 추가
+        const response = await fetch(`${API_BASE_URL}/api/auth/kakao`, {
           method: "POST",
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
-            "ngrok-skip-browser-warning": "69420" // ⭐ ngrok 경고창 때문에 HTML이 넘어와서 에러나는 걸 방지
+            "ngrok-skip-browser-warning": "69420",
           },
           credentials: "include",
           body: JSON.stringify({ code, redirectUri: REDIRECT_URI }),
         });
+
         const data = (await response.json().catch(() => ({}))) as KakaoLoginResponse;
 
         if (!response.ok || data.success === false) {
@@ -51,13 +58,21 @@ export function KakaoCallback() {
 
         const token = data.accessToken ?? data.token;
         if (token) {
+          // ✅ Header와 동일한 키로 저장
           localStorage.setItem(LOGIN_TOKEN_KEY, token);
         }
+
+        // ✅ 전역 상태 업데이트
+        loginUser({
+          name: data.name ?? "사용자",
+          email: data.email ?? "",
+        });
 
         setStatus("로그인되었습니다. 메인 화면으로 이동합니다...");
         navigate("/", { replace: true });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "카카오 로그인 처리 중 오류가 발생했습니다.";
+        const message =
+          error instanceof Error ? error.message : "카카오 로그인 처리 중 오류가 발생했습니다.";
         console.error("Kakao login callback failed:", error);
         setStatus(message);
       }
