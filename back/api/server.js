@@ -224,7 +224,83 @@ app.get("/api/raffles", async (req, res) => {
 app.get("/health", (req, res) => {
   res.json({ success: true, status: "ok", port: PORT });
 });
+// --- [1] 내 프로필 조회 (GET /api/user/profile) ---
+app.get("/api/user/profile", verifyTokenMiddleware, async (req, res) => {
+  try {
+    const userInfo = await User.findOne({
+      where: { email: req.user.email },
+      attributes: ["name", "email"] // 프론트 요구사항에 맞춰 이름과 이메일만 가져옵니다.
+    });
 
+    if (!userInfo) return res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
+    
+    // ✨ 프론트엔드의 UserProfile 인터페이스 규격에 완벽히 맞춰서 응답 포장
+    const profileResponse = {
+      name: userInfo.name,
+      email: userInfo.email,
+      walletAddress: null, // 아직 블록체인 연동 전이므로 null 처리
+      did: null,           // DID 발급 전이므로 null 처리
+      joinedAt: null,      // 가입일 임시 null
+      profileImage: null
+    };
+
+    res.json(profileResponse);
+  } catch (error) {
+    res.status(500).json({ error: "프로필 조회 실패" });
+  }
+});
+
+// --- [2] 이름 변경 (PATCH /api/user/name) ---
+app.patch("/api/user/name", verifyTokenMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "변경할 이름이 없습니다." });
+
+    await User.update({ name: name }, { where: { email: req.user.email } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "이름 변경 실패" });
+  }
+});
+
+// --- [3] 이메일 변경 (PATCH /api/user/email) - 프론트 코드에 새로 추가된 부분! ---
+app.patch("/api/user/email", verifyTokenMiddleware, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "변경할 이메일이 없습니다." });
+
+    await User.update({ email: email }, { where: { email: req.user.email } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "이메일 변경 실패" });
+  }
+});
+
+// --- [4] 마이페이지 종합 정보 (GET /api/mypage) ---
+app.get("/api/mypage", verifyTokenMiddleware, async (req, res) => {
+  try {
+    // 💡 화면 디자인 확인용 가짜(Mock) 데이터 유지
+    const myPageData = {
+      points: 1500,
+      stats: { totalApply: 2, winCount: 1, winRate: "50.0", activeCount: 1 },
+      raffleHistory: [
+        {
+          id: "1", brand: "NIKE", brandColor: "#000000", name: "Travis Scott x Air Jordan 1 Low",
+          image: "👟", applyDate: "2026.05.10", deadline: "2026.05.20", resultDate: "2026.05.21",
+          participants: "1,204", winners: "10", myNumber: "NOFAKE-0842", status: "당첨",
+          txHash: "0x3f2e...9a1b", size: "270", price: "189,000원", purchaseDeadline: "2026.05.25"
+        }
+      ],
+      pointHistory: [
+        { label: "회원가입 축하 포인트", date: "2026.05.10", amount: "+2,000", color: "#10b981" }
+      ]
+    };
+    
+    res.json(myPageData);
+  } catch (error) {
+    res.status(500).json({ error: "마이페이지 데이터 조회 실패" });
+  }
+});
 // --- 서버 실행 ---
 const ensureSchema = async () => {
   await sequelize.sync();
