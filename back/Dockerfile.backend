@@ -3,7 +3,11 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY back/api/package*.json ./
+<<<<<<< HEAD
 RUN npm ci --omit=dev
+=======
+RUN npm install --legacy-peer-deps
+>>>>>>> efe679237a7bae3609e48e671cf299ca2859dc0e
 
 COPY back/api ./
 

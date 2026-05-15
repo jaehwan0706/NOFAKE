@@ -11,12 +11,23 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.500.0",
+<<<<<<< HEAD
     "axios": "^1.16.0",
+=======
+    "axios": "^1.15.0",
+>>>>>>> efe679237a7bae3609e48e671cf299ca2859dc0e
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
     "ethers": "^6.16.0",
     "express": "^4.22.1",
+<<<<<<< HEAD
     "mime-types": "^2.1.35",
+=======
+    "jsonwebtoken": "^9.0.3",
+    "jwks-rsa": "^4.0.1",
+    "mime-types": "^2.1.35",
+    "mysql2": "^3.22.3",
+>>>>>>> efe679237a7bae3609e48e671cf299ca2859dc0e
     "sequelize": "^6.37.8",
     "sqlite3": "^5.1.7"
   },

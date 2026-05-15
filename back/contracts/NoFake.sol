@@ -82,6 +82,7 @@ contract NoFakePlatform is ERC721, Ownable {
     }
 
     /**
+<<<<<<< HEAD
      * @dev 래플 마감 후 리빌 및 당첨자 선발 (보안 난수 적용)
      */
     function revealRaffle(uint256 _raffleId) external onlyOwner {
@@ -119,5 +120,48 @@ contract NoFakePlatform is ERC721, Ownable {
     // --- 관리자 기능 ---
     function setUnrevealedURI(string memory _uri) public onlyOwner {
         unrevealedURI = _uri;
+=======
+     * @dev 현재 참여 인원(totalSupply) 범위 내에서 난수 생성
+     */
+    function revealRaffle(uint256 _raffleId, string memory _baseURI) external onlyOwner {
+        require(!isRevealed[_raffleId], "Already revealed");
+        uint256 currentParticipants = totalSupply; 
+        require(currentParticipants > 0, "No participants");
+
+        // [정보보호] block.prevrandao를 사용하여 온체인 난수 생성 (보안성 확보)
+        raffleOffsets[_raffleId] = uint256(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, _raffleId))) % currentParticipants;
+
+        raffleBaseURIs[_raffleId] = _baseURI;
+        isRevealed[_raffleId] = true;
+    }
+
+    /**
+     * @dev 1.json ~ 30.json 규격에 맞춘 동적 매핑 (+1 연산)
+     */
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        // [수정] OpenZeppelin 4.x 버전에서는 _exists(tokenId)를 그대로 사용합니다.
+        // (5.x 버전은 _ownerOf(tokenId) != address(0) 로 써야 함)
+        require(_exists(tokenId), "Nonexistent token");
+        
+        uint256 raffleId = tokenToRaffleId[tokenId];
+
+        if (block.timestamp > mintTimestamp[tokenId] + EXPIRY_DURATION) return "ipfs://expired";
+        if (!isRevealed[raffleId]) return unrevealedURI;
+
+        // 참여 인원 범위 내에서 순환하도록 수정하고 +1 하여 파일명 일치시킴
+        uint256 shiftedId = ((tokenId + raffleOffsets[raffleId]) % totalSupply) + 1;
+        
+        return string(abi.encodePacked(raffleBaseURIs[raffleId], shiftedId.toString(), ".json"));
+    }
+
+    function swapPuzzlesForCoupon(uint256[] memory tokenIds) public {
+        require(tokenIds.length == 10, "10 puzzles required");
+        for (uint i = 0; i < 10; i++) {
+            require(ownerOf(tokenIds[i]) == msg.sender, "Not owner");
+            _burn(tokenIds[i]); 
+        }
+        totalSupply++;
+        _safeMint(msg.sender, totalSupply);
+>>>>>>> efe679237a7bae3609e48e671cf299ca2859dc0e
     }
 }
