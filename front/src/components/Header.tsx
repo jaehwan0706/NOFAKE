@@ -32,13 +32,13 @@ let _user: { name: string; email: string } | null = null;
 
 export function loginUser(user: { name: string; email: string }) {
   _user = user;
-  window.dispatchEvent(new Event("auth-change")); // UI 즉시 업데이트 트리거
+  window.dispatchEvent(new Event("auth-change"));
 }
 
 export function logoutUser() {
   _user = null;
   localStorage.removeItem(LOGIN_TOKEN_KEY);
-  window.dispatchEvent(new Event("auth-change")); // UI 즉시 업데이트 트리거
+  window.dispatchEvent(new Event("auth-change"));
 }
 
 export function useAuthUser() {
@@ -49,10 +49,8 @@ export function useAuthUser() {
       setUser(_user ? { ..._user } : null);
     };
 
-    // 처음 렌더링될 때 상태가 꼬이지 않도록 한 번 더 확실하게 동기화
     handleAuthSync();
 
-    // 전역 auth-change 이벤트 구독
     window.addEventListener("auth-change", handleAuthSync);
     return () => {
       window.removeEventListener("auth-change", handleAuthSync);
@@ -67,7 +65,7 @@ export function useAuthUser() {
 (async () => {
   const token = localStorage.getItem(LOGIN_TOKEN_KEY);
   if (!token) {
-    if (_user !== null) logoutUser(); // 쓰레기값 방지
+    if (_user !== null) logoutUser();
     return;
   }
 
@@ -80,14 +78,13 @@ export function useAuthUser() {
     });
 
     if (!res.ok) {
-      logoutUser(); // 토큰 만료/오류 시 즉시 로그아웃 처리 및 UI 업데이트
+      logoutUser();
       return;
     }
 
     const data = (await res.json()) as { success: boolean; name?: string; email?: string };
 
     if (data.success && data.name) {
-      // 정보 로드 성공 시 loginUser 함수 재활용하여 UI 즉시 업데이트
       loginUser({ name: data.name, email: data.email ?? "" });
     } else {
       logoutUser();
@@ -195,7 +192,6 @@ const NAV_ITEMS = [
   {
     name: "파트너십",
     path: "/partnership",
-    highlight: true,
     dropdown: {
       sections: [
         {
@@ -236,8 +232,7 @@ export function Header() {
   const navigate = useNavigate();
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  
-  // 변경된 useAuthUser 훅 사용 (이벤트 기반 반응)
+
   const user = useAuthUser();
 
   const isHomePage = location.pathname === "/";
@@ -281,8 +276,13 @@ export function Header() {
     navigate("/");
   };
 
-  // 에러가 발생했던 부분 안전하게 수정
-  const avatarInitial = user?.name ? user.name : "U";
+  const avatarInitial = user?.name ? user.name[0] : "U";
+
+  // 현재 경로가 해당 nav item의 path로 시작하는지 확인
+  const isActiveNav = (path: string) => {
+    if (path === "/") return location.pathname === "/";
+    return location.pathname.startsWith(path);
+  };
 
   return (
     <header
@@ -312,7 +312,7 @@ export function Header() {
               >
                 <button
                   className={`flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                    item.highlight
+                    isActiveNav(item.path)
                       ? "text-blue-600"
                       : isWhiteBg
                         ? "text-gray-700 hover:bg-gray-50 hover:text-blue-600"
@@ -333,7 +333,7 @@ export function Header() {
                           <p className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-400">
                             {section.title}
                           </p>
-                          {"icon" in section.items ? (
+                          {"icon" in section.items[0] ? (
                             <div className="space-y-1">
                               {section.items.map((subItem: any, ii) => (
                                 <Link
@@ -455,8 +455,13 @@ export function Header() {
             ) : (
               <Link
                 to="/login"
-                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+                className={`flex items-center gap-1.5 rounded-full border px-5 py-2 text-sm font-semibold transition-colors ${
+                  isWhiteBg
+                    ? "border-gray-300 text-gray-800 hover:border-gray-400 hover:bg-gray-50"
+                    : "border-white/50 text-white hover:border-white hover:bg-white/10"
+                }`}
               >
+                <User className="h-3.5 w-3.5" />
                 로그인
               </Link>
             )}
@@ -485,7 +490,9 @@ export function Header() {
                   }
                   className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                 >
-                  <span className={item.highlight ? "text-blue-600" : ""}>{item.name}</span>
+                  <span className={isActiveNav(item.path) ? "text-blue-600" : ""}>
+                    {item.name}
+                  </span>
                   <ChevronDown
                     className={`h-4 w-4 transition-transform ${mobileOpenDropdown === item.name ? "rotate-180" : ""}`}
                   />
@@ -552,8 +559,9 @@ export function Header() {
                 <Link
                   to="/login"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="block w-full rounded-lg bg-blue-600 py-2.5 text-center text-sm font-bold text-white"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-full border border-gray-300 py-2.5 text-sm font-semibold text-gray-800 transition-colors hover:border-gray-400 hover:bg-gray-50"
                 >
+                  <User className="h-3.5 w-3.5" />
                   로그인
                 </Link>
               )}
