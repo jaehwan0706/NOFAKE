@@ -12,7 +12,6 @@ import { Privacy } from "./pages/support/Privacy";
 import { Login } from "./pages/auth/KakaoLogin";
 import { KakaoCallback } from "./pages/auth/KakaoCallback";
 import PhoneVerification from "./pages/auth/PhoneVerification";
-import PhoneVerification from "./pages/auth/PhoneVerification";
 import { Partnership } from "./pages/partnership/Partnership";
 import { ContactSupport } from "./pages/support/ContactSupport";
 import { NOFAKEservicePage } from "./pages/about/NOFAKEservicePage";
