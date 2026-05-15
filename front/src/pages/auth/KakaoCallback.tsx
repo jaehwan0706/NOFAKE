@@ -68,8 +68,14 @@ export function KakaoCallback() {
           email: data.email ?? "",
         });
 
-        setStatus("로그인되었습니다. 메인 화면으로 이동합니다...");
-        navigate("/", { replace: true });
+        // 휴대폰 인증 여부에 따라 분기
+        if (data.phone_verified === false) {
+          setStatus("추가 인증이 필요합니다. 휴대폰 인증 화면으로 이동합니다...");
+          navigate('/verify-phone', { replace: true });
+        } else {
+          setStatus("로그인되었습니다. 메인 화면으로 이동합니다...");
+          navigate("/", { replace: true });
+        }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "카카오 로그인 처리 중 오류가 발생했습니다.";
