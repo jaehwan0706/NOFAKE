@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title NoFakePlatform
- * @dev 나이키, 무신사 포인트 교환 및 래플 NFT 관리 플랫폼
+ * @dev 나이키,무신사 포인트 교환 및 래플 NFT 관리 플랫폼
  */
 contract NoFakePlatform is ERC721, Ownable {
     using Strings for uint256;
