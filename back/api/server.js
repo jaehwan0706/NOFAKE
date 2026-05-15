@@ -944,7 +944,35 @@ app.delete("/api/admin/raffles/:id", async (req, res) => {
   }
 });
 
-app.post("/api/mint", async (req, res) => {
+// Middleware: ensure Kakao access token belongs to a user who completed phone verification
+async function ensurePhoneVerified(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization ?? '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+    if (!token) return res.status(401).json({ success: false, error: '카카오 토큰이 필요합니다.' });
+
+    // Validate token with Kakao and get kakaoId
+    const resp = await axios.get('https://kapi.kakao.com/v2/user/me', { headers: { Authorization: `Bearer ${token}` } });
+    const kakaoId = String(resp.data.id || resp.data?.id || '');
+    if (!kakaoId) return res.status(401).json({ success: false, error: '유효하지 않은 카카오 토큰입니다.' });
+
+    const user = await User.findOne({ where: { kakaoId } });
+    if (!user) return res.status(403).json({ success: false, error: 'USER_NOT_FOUND', message: '추가 인증이 필요합니다.' });
+
+    if (!user.phone_verified) {
+      return res.status(403).json({ success: false, error: 'PHONE_NOT_VERIFIED', message: '휴대폰 인증이 필요합니다.' });
+    }
+
+    // attach user to request for downstream handlers
+    req.loginUser = user;
+    next();
+  } catch (err) {
+    console.error('ensurePhoneVerified error:', err.message);
+    return res.status(401).json({ success: false, error: '토큰 검증 실패' });
+  }
+}
+
+app.post("/api/mint", ensurePhoneVerified, async (req, res) => {
   try {
     const { userAddress, raffleId } = req.body || {};
 
