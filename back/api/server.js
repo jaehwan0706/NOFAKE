@@ -100,6 +100,21 @@ const User = sequelize.define("User", {
   phone_verified_at: { type: DataTypes.DATE, allowNull: true },
 });
 
+// Phone verification sessions - short-lived Octomo sessions
+const PhoneVerificationSession = sequelize.define('PhoneVerificationSession', {
+  sessionId: { type: DataTypes.STRING, primaryKey: true },
+  kakaoId: { type: DataTypes.STRING, allowNull: true },
+  phoneNumber: { type: DataTypes.STRING, allowNull: true },
+  receiverNumber: { type: DataTypes.STRING, allowNull: true },
+  txId: { type: DataTypes.STRING, allowNull: true },
+  status: { type: DataTypes.ENUM('pending','verified','failed','expired'), allowNull: false, defaultValue: 'pending' },
+  createdAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+  expiresAt: { type: DataTypes.DATE, allowNull: true },
+  verifiedAt: { type: DataTypes.DATE, allowNull: true },
+  meta: { type: DataTypes.JSON, allowNull: true }
+});
+
+
 
 const normalizeRafflePayload = (body = {}) => ({
   title: String(body.title ?? body.name ?? "").trim(),
@@ -469,32 +484,106 @@ app.post('/api/user/phone', async (req, res) => {
     if (!user) return res.status(404).json({ success: false, error: 'user not found' });
 
     await user.update({ phone_number: phoneNumber, phone_verified: false, phone_verified_at: null });
-    return res.json({ success: true, phone_number: phoneNumber });
+
+    // also create a pending PhoneVerificationSession to track state (created by user)
+    const sessionId = `pv-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    const receiverNumber = process.env.OCTOMO_DEFAULT_RECEIVER || '+821055556666';
+    const expiresAt = new Date(Date.now() + (Number(process.env.OCTOMO_TTL_SECONDS || 300) * 1000));
+
+    await PhoneVerificationSession.create({ sessionId, kakaoId, phoneNumber, receiverNumber, status: 'pending', expiresAt, meta: { createdBy: 'user_attach' } });
+
+    return res.json({ success: true, phone_number: phoneNumber, sessionId, receiverNumber, expiresAt: expiresAt.toISOString() });
   } catch (err) {
     console.error('/api/user/phone error:', err.message);
     return res.status(500).json({ success: false, error: 'server error' });
   }
 });
 
-// Webhook to mark phone_verified when Octomo notifies verification (expects { phoneNumber, status })
-app.post('/api/phone-verification/webhook', async (req, res) => {
-  const payload = req.body || {};
-  const phoneNumber = String(payload.phoneNumber || payload.receiverNumber || '').trim();
-  const status = String(payload.status || '').toLowerCase();
-
-  if (!phoneNumber) return res.status(400).json({ success: false, error: 'phoneNumber required' });
+// Start Octomo verification session (creates session and returns receiverNumber)
+app.post('/api/phone-verification/start', async (req, res) => {
+  const authHeader = req.headers.authorization ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  if (!token) return res.status(401).json({ success: false, error: '카카오 토큰이 필요합니다.' });
 
   try {
-    const users = await User.findAll({ where: { phone_number: phoneNumber } });
-    if (!users || users.length === 0) return res.status(404).json({ success: false, error: 'no users for phone' });
+    const userResp = await axios.get('https://kapi.kakao.com/v2/user/me', { headers: { Authorization: `Bearer ${token}` } });
+    const kakaoId = String(userResp.data.id || userResp.data?.id || '');
+    if (!kakaoId) return res.status(400).json({ success: false, error: '카카오 사용자 정보를 확인할 수 없습니다.' });
 
-    if (status === 'verified') {
-      await Promise.all(users.map((u) => u.update({ phone_verified: true, phone_verified_at: new Date() })));
+    const phoneNumber = String(req.body.phoneNumber || '').trim() || null;
+
+    // create session (call Octomo if configured)
+    let sessionId = `pv-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    let receiverNumber = process.env.OCTOMO_DEFAULT_RECEIVER || '+821055556666';
+    let txId = null;
+    let expiresAt = new Date(Date.now() + (Number(process.env.OCTOMO_TTL_SECONDS || 300) * 1000));
+
+    if (process.env.OCTOMO_API_URL) {
+      try {
+        const r = await axios.post(process.env.OCTOMO_API_URL.replace(/\/$/, '') + '/sessions', { phoneNumber }, { headers: { Authorization: `Bearer ${process.env.OCTOMO_API_KEY || ''}` }, timeout: 5000 });
+        const d = r.data || {};
+        sessionId = d.sessionId || d.id || sessionId;
+        receiverNumber = d.receiverNumber || d.receiver_number || receiverNumber;
+        txId = d.txId || d.tx_id || txId;
+        if (d.expiresAt) expiresAt = new Date(d.expiresAt);
+      } catch (err) {
+        console.error('Octomo create session failed:', err.response?.data || err.message);
+      }
+    }
+
+    await PhoneVerificationSession.create({ sessionId, kakaoId, phoneNumber, receiverNumber, txId, status: 'pending', expiresAt });
+
+    return res.status(201).json({ sessionId, receiverNumber, expiresAt: expiresAt.toISOString(), pollIntervalSeconds: 4 });
+  } catch (err) {
+    console.error('phone verification start error:', err.message);
+    return res.status(500).json({ success: false, error: 'server error' });
+  }
+});
+
+// Polling status endpoint
+app.get('/api/phone-verification/status', async (req, res) => {
+  const sessionId = String(req.query.sessionId || '').trim();
+  if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
+
+  const session = await PhoneVerificationSession.findByPk(sessionId);
+  if (!session) return res.status(404).json({ error: 'session not found' });
+
+  return res.json({ sessionId: session.sessionId, status: session.status, txId: session.txId, verifiedAt: session.verifiedAt });
+});
+
+// Webhook to mark phone_verified when Octomo notifies verification (expects { sessionId, phoneNumber, status, txId })
+app.post('/api/phone-verification/webhook', async (req, res) => {
+  const payload = req.body || {};
+  const sessionId = String(payload.sessionId || '') || null;
+  const phoneNumber = String(payload.phoneNumber || payload.receiverNumber || '').trim();
+  const status = String(payload.status || '').toLowerCase();
+  const txId = payload.txId || payload.tx_id || null;
+
+  if (!phoneNumber && !sessionId) return res.status(400).json({ success: false, error: 'phoneNumber or sessionId required' });
+
+  try {
+    // update session if exists
+    if (sessionId) {
+      const session = await PhoneVerificationSession.findByPk(sessionId);
+      if (session) {
+        await session.update({ status: status || session.status, txId: txId || session.txId, verifiedAt: status === 'verified' ? new Date() : session.verifiedAt, meta: { ...(session.meta||{}), webhook: payload } });
+      }
+    }
+
+    // update users by phoneNumber
+    if (phoneNumber) {
+      const users = await User.findAll({ where: { phone_number: phoneNumber } });
+      if (!users || users.length === 0) return res.status(404).json({ success: false, error: 'no users for phone' });
+
+      if (status === 'verified') {
+        await Promise.all(users.map((u) => u.update({ phone_verified: true, phone_verified_at: new Date() })));
+        return res.json({ success: true });
+      }
+
+      await Promise.all(users.map((u) => u.update({ phone_verified: false })));
       return res.json({ success: true });
     }
 
-    // handle failed/expired if needed
-    await Promise.all(users.map((u) => u.update({ phone_verified: false })));
     return res.json({ success: true });
   } catch (err) {
     console.error('phone verification webhook error:', err.message);
