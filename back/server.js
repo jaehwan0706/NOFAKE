@@ -79,7 +79,7 @@ app.post('/api/mint', async (req, res) => {
     }
 });
 
-const PORT = 3001;
+const PORT = 3002;
 app.listen(PORT, () => {
     console.log(`\n🛡️  NoFake Minting Server is running!`);
     console.log(`🔗 API URL: http://localhost:${PORT}/api/mint`);

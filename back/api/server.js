@@ -7,6 +7,9 @@ import { fileURLToPath } from "url";
 import cors from "cors";
 import { Sequelize, DataTypes, Op } from "sequelize";
 import crypto from "crypto";
+import axios from "axios"; // 에러 처리가 용이한 axios 권장
+import jwt from "jsonwebtoken";
+import jwksClient from "jwks-rsa";
 
 dotenv.config();
 
@@ -14,22 +17,72 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173', // 프론트엔드 포트 명시
+  credentials: true                // 인증 정보 허용
+}));
 app.use(express.json());
 
-const PORT = 3002;
+// --- 환경 변수 설정 (도커 3001:3002 매핑 기준) ---
+const PORT = process.env.PORT || 3002;
 const RPC_URL = process.env.RPC_URL || "";
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "";
 const OWNER_PRIVATE_KEY = process.env.OWNER_PRIVATE_KEY || process.env.PRIVATE_KEY || "";
 const DB_STORAGE_PATH = process.env.DB_STORAGE_PATH || path.join(__dirname, "database.sqlite");
 
-fs.mkdirSync(path.dirname(DB_STORAGE_PATH), { recursive: true });
-
-const sequelize = new Sequelize({
-  dialect: "sqlite",
-  storage: DB_STORAGE_PATH,
-  logging: false,
+// --- Web3Auth/Kakao 토큰 검증 설정 ---
+const client = jwksClient({
+  jwksUri: process.env.JWKS_URI 
 });
+
+function getKey(header, callback) {
+  client.getSigningKey(header.kid, (err, key) => {
+    const signingKey = key?.getPublicKey() || key?.rsaPublicKey;
+    callback(null, signingKey);
+  });
+}
+
+// 🛡️ [보안 미들웨어] 민팅 전 유저 검증
+const verifyTokenMiddleware = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: '인증 토큰이 없습니다.' });
+
+    const token = authHeader.split(' ')[1];
+    
+    jwt.verify(token, getKey, { 
+        algorithms: ['RS256'],
+        audience: process.env.TOKEN_AUDIENCE 
+    }, (err, decoded) => {
+        if (err) {
+            console.error("❌ 토큰 검증 실패:", err.message);
+            return res.status(403).json({ error: '유효하지 않은 토큰입니다.' });
+        }
+        
+        // 토큰에서 지갑 주소 추출
+        req.user = {
+            walletAddress: decoded.wallets?.[0]?.address || decoded.Sub || decoded.sub,
+            email: decoded.email
+        };
+        next();
+    });
+};
+
+// --- DB 설정 ---
+fs.mkdirSync(path.dirname(DB_STORAGE_PATH), { recursive: true });
+const sequelize = new Sequelize(
+  process.env.DB_NAME,     // DB 이름 (NOFAKE)
+  process.env.DB_USER,     // 계정명 (NOFAKE)
+  process.env.DB_PASSWORD, // 비밀번호 (asdfasdf)
+  {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    dialect: "mysql",      // sqlite 대신 mysql 사용
+    logging: false,        // 터미널이 지저분해지면 false, 쿼리를 보고 싶으면 console.log
+    dialectOptions: {
+      connectTimeout: 60000 // 연결 시간 초과 방지
+    }
+  }
+);
 
 const Raffle = sequelize.define("Raffle", {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -48,555 +101,139 @@ const Raffle = sequelize.define("Raffle", {
   contractAddress: { type: DataTypes.STRING },
   provenanceHash: { type: DataTypes.STRING },
 });
-
-const RaffleSession = sequelize.define(
-  "RaffleSession",
-  {
-    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-    raffleId: { type: DataTypes.INTEGER, allowNull: false },
-    sessionId: { type: DataTypes.STRING, allowNull: false },
-    startedAt: { type: DataTypes.DATE, allowNull: false },
-    completedAt: { type: DataTypes.DATE, allowNull: true },
-    durationSeconds: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
-    status: {
-      type: DataTypes.ENUM("STARTED", "COMPLETED"),
-      allowNull: false,
-      defaultValue: "STARTED",
-    },
+const User = sequelize.define("User", {
+  kakaoId: { 
+    type: DataTypes.STRING, 
+    primaryKey: true, 
+    comment: "카카오 고유 ID" 
   },
-  {
-    indexes: [{ unique: true, fields: ["raffleId", "sessionId"] }],
-  }
-);
-
-const normalizeRafflePayload = (body = {}) => ({
-  title: String(body.title ?? body.name ?? "").trim(),
-  category: String(body.category ?? "").trim() || null,
-  description: String(body.description ?? "").trim() || null,
-  imageUrl: String(body.imageUrl ?? "").trim() || null,
-  startAt: body.startAt || null,
-  endAt: body.endAt || null,
-  firstPrizeCount: Number(body.firstPrizeCount ?? body.firstPrize ?? 0) || 0,
-  secondPrizeCount: Number(body.secondPrizeCount ?? body.secondPrize ?? 0) || 0,
-  status: body.status || "MINTING",
+  nickname: { type: DataTypes.STRING },
+  email: { type: DataTypes.STRING },
+  name: { type: DataTypes.STRING },
+  phoneNumber: { type: DataTypes.STRING }
 });
-
+app.get("/api/users", async (req, res) => {
+  try {
+    const users = await User.findAll();
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: "유저 목록을 불러오지 못했습니다." });
+  }
+});
+// --- 블록체인 설정 ---
 const abiPath = path.join(__dirname, "abi.json");
 const rawAbi = JSON.parse(fs.readFileSync(abiPath, "utf8"));
 const contractABI = Array.isArray(rawAbi) ? rawAbi : rawAbi.abi;
 
 const provider = RPC_URL ? new ethers.JsonRpcProvider(RPC_URL) : null;
-const readContract =
-  provider && CONTRACT_ADDRESS ? new ethers.Contract(CONTRACT_ADDRESS, contractABI, provider) : null;
-const signer =
-  provider && OWNER_PRIVATE_KEY ? new ethers.Wallet(OWNER_PRIVATE_KEY, provider) : null;
-const writeContract =
-  signer && CONTRACT_ADDRESS ? new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer) : null;
+const readContract = provider && CONTRACT_ADDRESS ? new ethers.Contract(CONTRACT_ADDRESS, contractABI, provider) : null;
+const signer = provider && OWNER_PRIVATE_KEY ? new ethers.Wallet(OWNER_PRIVATE_KEY, provider) : null;
+const writeContract = signer && CONTRACT_ADDRESS ? new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer) : null;
 
-const buildProvenanceHash = () => {
-  const metadataDir = path.join(__dirname, "metadata", "post-reveal");
+// --- API 엔드포인트 ---
 
-  if (!fs.existsSync(metadataDir)) {
-    throw new Error("post-reveal metadata directory not found.");
-  }
+// 1. 카카오 인증 라우트 (인가 코드 -> ID 토큰 교환)
+app.post("/api/auth/kakao", async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: "인가 코드가 없습니다." });
 
-  const files = fs
-    .readdirSync(metadataDir)
-    .filter((file) => file.endsWith(".json"))
-    .sort();
-
-  if (files.length === 0) {
-    throw new Error("No post-reveal metadata files found.");
-  }
-
-  const combinedHashes = files
-    .map((file) => {
-      const fileData = fs.readFileSync(path.join(metadataDir, file));
-      return crypto.createHash("sha256").update(fileData).digest("hex");
-    })
-    .join("");
-
-  return crypto.createHash("sha256").update(combinedHashes).digest("hex");
-};
-
-const ensureReadContract = () => {
-  if (!readContract) {
-    throw new Error("Blockchain read contract is not configured. Check RPC_URL and CONTRACT_ADDRESS.");
-  }
-
-  return readContract;
-};
-
-const ensureWriteContract = () => {
-  if (!writeContract) {
-    throw new Error("Blockchain write wallet is not configured. Set OWNER_PRIVATE_KEY in back/api/.env.");
-  }
-
-  return writeContract;
-};
-
-const getContractParticipantStats = async () => {
-  const contract = ensureReadContract();
-  const totalSupply = Number(await contract.totalSupply());
-  const byRaffleId = {};
-
-  if (totalSupply === 0) {
-    return { totalParticipants: 0, byRaffleId };
-  }
-
-  const raffleIds = await Promise.all(
-    Array.from({ length: totalSupply }, (_, index) => contract.tokenToRaffleId(index + 1))
-  );
-
-  raffleIds.forEach((raffleIdValue) => {
-    const raffleId = Number(raffleIdValue);
-    byRaffleId[raffleId] = (byRaffleId[raffleId] || 0) + 1;
-  });
-
-  return {
-    totalParticipants: totalSupply,
-    byRaffleId,
-  };
-};
-
-const buildAnalyticsByRaffleId = (sessions = []) => {
-  const analyticsMap = {};
-
-  sessions.forEach((session) => {
-    const plain = session.toJSON ? session.toJSON() : session;
-    const raffleId = Number(plain.raffleId);
-
-    if (!analyticsMap[raffleId]) {
-      analyticsMap[raffleId] = {
-        startedCount: 0,
-        completedCount: 0,
-        totalDurationSeconds: 0,
-      };
-    }
-
-    analyticsMap[raffleId].startedCount += 1;
-
-    if (plain.status === "COMPLETED" || plain.completedAt) {
-      analyticsMap[raffleId].completedCount += 1;
-      analyticsMap[raffleId].totalDurationSeconds += Math.max(Number(plain.durationSeconds || 0), 0);
-    }
-  });
-
-  return Object.fromEntries(
-    Object.entries(analyticsMap).map(([raffleId, metrics]) => {
-      const startedCount = metrics.startedCount;
-      const completedCount = metrics.completedCount;
-      const dropoutCount = Math.max(startedCount - completedCount, 0);
-      const conversionRate = startedCount ? (completedCount / startedCount) * 100 : 0;
-      const dropoutRate = startedCount ? (dropoutCount / startedCount) * 100 : 0;
-      const avgEntryMinutes = completedCount ? metrics.totalDurationSeconds / completedCount / 60 : 0;
-
-      return [
-        raffleId,
-        {
-          views: startedCount,
-          completions: completedCount,
-          dropouts: dropoutCount,
-          conversionRate,
-          dropoutRate,
-          avgEntryMinutes,
-        },
-      ];
-    })
-  );
-};
-
-const getRaffleAnalyticsByIds = async (raffleIds = []) => {
-  if (raffleIds.length === 0) {
-    return {};
-  }
-
-  const sessions = await RaffleSession.findAll({
-    where: {
-      raffleId: {
-        [Op.in]: raffleIds,
-      },
-    },
-  });
-
-  return buildAnalyticsByRaffleId(sessions);
-};
-
-const serializeRaffle = (raffle, participantStats = {}, analyticsByRaffleId = {}) => {
-  const plain = raffle.toJSON ? raffle.toJSON() : raffle;
-  const analytics = analyticsByRaffleId[plain.id] || {};
-
-  return {
-    ...plain,
-    participants: participantStats[plain.id] || 0,
-    views: Number(analytics.views || 0),
-    completions: Number(analytics.completions || 0),
-    dropouts: Number(analytics.dropouts || 0),
-    conversionRate: Number(analytics.conversionRate || 0),
-    dropoutRate: Number(analytics.dropoutRate || 0),
-    avgEntryMinutes: Number(analytics.avgEntryMinutes || 0),
-  };
-};
-
-app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "NOFAKE API server is running.",
-    endpoints: [
-      "/health",
-      "/api/raffles",
-      "/api/mint",
-      "/api/admin/raffles",
-      "/api/admin/contract-stats",
-      "/api/metadata/:tokenId",
-    ],
-  });
-});
-
-app.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    status: "ok",
-    port: PORT,
-    contractConfigured: Boolean(readContract),
-    writeWalletConfigured: Boolean(writeContract),
-  });
-});
-
-app.get("/api/admin/contract-stats", async (req, res) => {
   try {
-    const stats = await getContractParticipantStats();
-    res.json({ success: true, totalParticipants: stats.totalParticipants });
+    // 1단계: 인가 코드를 액세스 토큰으로 교환 (기존 로직)
+    const response = await axios.post("https://kauth.kakao.com/oauth/token", new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: process.env.KAKAO_REST_API_KEY,
+      redirect_uri: "http://localhost:5173/auth/kakao/callback", 
+      code,
+    }), {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }
+    });
+
+    const { access_token } = response.data;
+
+    // 2단계: ✨ [추가] 액세스 토큰으로 카카오 사용자 상세 정보 가져오기
+    const userInfoResponse = await axios.get("https://kapi.kakao.com/v2/user/me", {
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+        "Content-type": "application/x-www-form-urlencoded;charset=utf-8",
+      },
+    });
+
+    const kakaoUser = userInfoResponse.data;
+    const kakaoAccount = kakaoUser.kakao_account;
+
+    // 3단계: ✨ [추가] DB에 저장 (Upsert: 있으면 업데이트, 없으면 생성)
+    await User.upsert({
+      kakaoId: kakaoUser.id.toString(),
+      nickname: kakaoAccount.profile?.nickname || "",
+      email: kakaoAccount.email || "",
+      name: kakaoAccount.name || "",
+      phoneNumber: kakaoAccount.phone_number || ""
+    });
+
+    console.log(`✅ 유저 정보 DB 저장 완료: ${kakaoAccount.name || kakaoUser.id}`);
+    
+    // 프론트엔드에는 원래 주던 토큰 정보를 그대로 줍니다.
+    res.json(response.data); 
+
   } catch (error) {
-    console.error("Failed to load contract stats:", error);
-    res.status(500).json({ success: false, error: error.message || "Failed to load contract stats." });
+    const errorData = error.response?.data;
+    if (errorData?.error_code === 'KOE320') {
+      return res.status(200).json({ message: "이미 처리된 코드입니다." });
+    }
+    console.error("❌ 카카오 인증/DB 저장 에러:", errorData || error.message);
+    res.status(500).json({ error: "카카오 인증 실패" });
   }
 });
 
+// 2. 민팅 라우트 (보안 미들웨어 적용)
+app.post("/api/mint", verifyTokenMiddleware, async (req, res) => {
+  try {
+    const { raffleId } = req.body;
+    const userAddress = req.user.walletAddress; // 토큰에서 안전하게 추출
+
+    const raffle = await Raffle.findByPk(raffleId);
+    if (!raffle || raffle.status !== "MINTING") {
+      return res.status(400).json({ success: false, error: "민팅 가능한 래플이 아닙니다." });
+    }
+
+    if (!writeContract) throw new Error("블록체인 쓰기 권한이 설정되지 않았습니다.");
+
+    console.log(`🚀 민팅 시도: 유저(${userAddress}), 래플(${raffleId})`);
+    
+    // 가스비는 서버 지갑(signer)이 부담
+    const tx = await writeContract.mintRaffleTicket(userAddress, raffle.id);
+    const receipt = await tx.wait();
+
+    res.json({ success: true, txHash: receipt.hash, user: userAddress });
+  } catch (error) {
+    console.error("❌ 민팅 실패:", error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// 기타 기본 API들 (Raffles 조회 등)
 app.get("/api/raffles", async (req, res) => {
   try {
     const raffles = await Raffle.findAll({ order: [["createdAt", "DESC"]] });
-    const stats = await getContractParticipantStats().catch(() => ({ totalParticipants: 0, byRaffleId: {} }));
-    const analyticsByRaffleId = await getRaffleAnalyticsByIds(raffles.map((raffle) => Number(raffle.id)));
-    res.json(raffles.map((raffle) => serializeRaffle(raffle, stats.byRaffleId, analyticsByRaffleId)));
+    res.json(raffles);
   } catch (error) {
-    console.error("Failed to fetch raffles:", error);
     res.status(500).json({ error: "Failed to load raffles." });
   }
 });
 
-app.get("/api/admin/raffles", async (req, res) => {
-  try {
-    const raffles = await Raffle.findAll({ order: [["createdAt", "DESC"]] });
-    const stats = await getContractParticipantStats().catch(() => ({ totalParticipants: 0, byRaffleId: {} }));
-    const analyticsByRaffleId = await getRaffleAnalyticsByIds(raffles.map((raffle) => Number(raffle.id)));
-    res.json({
-      success: true,
-      data: raffles.map((raffle) => serializeRaffle(raffle, stats.byRaffleId, analyticsByRaffleId)),
-    });
-  } catch (error) {
-    console.error("Failed to load admin raffles:", error);
-    res.status(500).json({ success: false, error: "Failed to load raffles." });
-  }
+app.get("/health", (req, res) => {
+  res.json({ success: true, status: "ok", port: PORT });
 });
 
-app.get("/api/admin/raffles/:id", async (req, res) => {
-  try {
-    const raffle = await Raffle.findByPk(req.params.id);
-
-    if (!raffle) {
-      return res.status(404).json({ success: false, error: "Raffle not found." });
-    }
-
-    const stats = await getContractParticipantStats().catch(() => ({ totalParticipants: 0, byRaffleId: {} }));
-    const analyticsByRaffleId = await getRaffleAnalyticsByIds([Number(req.params.id)]);
-    res.json({ success: true, data: serializeRaffle(raffle, stats.byRaffleId, analyticsByRaffleId) });
-  } catch (error) {
-    console.error("Failed to load raffle detail:", error);
-    res.status(500).json({ success: false, error: "Failed to load raffle detail." });
-  }
-});
-
-app.post("/api/analytics/raffles/:id/session/start", async (req, res) => {
-  try {
-    const raffleId = Number(req.params.id);
-    const sessionId = String(req.body?.sessionId || "").trim();
-    const startedAt = req.body?.startedAt ? new Date(req.body.startedAt) : new Date();
-
-    if (!raffleId || !sessionId) {
-      return res.status(400).json({ success: false, error: "raffleId and sessionId are required." });
-    }
-
-    const raffle = await Raffle.findByPk(raffleId);
-    if (!raffle) {
-      return res.status(404).json({ success: false, error: "Raffle not found." });
-    }
-
-    await RaffleSession.upsert({
-      raffleId,
-      sessionId,
-      startedAt,
-      status: "STARTED",
-    });
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Failed to start raffle session:", error);
-    res.status(400).json({ success: false, error: "Failed to start raffle session." });
-  }
-});
-
-app.post("/api/analytics/raffles/:id/session/complete", async (req, res) => {
-  try {
-    const raffleId = Number(req.params.id);
-    const sessionId = String(req.body?.sessionId || "").trim();
-    const startedAt = req.body?.startedAt ? new Date(req.body.startedAt) : new Date();
-    const completedAt = req.body?.completedAt ? new Date(req.body.completedAt) : new Date();
-    const durationSeconds = Math.max(Number(req.body?.durationSeconds || 0), 0);
-
-    if (!raffleId || !sessionId) {
-      return res.status(400).json({ success: false, error: "raffleId and sessionId are required." });
-    }
-
-    const raffle = await Raffle.findByPk(raffleId);
-    if (!raffle) {
-      return res.status(404).json({ success: false, error: "Raffle not found." });
-    }
-
-    await RaffleSession.upsert({
-      raffleId,
-      sessionId,
-      startedAt,
-      completedAt,
-      durationSeconds,
-      status: "COMPLETED",
-    });
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Failed to complete raffle session:", error);
-    res.status(400).json({ success: false, error: "Failed to complete raffle session." });
-  }
-});
-
-app.post("/api/admin/raffles", async (req, res) => {
-  try {
-    const payload = normalizeRafflePayload(req.body);
-
-    if (!payload.title) {
-      return res.status(400).json({ success: false, error: "title is required." });
-    }
-
-    if (!payload.startAt || !payload.endAt) {
-      return res.status(400).json({ success: false, error: "startAt and endAt are required." });
-    }
-
-    if (new Date(payload.startAt) >= new Date(payload.endAt)) {
-      return res.status(400).json({ success: false, error: "endAt must be later than startAt." });
-    }
-
-    const newRaffle = await Raffle.create({
-      ...payload,
-      contractAddress: CONTRACT_ADDRESS,
-      provenanceHash: buildProvenanceHash(),
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Raffle created successfully.",
-      data: serializeRaffle(newRaffle, {}),
-    });
-  } catch (error) {
-    console.error("Failed to create raffle:", error);
-    res.status(400).json({ success: false, error: "Failed to create raffle.", details: error.message });
-  }
-});
-
-app.patch("/api/admin/raffles/:id/config", async (req, res) => {
-  try {
-    const raffle = await Raffle.findByPk(req.params.id);
-
-    if (!raffle) {
-      return res.status(404).json({ success: false, error: "Raffle not found." });
-    }
-
-    const startAt = req.body.startAt || raffle.startAt;
-    const endAt = req.body.endAt || raffle.endAt;
-    const firstPrizeCount =
-      Number(req.body.firstPrizeCount ?? req.body.firstPrize ?? raffle.firstPrizeCount ?? 0) || 0;
-    const secondPrizeCount =
-      Number(req.body.secondPrizeCount ?? req.body.secondPrize ?? raffle.secondPrizeCount ?? 0) || 0;
-
-    if (!startAt || !endAt) {
-      return res.status(400).json({ success: false, error: "startAt and endAt are required." });
-    }
-
-    if (new Date(startAt) >= new Date(endAt)) {
-      return res.status(400).json({ success: false, error: "endAt must be later than startAt." });
-    }
-
-    await raffle.update({
-      startAt,
-      endAt,
-      firstPrizeCount,
-      secondPrizeCount,
-      status: "MINTING",
-    });
-
-    res.json({ success: true, message: "Raffle configuration updated.", data: raffle });
-  } catch (error) {
-    console.error("Failed to update raffle config:", error);
-    res.status(400).json({ success: false, error: "Failed to update raffle config.", details: error.message });
-  }
-});
-
-app.post("/api/admin/raffles/:id/close", async (req, res) => {
-  try {
-    const raffle = await Raffle.findByPk(req.params.id);
-
-    if (!raffle) {
-      return res.status(404).json({ success: false, error: "Raffle not found." });
-    }
-
-    await raffle.update({ status: "CLOSED" });
-    res.json({ success: true, message: "Raffle closed.", data: raffle });
-  } catch (error) {
-    console.error("Failed to close raffle:", error);
-    res.status(400).json({ success: false, error: "Failed to close raffle.", details: error.message });
-  }
-});
-
-app.post("/api/admin/raffles/:id/reveal", async (req, res) => {
-  try {
-    const raffle = await Raffle.findByPk(req.params.id);
-
-    if (!raffle) {
-      return res.status(404).json({ success: false, error: "Raffle not found." });
-    }
-
-    await raffle.update({ status: "REVEALED" });
-    res.json({ success: true, message: "Raffle result revealed.", data: raffle });
-  } catch (error) {
-    console.error("Failed to reveal raffle:", error);
-    res.status(400).json({ success: false, error: "Failed to reveal raffle.", details: error.message });
-  }
-});
-
-app.delete("/api/admin/raffles/:id", async (req, res) => {
-  try {
-    const raffle = await Raffle.findByPk(req.params.id);
-
-    if (!raffle) {
-      return res.status(404).json({ success: false, error: "Raffle not found." });
-    }
-
-    await raffle.destroy();
-    res.json({ success: true, message: "Raffle deleted." });
-  } catch (error) {
-    console.error("Failed to delete raffle:", error);
-    res.status(400).json({ success: false, error: "Failed to delete raffle.", details: error.message });
-  }
-});
-
-app.post("/api/mint", async (req, res) => {
-  try {
-    const { userAddress, raffleId } = req.body || {};
-
-    if (!userAddress || !ethers.isAddress(userAddress)) {
-      return res.status(400).json({ success: false, error: "Valid userAddress is required." });
-    }
-
-    const raffle = await Raffle.findByPk(raffleId);
-
-    if (!raffle) {
-      return res.status(404).json({ success: false, error: "Raffle not found." });
-    }
-
-    if (raffle.status !== "MINTING") {
-      return res.status(400).json({ success: false, error: "This raffle is not open for minting." });
-    }
-
-    if (raffle.startAt && new Date() < new Date(raffle.startAt)) {
-      return res.status(400).json({ success: false, error: "This raffle has not started yet." });
-    }
-
-    if (raffle.endAt && new Date() > new Date(raffle.endAt)) {
-      return res.status(400).json({ success: false, error: "This raffle is already closed." });
-    }
-
-    const contract = ensureWriteContract();
-    const tx = await contract.mintRaffleTicket(userAddress, raffle.id);
-    const receipt = await tx.wait();
-
-    const stats = await getContractParticipantStats();
-    const participantCount = stats.byRaffleId[raffle.id] || 0;
-
-    res.json({
-      success: true,
-      txHash: receipt?.hash || tx.hash,
-      raffleId: raffle.id,
-      participants: participantCount,
-      totalParticipants: stats.totalParticipants,
-    });
-  } catch (error) {
-    console.error("Mint request failed:", error);
-    res.status(400).json({
-      success: false,
-      error: error.shortMessage || error.message || "Mint failed.",
-    });
-  }
-});
-
-app.get("/api/metadata/:tokenId", async (req, res) => {
-  try {
-    const contract = ensureReadContract();
-    const tokenId = req.params.tokenId;
-    const raffleId = await contract.tokenToRaffleId(tokenId);
-    const isRevealed = await contract.isRevealed(raffleId);
-
-    if (!isRevealed) {
-      return res.json({
-        name: "Nike X No-Fake Mystery Box",
-        description: "Reveal will make the final raffle result visible.",
-        image: "https://nofake.s3.ap-northeast-2.amazonaws.com/hidden.png",
-        attributes: [{ trait_type: "Status", value: "Unrevealed" }],
-      });
-    }
-
-    const filePath = path.join(__dirname, "metadata", "post-reveal", `${tokenId}.json`);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: "Metadata file not found." });
-    }
-
-    const metadata = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    metadata.contract_address = CONTRACT_ADDRESS;
-    metadata.external_url = `http://15.164.104.0:${PORT}/api/metadata/${tokenId}`;
-
-    return res.json(metadata);
-  } catch (error) {
-    return res.status(500).json({ error: "Server error", details: error.message });
-  }
-});
-
+// --- 서버 실행 ---
 const ensureSchema = async () => {
   await sequelize.sync();
-
-  const queryInterface = sequelize.getQueryInterface();
-  const raffleTable = await queryInterface.describeTable("Raffles");
-
-  if (!raffleTable.description) {
-    await queryInterface.addColumn("Raffles", "description", {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    });
-  }
-
-  await RaffleSession.sync();
 };
 
 ensureSchema().then(() => {
-  console.log(`DB synced (Contract: ${CONTRACT_ADDRESS || "not configured"})`);
-  app.listen(PORT, () => {
-    console.log(`NOFAKE Server running on http://localhost:${PORT}`);
-  });
+  console.log(`==========================================`);
+  console.log(`🛡️ NOFAKE 통합 서버 가동 (Port: ${PORT})`);
+  console.log(`🔗 Redirect URI: http://localhost:5173/auth/kakao/callback`);
+  console.log(`==========================================`);
+  app.listen(PORT, () => {});
 });
