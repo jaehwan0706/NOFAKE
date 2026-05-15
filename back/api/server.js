@@ -89,6 +89,18 @@ const RaffleParticipant = sequelize.define(
   }
 );
 
+// Users table to record Kakao-linked accounts and phone verification status
+const User = sequelize.define("User", {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  kakaoId: { type: DataTypes.STRING, allowNull: false, unique: true },
+  name: { type: DataTypes.STRING, allowNull: true },
+  email: { type: DataTypes.STRING, allowNull: true },
+  phone_number: { type: DataTypes.STRING, allowNull: true },
+  phone_verified: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  phone_verified_at: { type: DataTypes.DATE, allowNull: true },
+});
+
+
 const normalizeRafflePayload = (body = {}) => ({
   title: String(body.title ?? body.name ?? "").trim(),
   category: String(body.category ?? "").trim() || null,
@@ -376,7 +388,7 @@ app.get("/health", (req, res) => {
 app.post("/api/auth/kakao", async (req, res) => {
   const { code, redirectUri } = req.body;
   if (!code) return res.status(400).json({ error: "인가 코드가 없습니다." });
- 
+
   try {
     // Step 1: 카카오 토큰 교환
     const tokenResponse = await axios.post(
@@ -389,9 +401,9 @@ app.post("/api/auth/kakao", async (req, res) => {
       }),
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
- 
+
     const { access_token } = tokenResponse.data;
- 
+
     // Step 2: 카카오 유저 정보 조회
     const userResponse = await axios.get("https://kapi.kakao.com/v2/user/me", {
       headers: {
@@ -399,23 +411,94 @@ app.post("/api/auth/kakao", async (req, res) => {
         "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
       },
     });
- 
+
     const kakaoAccount = userResponse.data.kakao_account ?? {};
     const profile = kakaoAccount.profile ?? {};
- 
+
     const name = profile.nickname ?? "사용자";
     const email = kakaoAccount.email ?? "";
- 
-    // Step 3: 프론트가 필요한 형태로 반환
-    res.json({
-      success: true,
-      accessToken: access_token,
-      name,
-      email,
-    });
+    const kakaoId = String(userResponse.data.id || userResponse.data?.id || "");
+
+    // Upsert into local Users table (only to track phone verification status)
+    try {
+      const [user, created] = await User.findOrCreate({
+        where: { kakaoId },
+        defaults: { name, email },
+      });
+
+      if (!created) {
+        // keep name/email reasonably up-to-date
+        await user.update({ name: name || user.name, email: email || user.email });
+      }
+
+      // Step 3: 프론트가 필요한 형태로 반환
+      res.json({
+        success: true,
+        accessToken: access_token,
+        name,
+        email,
+        phone_verified: Boolean(user.phone_verified),
+        phone_number: user.phone_number || null,
+      });
+    } catch (dbErr) {
+      console.error('User upsert failed:', dbErr.message);
+      // still return Kakao tokens so frontend can proceed; phone_verified will be false by default
+      res.json({ success: true, accessToken: access_token, name, email, phone_verified: false });
+    }
   } catch (error) {
     console.error("카카오 로그인 실패:", error.response?.data || error.message);
     res.status(500).json({ success: false, error: "카카오 통신 중 오류 발생" });
+  }
+});
+
+// Attach/Update phone number for current Kakao user (requires Kakao access token in Authorization header)
+app.post('/api/user/phone', async (req, res) => {
+  const authHeader = req.headers.authorization ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  if (!token) return res.status(401).json({ success: false, error: '카카오 토큰이 필요합니다.' });
+
+  try {
+    const userResp = await axios.get('https://kapi.kakao.com/v2/user/me', { headers: { Authorization: `Bearer ${token}` } });
+    const kakaoId = String(userResp.data.id || userResp.data?.id || '');
+    if (!kakaoId) return res.status(400).json({ success: false, error: '카카오 사용자 정보를 확인할 수 없습니다.' });
+
+    const phoneNumber = String(req.body.phoneNumber || '').trim();
+    if (!phoneNumber) return res.status(400).json({ success: false, error: 'phoneNumber is required' });
+
+    const user = await User.findOne({ where: { kakaoId } });
+    if (!user) return res.status(404).json({ success: false, error: 'user not found' });
+
+    await user.update({ phone_number: phoneNumber, phone_verified: false, phone_verified_at: null });
+    return res.json({ success: true, phone_number: phoneNumber });
+  } catch (err) {
+    console.error('/api/user/phone error:', err.message);
+    return res.status(500).json({ success: false, error: 'server error' });
+  }
+});
+
+// Webhook to mark phone_verified when Octomo notifies verification (expects { phoneNumber, status })
+app.post('/api/phone-verification/webhook', async (req, res) => {
+  const payload = req.body || {};
+  const phoneNumber = String(payload.phoneNumber || payload.receiverNumber || '').trim();
+  const status = String(payload.status || '').toLowerCase();
+
+  if (!phoneNumber) return res.status(400).json({ success: false, error: 'phoneNumber required' });
+
+  try {
+    const users = await User.findAll({ where: { phone_number: phoneNumber } });
+    if (!users || users.length === 0) return res.status(404).json({ success: false, error: 'no users for phone' });
+
+    if (status === 'verified') {
+      await Promise.all(users.map((u) => u.update({ phone_verified: true, phone_verified_at: new Date() })));
+      return res.json({ success: true });
+    }
+
+    // handle failed/expired if needed
+    await Promise.all(users.map((u) => u.update({ phone_verified: false })));
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('phone verification webhook error:', err.message);
+    return res.status(500).json({ success: false, error: 'server error' });
   }
 });
 
