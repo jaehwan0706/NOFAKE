@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 contract NoFakePlatform is ERC721, Ownable {
     using Strings for uint256;
 
-    // --- NFT 및 래플 변수 ---
+    // --- NFT 및 래플 변수 --- 
     uint256 public constant MAX_SUPPLY = 1000;
     uint256 public totalSupply = 0;
     string public unrevealedURI;
