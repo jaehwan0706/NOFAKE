@@ -24,6 +24,9 @@ import { ManagerSupportPage } from "./pages/partnership/ManagerSupportPage";
 import { PartnershipStatusPage } from "./pages/partnership/PartnershipStatusPage";
 import { PointSwapPage } from "./pages/points/PointSwapPage";
 import { MyPage } from "./pages/user/MyPage";
+import { BrandsPage } from "./pages/about/BrandsPage";
+import { HowItWorksPage } from "./pages/about/HowItWorksPage";
+import { PartnerPage } from "./pages/partnership/PartnerPage";
 
 function Root() {
   return (
@@ -74,6 +77,10 @@ export default function App() {
           <Route path="about/trust" element={<TrustPage />} />
           {/* 회사소개 */}
           <Route path="company" element={<CompanyPage />} />
+          {/* 브랜드 소개 */}
+          <Route path="brands" element={<BrandsPage />} />
+          {/* 래플 참여 방법 */}
+          <Route path="how-it-works" element={<HowItWorksPage />} />
 
           {/* 3. 래플 이벤트 */}
           <Route path="raffles" element={<RafflesPage />} />
@@ -104,7 +111,8 @@ export default function App() {
           <Route path="partnership/manager" element={<ManagerSupportPage />} />
           {/* 파트너 혜택 - 파트너사 현황 */}
           <Route path="partnership/status" element={<PartnershipStatusPage />} />
-
+          {/* 브랜드 입점 문의 */}
+          <Route path="partnership/brand" element={<PartnerPage />} />
           {/* 7. 로그인  */}
           <Route path="login" element={<Login />} />
           <Route path="/auth/kakao/callback" element={<KakaoCallback />} />

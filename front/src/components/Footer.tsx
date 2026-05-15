@@ -30,8 +30,8 @@ export function Footer() {
     <footer className="bg-gray-900 text-gray-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
-        {/* 상단 4컬럼 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+        {/* 상단 3컬럼 — nofake 소개 컬럼 제거 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
 
           {/* 브랜드 */}
           <div>
@@ -69,29 +69,24 @@ export function Footer() {
             </div>
           </div>
 
-          {/* 서비스 */}
+          {/* 서비스 — 브랜드 목록 제거, 래플 이벤트만 유지 */}
           <div>
             <h4 className="text-white font-semibold mb-4">서비스</h4>
             <ul className="space-y-2 text-sm">
               <li><Link to="/raffles" className="hover:text-white transition-colors">래플 이벤트</Link></li>
-              <li><Link to="/brands" className="hover:text-white transition-colors">브랜드 목록</Link></li>
               <li><Link to="/how-it-works" className="hover:text-white transition-colors">래플 참여 방법</Link></li>
               <li><Link to="/terms" className="hover:text-white transition-colors">이용약관</Link></li>
               <li><Link to="/privacy" className="hover:text-white transition-colors">개인정보처리방침</Link></li>
             </ul>
           </div>
 
-          {/* 고객지원 */}
+          {/* 고객지원 — 이메일 문의 제거, 카카오 중심으로 */}
           <div>
             <h4 className="text-white font-semibold mb-4">고객지원</h4>
             <ul className="space-y-2 text-sm">
               <li><Link to="/support" className="hover:text-white transition-colors">고객센터</Link></li>
               <li><Link to="/faq" className="hover:text-white transition-colors">자주 묻는 질문</Link></li>
-              <li>
-                <a href="mailto:help@nofake.kr" className="hover:text-white transition-colors">
-                  이메일 문의
-                </a>
-              </li>
+              <li><Link to="/notice" className="hover:text-white transition-colors">공지사항</Link></li>
               <li>
                 <a
                   href="https://pf.kakao.com/_nofake"
@@ -104,25 +99,6 @@ export function Footer() {
               </li>
             </ul>
           </div>
-
-          {/* B2B 브랜드 입점 */}
-          <div>
-            <h4 className="text-white font-semibold mb-4">브랜드 파트너십</h4>
-            <p className="text-sm text-gray-400 mb-3 leading-relaxed">
-              nofake와 함께 공정한 래플로
-              <br />
-              브랜드 가치를 높여보세요.
-            </p>
-            <Link
-              to="/partner"
-              className="inline-block border border-gray-600 text-white px-5 py-2 rounded hover:bg-gray-800 transition-colors text-sm"
-            >
-              입점 문의하기
-            </Link>
-            <p className="text-xs text-gray-500 mt-2">
-              제안서 및 소개서는 문의 후 전달드립니다.
-            </p>
-          </div>
         </div>
 
         {/* 하단 법적 정보 */}
@@ -131,7 +107,7 @@ export function Footer() {
             <p>
               대표이사 : ??? | 개인정보보호책임자 : ??? | 이메일 :{" "}
               <a href="mailto:help@nofake.kr" className="hover:text-white transition-colors">
-                help@nofake.kr
+                ??@??.com
               </a>
             </p>
             <p>사업자 소재지 : ???</p>
