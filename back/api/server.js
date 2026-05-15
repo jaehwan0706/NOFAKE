@@ -16,7 +16,7 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 
 const PORT = Number(process.env.PORT || 3002);
 const RPC_URL = process.env.RPC_URL || "";
@@ -553,7 +553,43 @@ app.get('/api/phone-verification/status', async (req, res) => {
 
 // Webhook to mark phone_verified when Octomo notifies verification (expects { sessionId, phoneNumber, status, txId })
 app.post('/api/phone-verification/webhook', async (req, res) => {
-  const payload = req.body || {};
+  // Use captured rawBody (from express.json verify) if available for HMAC verification
+  const signatureHeader = String(req.headers['x-octomo-signature'] || req.headers['x-hub-signature'] || '');
+  const secret = process.env.OCTOMO_WEBHOOK_SECRET || '';
+  const rawBody = req.rawBody || (req.body && Object.keys(req.body).length ? Buffer.from(JSON.stringify(req.body)) : null);
+
+  if (secret) {
+    if (!rawBody) {
+      console.warn('No raw body available for HMAC verification');
+      return res.status(400).json({ success: false, error: 'raw body required for signature verification' });
+    }
+
+    try {
+      let sig = signatureHeader.replace(/^sha256=/i, '').trim();
+      if (!sig) return res.status(401).json({ success: false, error: 'missing signature' });
+      const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+      const a = Buffer.from(expected, 'hex');
+      const b = Buffer.from(sig, 'hex');
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        console.warn('Webhook signature mismatch');
+        return res.status(401).json({ success: false, error: 'invalid signature' });
+      }
+    } catch (err) {
+      console.error('Webhook HMAC verify error:', err.message);
+      return res.status(401).json({ success: false, error: 'invalid signature' });
+    }
+  }
+
+  // parse payload (prefer rawBody to preserve exact content)
+  let payload = null;
+  try {
+    if (rawBody) payload = JSON.parse(rawBody.toString('utf8'));
+    else payload = req.body || {};
+  } catch (err) {
+    console.error('Invalid webhook JSON:', err.message);
+    return res.status(400).json({ success: false, error: 'invalid json' });
+  }
+
   const sessionId = String(payload.sessionId || '') || null;
   const phoneNumber = String(payload.phoneNumber || payload.receiverNumber || '').trim();
   const status = String(payload.status || '').toLowerCase();
