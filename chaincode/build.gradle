@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '7.1.2' // 라이브러리 포함 빌드를 위한 플러그인
+}
+
+group 'org.nofake'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral() // 라이브러리를 다운로드할 저장소 (Repository)
+}
+
+dependencies {
+    // Hyperledger Fabric 체인코드 라이브러리 (Dependency)
+    implementation 'org.hyperledger.fabric:fabric-chaincode-shim:2.4.1'
+    implementation 'com.owlike:genson:1.6.0'
+    
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+shadowJar {
+    archiveClassifier.set('')
+    manifest {
+        attributes 'Main-Class': 'org.hyperledger.fabric.contract.TerminationService'
+    }
+}
