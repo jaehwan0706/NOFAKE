@@ -110,7 +110,13 @@ const User = sequelize.define("User", {
   name: { type: DataTypes.STRING },
   phoneNumber: { type: DataTypes.STRING },
   phone_verified: { type: DataTypes.BOOLEAN, defaultValue: false },
-  phone_verified_at: { type: DataTypes.DATE }
+  phone_verified_at: { type: DataTypes.DATE },
+  walletAddress: { type: DataTypes.STRING, allowNull: true },
+  did: { type: DataTypes.STRING, allowNull: true },
+  points: { type: DataTypes.INTEGER, defaultValue: 0 },
+  joinedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+}, {
+  timestamps: true
 });
 
 const PhoneVerificationSession = sequelize.define('PhoneVerificationSession', {
@@ -152,31 +158,62 @@ function getKey(header, callback) {
   });
 }
 
-const verifyTokenMiddleware = (req, res, next) => {
+const verifyTokenMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: '인증 토큰이 없습니다.' });
 
   const token = authHeader.split(' ')[1];
 
+  // 1. 먼저 JWT 검증 시도 (ID Token 등)
   if (process.env.JWKS_URI) {
-    jwt.verify(token, getKey, {
-      algorithms: ['RS256'],
-      audience: process.env.TOKEN_AUDIENCE
-    }, (err, decoded) => {
-      if (err) {
-        console.error("❌ 토큰 검증 실패:", err.message);
-        return res.status(403).json({ error: '유효하지 않은 토큰입니다.' });
-      }
+    try {
+      const decoded = await new Promise((resolve, reject) => {
+        jwt.verify(token, getKey, {
+          algorithms: ['RS256'],
+          audience: process.env.TOKEN_AUDIENCE
+        }, (err, decoded) => {
+          if (err) reject(err);
+          else resolve(decoded);
+        });
+      });
 
       req.user = {
         walletAddress: decoded.wallets?.[0]?.address || decoded.Sub || decoded.sub,
-        email: decoded.email
+        email: decoded.email,
+        kakaoId: decoded.sub || decoded.Sub
       };
-      next();
+      return next();
+    } catch (err) {
+      console.log("ℹ️ JWT 검증 실패, 카카오 액세스 토큰으로 재시도...");
+    }
+  }
+
+  // 2. JWT 검증에 실패하거나 JWKS_URI가 없으면 카카오 액세스 토큰으로 간주
+  try {
+    const resp = await axios.get('https://kapi.kakao.com/v2/user/me', {
+      headers: { Authorization: `Bearer ${token}` }
     });
-  } else {
-    req.user = { walletAddress: "0x0", email: "test@test.com" };
+    const kakaoId = String(resp.data.id || resp.data?.id || '');
+    const user = await User.findOne({ where: { kakaoId } });
+    
+    if (user) {
+      req.user = {
+        kakaoId: user.kakaoId,
+        email: user.email,
+        name: user.name || user.nickname,
+        walletAddress: user.walletAddress
+      };
+    } else {
+      req.user = {
+        kakaoId: kakaoId,
+        email: resp.data.kakao_account?.email,
+        name: resp.data.kakao_account?.profile?.nickname
+      };
+    }
     next();
+  } catch (err) {
+    console.warn("⚠️ 모든 인증 방식 실패:", err.message);
+    return res.status(401).json({ error: '유효하지 않은 토큰입니다.' });
   }
 };
 
@@ -849,6 +886,100 @@ app.get("/api/metadata/:tokenId", async (req, res) => {
 });
 
 // ============================================
+// 마이페이지 API
+// ============================================
+
+// 🌟 [마이페이지] 종합 데이터 (모든 데이터 통합)
+app.get('/api/mypage', verifyTokenMiddleware, async (req, res) => {
+  try {
+    const kakaoId = req.user.kakaoId;
+    let userData = await User.findOne({ where: { kakaoId } });
+    const currentPoints = userData ? userData.points : 55000;
+
+    res.json({
+      // 1. 사용자 기본 프로필
+      profile: {
+        name: userData?.name || userData?.nickname || req.user.name || "NoFake 유저",
+        email: userData?.email || req.user.email,
+        walletAddress: userData?.walletAddress || "0x398591b6257b8BA14Baf06728a706a5B73dd2795",
+        did: userData?.did || "did:nofake:0x398591b6257b8BA14Baf06728a706a5B73dd2795",
+        joinedAt: userData?.joinedAt || new Date().toISOString(),
+        profileImage: null
+      },
+
+      // 2. 포인트 잔액
+      points: currentPoints,
+      privateBlockchain: {
+        nofakePoints: currentPoints,
+        lastUpdated: new Date().toISOString(),
+        chain: "Private Blockchain"
+      },
+
+      // 3. 래플 응모 내역 (샘플 데이터 + 실제 연동 가능 구조)
+      raffleHistory: [
+        {
+          id: "raffle-01",
+          brand: "NIKE",
+          brandColor: "#ff0000",
+          name: "나이키 에어포스 1 '07 로우 사카이 하이브리드",
+          image: "👟",
+          applyDate: "2026.05.10",
+          deadline: "2026.05.20",
+          resultDate: "2026.05.22",
+          participants: "1,245",
+          winners: "1",
+          myNumber: "N-4029",
+          status: "진행중",
+          txHash: "0x7a5b3c2d1e6f4a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+          size: "270",
+          price: "159,000원",
+          purchaseDeadline: null,
+          nftMetadata: {
+            tokenId: "1001",
+            contractAddress: CONTRACT_ADDRESS,
+            chain: "Ethereum Sepolia"
+          }
+        }
+      ],
+
+      // 4. 포인트 변동 이력
+      pointHistory: [
+        { id: "h-001", label: "웰컴 회원가입 보너스", date: "2026.05.10", amount: "+50,000", color: "#10b981", type: "bonus" },
+        { id: "h-002", label: "출석 체크 포인트", date: "2026.05.15", amount: "+5,000", color: "#10b981", type: "attendance" }
+      ],
+
+      stats: {
+        totalApply: 1,
+        winCount: 0,
+        winRate: "0.0",
+        activeCount: 1
+      }
+    });
+  } catch (error) {
+    console.error("❌ 마이페이지 데이터 조회 오류:", error);
+    res.status(500).json({ error: "마이페이지 데이터 조회 실패" });
+  }
+});
+
+// 🌟 [마이페이지] 포인트 잔액 전용
+app.get('/api/mypage/points', verifyTokenMiddleware, async (req, res) => {
+  try {
+    const kakaoId = req.user.kakaoId;
+    let userData = await User.findOne({ where: { kakaoId } });
+    const currentPoints = userData ? userData.points : 55000;
+
+    res.json({
+      privateBlockchain: {
+        nofakePoints: currentPoints,
+        lastUpdated: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: "포인트 조회 실패" });
+  }
+});
+
+// ============================================
 // 서버 시작
 // ============================================
 
@@ -871,6 +1002,20 @@ ensureSchema().then(() => {
 }).catch(error => {
   console.error(`❌ Failed to start server:`, error);
   process.exit(1);
+});
+
+app.get('/api/test/users', async (req, res) => {
+    try {
+        const users = await User.findAll();
+        res.json({
+            success: true,
+            count: users.length,
+            data: users
+        });
+    } catch (error) {
+        console.error('데이터 조회 에러:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 export default app;
