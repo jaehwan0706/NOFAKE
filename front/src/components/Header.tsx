@@ -23,8 +23,7 @@ import {
 
 const LOGIN_TOKEN_KEY = "nofakeAccessToken";
 const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string) ??
-  "https://outrage-overboard-unrevised.ngrok-free.dev";
+  (import.meta.env.VITE_API_BASE_URL as string) ?? "";
 
 // ─── 전역 인증 상태 ───────────────────────────────────────────────────────────
 

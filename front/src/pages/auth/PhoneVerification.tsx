@@ -91,6 +91,28 @@ export function PhoneVerification() {
           </div>
           <p className="mt-4 text-sm text-gray-700">문자 전송 후 인증이 자동으로 확인됩니다. 완료되면 메인으로 이동합니다.</p>
           <div className="mt-4 text-sm text-gray-500">상태: {status}</div>
+
+          {/* 개발용 테스트 버튼 */}
+          <div className="mt-10 p-4 border-2 border-dashed border-yellow-200 rounded-lg bg-yellow-50">
+            <p className="text-xs font-bold text-yellow-700 mb-2">⚠️ 개발자 전용 (테스트용)</p>
+            <button
+              onClick={async () => {
+                try {
+                  await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/phone-verification/mock-verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId: session.sessionId })
+                  });
+                  setStatus('Mock 인증 요청 완료. 잠시만 기다려주세요...');
+                } catch (err) {
+                  console.error('Mock verify failed', err);
+                }
+              }}
+              className="w-full py-2 bg-gray-800 text-white text-xs font-bold rounded hover:bg-black transition-colors"
+            >
+              인증 강제 완료 처리 (SMS 무시)
+            </button>
+          </div>
         </div>
       )}
     </main>

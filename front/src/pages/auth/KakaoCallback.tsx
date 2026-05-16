@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { loginUser } from "../../components/Header";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://outrage-overboard-unrevised.ngrok-free.dev";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const REDIRECT_URI =
   import.meta.env.VITE_KAKAO_REDIRECT_URI ?? `${window.location.origin}/auth/kakao/callback`;
 
