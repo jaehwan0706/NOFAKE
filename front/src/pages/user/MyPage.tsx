@@ -61,6 +61,30 @@ interface UserProfile {
   profileImage: string | null;
 }
 
+interface Stats {
+  totalApply: number;
+  winCount: number;
+  winRate: string;
+  activeCount: number;
+}
+
+interface PointHistoryItem {
+  id: string;
+  label: string;
+  date: string;
+  amount: string;
+  color: string;
+  type: string;
+}
+
+interface MyPageResponse {
+  profile?: UserProfile;
+  points?: number;
+  raffleHistory?: RaffleItem[];
+  pointHistory?: PointHistoryItem[];
+  stats?: Stats;
+}
+
 const FILTER_TABS = ["전체", "진행중", "당첨", "미당첨", "발송완료"];
 type TabId = "raffles" | "points" | "settings";
 
@@ -139,7 +163,7 @@ function RaffleCard({ raffle }: { raffle: RaffleItem }) {
   );
 }
 
-function RafflesTab({ raffles, stats }: { raffles: RaffleItem[]; stats: any }) {
+function RafflesTab({ raffles, stats }: { raffles: RaffleItem[]; stats: Stats }) {
   const [activeFilter, setActiveFilter] = useState("전체");
   const filtered = activeFilter === "전체" ? raffles : raffles.filter(r => r.status === activeFilter);
 
@@ -168,7 +192,7 @@ function RafflesTab({ raffles, stats }: { raffles: RaffleItem[]; stats: any }) {
   );
 }
 
-function PointsTab({ points, history }: { points: number; history: any[] }) {
+function PointsTab({ points, history }: { points: number; history: PointHistoryItem[] }) {
   return (
     <div>
       <div style={{ background: T.navy, borderRadius: "1.5rem", padding: "36px 32px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
@@ -230,15 +254,16 @@ function EditableRow({
         body: JSON.stringify({ [fieldKey]: trimmed }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).message ?? "저장 실패");
+        const err = await res.json().catch(() => ({ message: "저장 실패" }));
+        throw new Error((err as { message?: string }).message ?? "저장 실패");
       }
       onSaved(trimmed);
       setEditing(false);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
-    } catch (e: any) {
-      setError(e.message ?? "저장 중 오류가 발생했습니다.");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setError(message || "저장 중 오류가 발생했습니다.");
     } finally {
       setSaving(false);
     }
@@ -391,8 +416,8 @@ export const MyPage = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [points, setPoints] = useState<number>(0);
   const [raffleHistory, setRaffleHistory] = useState<RaffleItem[]>([]);
-  const [pointHistory, setPointHistory] = useState<any[]>([]);
-  const [stats, setStats] = useState({ totalApply: 0, winCount: 0, winRate: "0.0", activeCount: 0 });
+  const [pointHistory, setPointHistory] = useState<PointHistoryItem[]>([]);
+  const [stats, setStats] = useState<Stats>({ totalApply: 0, winCount: 0, winRate: "0.0", activeCount: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [debugLog, setDebugLog] = useState<string | null>(null);
 
@@ -413,6 +438,7 @@ export const MyPage = () => {
           "ngrok-skip-browser-warning": "69420",
         };
 
+        // 병렬로 두 개의 API 요청
         const [profileRes, mypageRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/user/profile`, { headers }),
           fetch(`${API_BASE_URL}/api/mypage`, { headers }),
@@ -421,25 +447,52 @@ export const MyPage = () => {
         logs.push(`GET /api/user/profile → ${profileRes.status} ${profileRes.ok ? "✓" : "❌"}`);
         logs.push(`GET /api/mypage → ${mypageRes.status} ${mypageRes.ok ? "✓" : "❌"}`);
 
+        // 프로필 데이터 처리
         if (profileRes.ok) {
-          const profileData = await profileRes.json();
-          logs.push(`profile 수신: ${JSON.stringify(profileData).slice(0, 120)}`);
+          const profileData = await profileRes.json() as UserProfile;
+          logs.push(`profile 수신 OK: DID=${profileData.did ? "✓" : "—"}`);
           setProfile(profileData);
         } else {
           const text = await profileRes.text().catch(() => "");
-          logs.push(`profile 에러 응답: ${text.slice(0, 120)}`);
+          logs.push(`profile 에러: ${profileRes.status} - ${text.slice(0, 80)}`);
         }
 
+        // 마이페이지 통합 데이터 처리
         if (mypageRes.ok) {
-          const data = await mypageRes.json();
-          logs.push(`mypage 수신 keys: ${Object.keys(data).join(", ")}`);
-          setPoints(data.points ?? 0);
-          setRaffleHistory(data.raffleHistory ?? []);
-          setPointHistory(data.pointHistory ?? []);
-          setStats(data.stats ?? { totalApply: 0, winCount: 0, winRate: "0.0", activeCount: 0 });
+          const data = await mypageRes.json() as MyPageResponse;
+          logs.push(`mypage 수신 완료`);
+          
+          // 1. 사용자 기본 프로필 & 분산 신원인증 (DID) 
+          if (data.profile) {
+            logs.push(`  ✓ 프로필: ${data.profile.name}, DID=${data.profile.did ? "있음" : "없음"}`);
+            setProfile(data.profile);
+          }
+
+          // 2. 프라이빗 블록체인 기반의 'NoFake 포인트' 잔액
+          if (data.points !== undefined) {
+            logs.push(`  ✓ 포인트: ${data.points.toLocaleString()} P`);
+            setPoints(data.points);
+          }
+
+          // 3. 퍼블릭 블록체인 기반의 '래플 응모 및 NFT 당첨 내역'
+          if (data.raffleHistory) {
+            logs.push(`  ✓ 래플: ${data.raffleHistory.length}개`);
+            setRaffleHistory(data.raffleHistory);
+          }
+
+          // 4. 투명한 포인트 변동 이력 (포인트 내역)
+          if (data.pointHistory) {
+            logs.push(`  ✓ 포인트 이력: ${data.pointHistory.length}개`);
+            setPointHistory(data.pointHistory);
+          }
+
+          if (data.stats) {
+            logs.push(`  ✓ 통계: 총응모=${data.stats.totalApply}, 당첨=${data.stats.winCount}`);
+            setStats(data.stats);
+          }
         } else {
           const text = await mypageRes.text().catch(() => "");
-          logs.push(`mypage 에러 응답: ${text.slice(0, 120)}`);
+          logs.push(`mypage 에러: ${mypageRes.status} - ${text.slice(0, 80)}`);
         }
 
         // 모든 API가 정상이면 디버그 배너 숨김
@@ -448,10 +501,11 @@ export const MyPage = () => {
         } else {
           setDebugLog(logs.join("\n"));
         }
-      } catch (error: any) {
-        logs.push(`네트워크 오류: ${error?.message ?? String(error)}`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        logs.push(`네트워크 오류: ${message}`);
         setDebugLog(logs.join("\n"));
-        console.warn("데이터 로드 실패:", error);
+        console.error("📡 데이터 로드 실패:", error);
       } finally {
         setIsLoading(false);
       }

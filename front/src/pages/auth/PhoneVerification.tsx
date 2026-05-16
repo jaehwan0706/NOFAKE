@@ -4,10 +4,21 @@ import { apiRequest } from '../../lib/api';
 
 const LOGIN_TOKEN_KEY = 'nofakeAccessToken';
 
+interface PhoneVerificationSession {
+  sessionId: string;
+  receiverNumber: string;
+  expiresAt: string;
+  pollIntervalSeconds?: number;
+}
+
+interface VerificationStatusResponse {
+  status: 'pending' | 'verified' | string;
+}
+
 export function PhoneVerification() {
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<PhoneVerificationSession | null>(null);
   const [status, setStatus] = useState('');
   const pollingRef = useRef<number | null>(null);
 
@@ -20,7 +31,6 @@ export function PhoneVerification() {
 
   useEffect(() => {
     if (!session) return;
-    setStatus('인증 대기 중...');
 
     const poll = async () => {
       try {
@@ -28,7 +38,7 @@ export function PhoneVerification() {
         const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/phone-verification/status?sessionId=${session.sessionId}`, {
           headers: { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': '69420' },
         });
-        const data = await res.json();
+        const data = await res.json() as VerificationStatusResponse;
         if (data.status === 'verified') {
           setStatus('휴대폰 인증 성공! 로그인 처리 중...');
           if (pollingRef.current) window.clearInterval(pollingRef.current);
@@ -39,7 +49,8 @@ export function PhoneVerification() {
       }
     };
 
-    pollingRef.current = window.setInterval(poll, session.pollIntervalSeconds * 1000 || 3000);
+    const intervalMs = session.pollIntervalSeconds ? session.pollIntervalSeconds * 1000 : 3000;
+    pollingRef.current = window.setInterval(poll, intervalMs);
     return () => { if (pollingRef.current) window.clearInterval(pollingRef.current); };
   }, [session, navigate]);
 
@@ -52,8 +63,9 @@ export function PhoneVerification() {
       await apiRequest('/api/user/phone', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: { phoneNumber: phone } });
 
       // start session
-      const startResp = await apiRequest('/api/phone-verification/start', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: { phoneNumber: phone } });
+      const startResp = await apiRequest<PhoneVerificationSession>('/api/phone-verification/start', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: { phoneNumber: phone } });
       setSession(startResp);
+      setStatus('인증 대기 중...');
     } catch (err) {
       console.error(err);
       setStatus('인증 시작에 실패했습니다. 다시 시도해주세요.');
