@@ -31,9 +31,10 @@ try {
         const fallbackPath = path.join(__dirname, '..', 'artifacts', 'contracts', 'NoFake.sol', 'NoFakePlatform.json');
         contractData = JSON.parse(fs.readFileSync(fallbackPath, 'utf8'));
         console.log("✅ 상위 경로에서 ABI를 찾았습니다.");
-    } catch {
-        process.exit(1);
-    }
+        } catch {
+            console.warn("⚠️ ABI를 찾지 못했습니다. 빈 ABI로 폴백하여 서버를 계속 실행합니다.");
+            contractData = { abi: [] };
+        }
 }
 
 // 민팅 API 엔드포인트
