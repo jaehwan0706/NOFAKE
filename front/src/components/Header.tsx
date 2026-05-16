@@ -26,7 +26,7 @@ const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string) ??
   "https://outrage-overboard-unrevised.ngrok-free.dev";
 
-// ─── 전역 인증 상태 (이벤트 기반으로 안정성 개선) ───────────────────────────
+// ─── 전역 인증 상태 ───────────────────────────────────────────────────────────
 
 let _user: { name: string; email: string } | null = null;
 
@@ -48,19 +48,15 @@ export function useAuthUser() {
     const handleAuthSync = () => {
       setUser(_user ? { ..._user } : null);
     };
-
     handleAuthSync();
-
     window.addEventListener("auth-change", handleAuthSync);
-    return () => {
-      window.removeEventListener("auth-change", handleAuthSync);
-    };
+    return () => window.removeEventListener("auth-change", handleAuthSync);
   }, []);
 
   return user;
 }
 
-// ─── 앱 시작 시 토큰으로 실제 유저 정보 복원 ─────────────────────────────────
+// ─── 앱 시작 시 토큰으로 유저 정보 복원 ──────────────────────────────────────
 
 (async () => {
   const token = localStorage.getItem(LOGIN_TOKEN_KEY);
@@ -68,7 +64,6 @@ export function useAuthUser() {
     if (_user !== null) logoutUser();
     return;
   }
-
   try {
     const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
       headers: {
@@ -76,21 +71,15 @@ export function useAuthUser() {
         "ngrok-skip-browser-warning": "69420",
       },
     });
-
-    if (!res.ok) {
-      logoutUser();
-      return;
-    }
-
+    if (!res.ok) { logoutUser(); return; }
     const data = (await res.json()) as { success: boolean; name?: string; email?: string };
-
     if (data.success && data.name) {
       loginUser({ name: data.name, email: data.email ?? "" });
     } else {
       logoutUser();
     }
   } catch {
-    // 네트워크 오류 시 조용히 무시
+    // 네트워크 오류 시 무시
   }
 })();
 
@@ -223,33 +212,27 @@ const MY_MENU = [
 // ─── Header 컴포넌트 ──────────────────────────────────────────────────────────
 
 export function Header() {
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [mobileOpenDropdown, setMobileOpenDropdown] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
   const location = useLocation();
   const navigate = useNavigate();
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const user = useAuthUser();
+  const avatarInitial = user?.name ? user.name[0] : "U";
 
-  const isHomePage = location.pathname === "/";
-  const isWhiteBg = !isHomePage || isScrolled || openDropdown !== null || isMobileMenuOpen;
-
-  useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
+  // 경로 변경 시 메뉴 닫기
   useEffect(() => {
     setOpenDropdown(null);
     setIsMobileMenuOpen(false);
     setIsUserMenuOpen(false);
   }, [location.pathname]);
 
+  // 외부 클릭 시 유저 메뉴 닫기
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
@@ -276,27 +259,19 @@ export function Header() {
     navigate("/");
   };
 
-  const avatarInitial = user?.name ? user.name[0] : "U";
-
-  // 현재 경로가 해당 nav item의 path로 시작하는지 확인
   const isActiveNav = (path: string) => {
     if (path === "/") return location.pathname === "/";
     return location.pathname.startsWith(path);
   };
 
   return (
-    <header
-      className={`fixed left-0 right-0 top-0 z-50 border-b transition-all duration-300 ${
-        isWhiteBg
-          ? "border-gray-100 bg-white/95 shadow-sm backdrop-blur-xl"
-          : "border-transparent bg-transparent"
-      }`}
-    >
+    <header className="fixed left-0 right-0 top-0 z-50 border-b border-sky-100 bg-sky-100/60 shadow-sm backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
         <div className="grid h-16 grid-cols-[auto_1fr_auto] items-center gap-6">
+
           {/* 로고 */}
           <Link to="/" className="flex shrink-0 items-center">
-            <span className={`text-2xl font-black tracking-tight ${isWhiteBg ? "text-gray-950" : "text-white"}`}>
+            <span className="text-2xl font-black tracking-tight text-gray-950">
               nofake
             </span>
           </Link>
@@ -314,9 +289,7 @@ export function Header() {
                   className={`flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                     isActiveNav(item.path)
                       ? "text-blue-600"
-                      : isWhiteBg
-                        ? "text-gray-700 hover:bg-gray-50 hover:text-blue-600"
-                        : "text-white hover:bg-white/10"
+                      : "text-gray-700 hover:bg-blue-100/60 hover:text-blue-600"
                   }`}
                 >
                   {item.name}
@@ -389,20 +362,14 @@ export function Header() {
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setIsUserMenuOpen((prev) => !prev)}
-                  className={`flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-colors ${
-                    isWhiteBg ? "hover:bg-gray-100" : "hover:bg-white/10"
-                  }`}
+                  className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-colors hover:bg-blue-100/60"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
                     {avatarInitial}
                   </span>
-                  <span className={`text-sm font-semibold ${isWhiteBg ? "text-gray-800" : "text-white"}`}>
-                    {user.name}
-                  </span>
+                  <span className="text-sm font-semibold text-gray-800">{user.name}</span>
                   <ChevronDown
-                    className={`h-3.5 w-3.5 transition-transform ${
-                      isWhiteBg ? "text-gray-500" : "text-white/70"
-                    } ${isUserMenuOpen ? "rotate-180" : ""}`}
+                    className={`h-3.5 w-3.5 text-gray-500 transition-transform ${isUserMenuOpen ? "rotate-180" : ""}`}
                   />
                 </button>
 
@@ -455,11 +422,7 @@ export function Header() {
             ) : (
               <Link
                 to="/login"
-                className={`flex items-center gap-1.5 rounded-full border px-5 py-2 text-sm font-semibold transition-colors ${
-                  isWhiteBg
-                    ? "border-gray-300 text-gray-800 hover:border-gray-400 hover:bg-gray-50"
-                    : "border-white/50 text-white hover:border-white hover:bg-white/10"
-                }`}
+                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-5 py-2 text-sm font-semibold text-gray-800 transition-colors hover:border-blue-300 hover:bg-blue-50"
               >
                 <User className="h-3.5 w-3.5" />
                 로그인
@@ -470,7 +433,7 @@ export function Header() {
           {/* 모바일 햄버거 */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className={`justify-self-end p-1 md:hidden ${isWhiteBg ? "text-gray-900" : "text-white"}`}
+            className="justify-self-end p-1 text-gray-900 md:hidden"
             aria-label="메뉴 열기"
           >
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -480,7 +443,7 @@ export function Header() {
 
       {/* 모바일 메뉴 */}
       {isMobileMenuOpen && (
-        <div className="max-h-[80vh] overflow-y-auto border-t border-gray-100 bg-white shadow-lg md:hidden">
+        <div className="max-h-[80vh] overflow-y-auto border-t border-blue-100 bg-white shadow-lg md:hidden">
           <div className="space-y-1 px-4 py-3">
             {NAV_ITEMS.map((item) => (
               <div key={item.path}>
