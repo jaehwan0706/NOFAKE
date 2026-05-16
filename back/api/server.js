@@ -160,7 +160,10 @@ function getKey(header, callback) {
 
 const verifyTokenMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ error: '인증 토큰이 없습니다.' });
+  if (!authHeader) {
+    console.log("⚠️ 인증 헤더 없음");
+    return res.status(401).json({ error: '인증 토큰이 없습니다.' });
+  }
 
   const token = authHeader.split(' ')[1];
 
@@ -177,6 +180,7 @@ const verifyTokenMiddleware = async (req, res, next) => {
         });
       });
 
+      console.log("✅ JWT 검증 성공:", decoded.sub || decoded.Sub);
       req.user = {
         walletAddress: decoded.wallets?.[0]?.address || decoded.Sub || decoded.sub,
         email: decoded.email,
@@ -194,6 +198,8 @@ const verifyTokenMiddleware = async (req, res, next) => {
       headers: { Authorization: `Bearer ${token}` }
     });
     const kakaoId = String(resp.data.id || resp.data?.id || '');
+    console.log("✅ 카카오 토큰 검증 성공:", kakaoId);
+    
     const user = await User.findOne({ where: { kakaoId } });
     
     if (user) {
@@ -204,6 +210,7 @@ const verifyTokenMiddleware = async (req, res, next) => {
         walletAddress: user.walletAddress
       };
     } else {
+      console.log("ℹ️ DB에 유저 정보 없음, 카카오 정보만 사용:", kakaoId);
       req.user = {
         kakaoId: kakaoId,
         email: resp.data.kakao_account?.email,
@@ -213,6 +220,9 @@ const verifyTokenMiddleware = async (req, res, next) => {
     next();
   } catch (err) {
     console.warn("⚠️ 모든 인증 방식 실패:", err.message);
+    if (err.response) {
+      console.error("  카카오 API 에러 상세:", err.response.data);
+    }
     return res.status(401).json({ error: '유효하지 않은 토큰입니다.' });
   }
 };
@@ -976,6 +986,31 @@ app.get('/api/mypage/points', verifyTokenMiddleware, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: "포인트 조회 실패" });
+  }
+});
+
+// 🌟 [개발용] 휴대폰 인증 강제 완료 (Mock)
+app.post('/api/phone-verification/mock-verify', async (req, res) => {
+  const { sessionId } = req.body;
+  if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
+
+  try {
+    const session = await PhoneVerificationSession.findByPk(sessionId);
+    if (!session) return res.status(404).json({ error: 'session not found' });
+
+    await session.update({ status: 'verified', verifiedAt: new Date() });
+
+    if (session.phoneNumber) {
+      const users = await User.findAll({ where: { phoneNumber: session.phoneNumber } });
+      await Promise.all(users.map(u => u.update({ phone_verified: true, phone_verified_at: new Date() })));
+    } else if (session.kakaoId) {
+      const user = await User.findOne({ where: { kakaoId: session.kakaoId } });
+      if (user) await user.update({ phone_verified: true, phone_verified_at: new Date() });
+    }
+
+    res.json({ success: true, message: 'Mock verification successful' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
