@@ -90,78 +90,7 @@ const techStack = [
   { icon: "code", title: "React 기반 프론트엔드", desc: "래플 참여와 포인트 환전을 직관적으로 사용할 수 있는 UI를 제공합니다." },
 ];
 
-const navigationMenus = [
-  {
-    label: "서비스 소개",
-    columns: [
-      {
-        title: "서비스 소개",
-        items: [
-          { icon: "shield", title: "nofake 소개", desc: "공정한 래플 플랫폼 nofake를 소개합니다", path: "/about/fairness" },
-          { icon: "database", title: "회사 소개", desc: "nofake를 만드는 사람들", path: "/about/trust" },
-        ],
-      },
-      {
-        title: "핵심 가치",
-        items: [
-          { icon: "ticket", title: "공정성", desc: "조작 없는 온체인 추첨 시스템", path: "/about/fairness" },
-          { icon: "globe", title: "투명성", desc: "모든 트랜잭션을 누구나 검증", path: "/about/fairness" },
-          { icon: "lock", title: "신뢰", desc: "데이터 무결성 위의 변하지 않는 약속", path: "/about/trust" },
-        ],
-      },
-    ],
-  },
-  {
-    label: "래플 이벤트",
-    columns: [
-      {
-        title: "래플 소개",
-        items: [
-          { icon: "ticket", title: "nofake 래플", desc: "공정한 블록체인 기반 추첨 시스템", path: "/raffles" },
-        ],
-      },
-      { title: "카테고리", gridItems: ["스니커즈", "의류", "액세서리", "한정판 컬렉션"], gridPath: "/raffles" },
-    ],
-  },
-  {
-    label: "포인트 거래",
-    columns: [
-      {
-        title: "포인트 교환",
-        items: [
-          { icon: "arrow", title: "포인트 교환 센터", desc: "nofake 포인트를 파트너 브랜드 포인트로 교환", path: "/point-swap" },
-        ],
-      },
-      { title: "교환 가능 파트너", gridItems: ["Nike", "무신사", "Adidas", "기프트카드"], gridPath: "/brands" },
-    ],
-  },
-  {
-    label: "고객센터",
-    columns: [
-      {
-        title: "고객 지원",
-        items: [
-          { icon: "message", title: "1:1 문의", desc: "담당자가 직접 답변해드립니다", path: "/support/contact" },
-          { icon: "shield", title: "FAQ", desc: "자주 묻는 질문 모음", path: "/support/faq" },
-        ],
-      },
-      { title: "안내", gridItems: ["공지사항", "이용약관", "개인정보처리방침"], gridPath: "/support/contact" },
-    ],
-  },
-  {
-    label: "파트너십",
-    columns: [
-      {
-        title: "파트너십",
-        items: [
-          { icon: "users", title: "브랜드 제휴", desc: "공정한 래플 캠페인을 함께 운영합니다", path: "/partnership" },
-          { icon: "mail", title: "제휴 문의", desc: "파트너십 담당자에게 문의하기", path: "/support/contact" },
-        ],
-      },
-      { title: "운영 지원", gridItems: ["캠페인 설계", "포인트 제휴", "검증 리포트", "정산 지원"], gridPath: "/partnership" },
-    ],
-  },
-];
+
 
 /* ─── Illustrations ─── */
 function DotRaffleIllustration() {
@@ -244,123 +173,6 @@ function PartnershipIllustration() {
         <span key={i} className={`absolute ${pos} h-2 w-2 rounded-full bg-blue-500/45`} />
       ))}
     </div>
-  );
-}
-
-/* ─── MegaMenu ─── */
-interface NavColumn {
-  title: string;
-  items?: { icon: string; title: string; desc: string; path: string }[];
-  gridItems?: string[];
-  gridPath?: string;
-}
-
-interface NavMenu {
-  label: string;
-  columns: NavColumn[];
-}
-
-function MegaMenuPanel({ menu, onNavigate }: { menu: NavMenu; onNavigate: (path: string) => void }) {
-  return (
-    <div className="absolute left-1/2 top-full z-50 w-[min(920px,calc(100vw-48px))] -translate-x-1/2 pt-3">
-      <div className="overflow-hidden rounded-[28px] border border-neutral-100 bg-white p-8 shadow-[0_24px_80px_rgba(15,23,42,0.14)]">
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
-          {menu.columns.map((column) => (
-            <div key={column.title}>
-              <p className="mb-6 text-sm font-black text-neutral-400">{column.title}</p>
-              {column.items && (
-                <div className="space-y-5">
-                  {column.items.map((item) => (
-                    <button
-                      key={item.title}
-                      onClick={() => onNavigate(item.path)}
-                      className="group flex w-full items-start gap-4 rounded-2xl p-2 text-left transition hover:bg-neutral-50"
-                    >
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white">
-                        <Icon name={item.icon} className="h-5 w-5" />
-                      </span>
-                      <span>
-                        <span className="block text-base font-black text-neutral-950">{item.title}</span>
-                        <span className="mt-1 block text-sm leading-6 text-neutral-400">{item.desc}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {column.gridItems && (
-                <div className="grid grid-cols-2 gap-x-12 gap-y-6 text-base font-medium text-neutral-600">
-                  {column.gridItems.map((item) => (
-                    <button
-                      key={item}
-                      onClick={() => onNavigate(column.gridPath ?? "/")}
-                      className="text-left transition hover:text-blue-600"
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Header ─── */
-function Header() {
-  const go = useNav();
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
-
-  return (
-    <header
-      className="fixed left-0 right-0 top-0 z-50 border-b border-black/5 bg-white/90 backdrop-blur-md"
-      onMouseLeave={() => setActiveMenu(null)}
-    >
-      <div className="relative mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
-        <button
-          onClick={() => go("/")}
-          className="text-2xl font-black tracking-tight text-neutral-950"
-        >
-          nofake
-        </button>
-
-        <nav className="hidden items-center gap-2 text-sm font-semibold text-neutral-700 md:flex">
-          {navigationMenus.map((menu) => (
-            <div key={menu.label} className="relative">
-              <button
-                type="button"
-                onMouseEnter={() => setActiveMenu(menu.label)}
-                className={`rounded-2xl px-5 py-3 transition-all duration-200 ${
-                  activeMenu === menu.label
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-neutral-700 hover:bg-neutral-50 hover:text-neutral-950"
-                }`}
-              >
-                {menu.label}
-              </button>
-            </div>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-4 text-sm font-semibold">
-          <button
-            onClick={() => go("/login")}
-            className="hidden rounded-2xl px-4 py-3 text-neutral-700 transition hover:bg-neutral-50 sm:block"
-          >
-            로그인
-          </button>
-        </div>
-
-        {activeMenu && (
-          <MegaMenuPanel
-            menu={navigationMenus.find((m) => m.label === activeMenu)!}
-            onNavigate={(path) => { go(path); setActiveMenu(null); }}
-          />
-        )}
-      </div>
-    </header>
   );
 }
 
@@ -517,8 +329,8 @@ function Hero() {
   };
 
   return (
-    <section className="relative min-h-screen overflow-hidden bg-neutral-50 pt-28">
-      <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+    <section className="relative overflow-hidden bg-neutral-50">
+      <div className="mx-auto max-w-7xl px-6 pb-10 pt-20 lg:px-8">
         <div className="overflow-hidden rounded-[2rem]">
           <div
             className={`flex ${isTransitioning ? "transition-transform duration-1000 ease-in-out" : "transition-none"}`}
@@ -914,7 +726,6 @@ export function Home() {
 
   return (
     <main className="min-h-screen bg-white font-sans text-neutral-950">
-      <Header />
       <Hero />
       <TrustIndicators />
       <ActiveRaffles />
