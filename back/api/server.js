@@ -123,6 +123,7 @@ const PhoneVerificationSession = sequelize.define('PhoneVerificationSession', {
   sessionId: { type: DataTypes.STRING, primaryKey: true },
   kakaoId: { type: DataTypes.STRING, allowNull: true },
   phoneNumber: { type: DataTypes.STRING, allowNull: true },
+  verificationCode: { type: DataTypes.STRING, allowNull: true }, // Octomo 인증 코드 (예: 123456)
   receiverNumber: { type: DataTypes.STRING, allowNull: true },
   txId: { type: DataTypes.STRING, allowNull: true },
   status: { type: DataTypes.ENUM('pending', 'verified', 'failed', 'expired'), allowNull: false, defaultValue: 'pending' },
@@ -619,15 +620,18 @@ app.post('/api/phone-verification/start', async (req, res) => {
 
     const phoneNumber = String(req.body.phoneNumber || '').trim() || null;
     let sessionId = `pv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    let receiverNumber = process.env.OCTOMO_DEFAULT_RECEIVER || '+821055556666';
-    let expiresAt = new Date(Date.now() + (Number(process.env.OCTOMO_TTL_SECONDS || 300) * 1000));
+    
+    // Octomo MO 인증 설정
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6자리 랜덤 코드
+    const receiverNumber = '1666-3538'; // Octomo 대표 번호
+    const expiresAt = new Date(Date.now() + (Number(process.env.OCTOMO_TTL_SECONDS || 300) * 1000));
 
     await PhoneVerificationSession.create({
-      sessionId, kakaoId, phoneNumber, receiverNumber, status: 'pending', expiresAt
+      sessionId, kakaoId, phoneNumber, verificationCode, receiverNumber, status: 'pending', expiresAt
     });
 
     return res.status(201).json({
-      sessionId, receiverNumber, expiresAt: expiresAt.toISOString(), pollIntervalSeconds: 4
+      sessionId, receiverNumber, verificationCode, expiresAt: expiresAt.toISOString(), pollIntervalSeconds: 4
     });
   } catch (err) {
     console.error('phone verification start error:', err.message);
@@ -639,70 +643,103 @@ app.get('/api/phone-verification/status', async (req, res) => {
   const sessionId = String(req.query.sessionId || '').trim();
   if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
 
-  const session = await PhoneVerificationSession.findByPk(sessionId);
-  if (!session) return res.status(404).json({ error: 'session not found' });
+  try {
+    const session = await PhoneVerificationSession.findByPk(sessionId);
+    if (!session) return res.status(404).json({ error: 'session not found' });
 
-  return res.json({ sessionId: session.sessionId, status: session.status, txId: session.txId, verifiedAt: session.verifiedAt });
+    // 이미 인증되었으면 즉시 반환
+    if (session.status === 'verified') {
+      return res.json({ sessionId: session.sessionId, status: session.status, verifiedAt: session.verifiedAt });
+    }
+
+    // 만료 여부 확인
+    if (session.expiresAt && new Date() > new Date(session.expiresAt)) {
+      await session.update({ status: 'expired' });
+      return res.json({ sessionId: session.sessionId, status: 'expired' });
+    }
+
+    // [Octomo Polling Fallback]
+    // 아직 대기 중이라면 Octomo API를 직접 조회하여 확인 시도
+    if (session.status === 'pending' && process.env.OCTOMO_API_KEY && session.verificationCode) {
+      try {
+        const octomoResp = await axios.get(`https://api.octomo.octoverse.kr/v1/messages`, {
+          params: { content: session.verificationCode },
+          headers: { 'x-api-key': process.env.OCTOMO_API_KEY }
+        });
+
+        const messages = octomoResp.data?.data || [];
+        // 해당 코드로 수신된 메시지가 있다면 인증 성공 처리
+        if (messages.length > 0) {
+          const msg = messages[0];
+          await session.update({
+            status: 'verified',
+            verifiedAt: new Date(),
+            phoneNumber: msg.sender // 실제 발신 번호로 업데이트
+          });
+
+          // 유저 정보 업데이트
+          const user = await User.findOne({ where: { kakaoId: session.kakaoId } });
+          if (user) {
+            await user.update({
+              phoneNumber: msg.sender,
+              phone_verified: true,
+              phone_verified_at: new Date()
+            });
+          }
+          
+          return res.json({ sessionId: session.sessionId, status: 'verified', verifiedAt: session.verifiedAt });
+        }
+      } catch (pollErr) {
+        console.error('Octomo polling failed:', pollErr.message);
+      }
+    }
+
+    return res.json({ sessionId: session.sessionId, status: session.status });
+  } catch (err) {
+    console.error('status check error:', err.message);
+    return res.status(500).json({ error: 'server error' });
+  }
 });
 
 app.post('/api/phone-verification/webhook', async (req, res) => {
-  const signatureHeader = String(req.headers['x-octomo-signature'] || req.headers['x-hub-signature'] || '');
-  const secret = process.env.OCTOMO_WEBHOOK_SECRET || '';
-  const rawBody = req.rawBody;
+  // Octomo Webhook 처리
+  // Payload: { "event": "message.received", "data": { "sender": "...", "content": "..." } }
+  const { event, data } = req.body;
 
-  if (secret && !rawBody) {
-    return res.status(400).json({ success: false, error: 'raw body required for signature verification' });
+  if (event !== 'message.received' || !data) {
+    return res.status(200).json({ success: true, message: 'ignored event' });
   }
 
-  if (secret && rawBody) {
-    try {
-      let sig = signatureHeader.replace(/^sha256=/i, '').trim();
-      if (!sig) return res.status(401).json({ success: false, error: 'missing signature' });
-      const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-      const a = Buffer.from(expected, 'hex');
-      const b = Buffer.from(sig, 'hex');
-      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-        return res.status(401).json({ success: false, error: 'invalid signature' });
-      }
-    } catch (err) {
-      return res.status(401).json({ success: false, error: 'invalid signature' });
-    }
-  }
-
-  let payload = null;
-  try {
-    if (rawBody) payload = JSON.parse(rawBody.toString('utf8'));
-    else payload = req.body || {};
-  } catch (err) {
-    return res.status(400).json({ success: false, error: 'invalid json' });
-  }
-
-  const sessionId = String(payload.sessionId || '') || null;
-  const phoneNumber = String(payload.phoneNumber || '').trim();
-  const status = String(payload.status || '').toLowerCase();
-
-  if (!phoneNumber && !sessionId) return res.status(400).json({ success: false, error: 'phoneNumber or sessionId required' });
+  const { sender, content } = data;
 
   try {
-    if (sessionId) {
-      const session = await PhoneVerificationSession.findByPk(sessionId);
-      if (session) {
-        await session.update({
-          status: status || session.status,
-          verifiedAt: status === 'verified' ? new Date() : session.verifiedAt
+    // 해당 verificationCode를 가진 대기 중인 세션 찾기
+    const session = await PhoneVerificationSession.findOne({
+      where: { verificationCode: content, status: 'pending' }
+    });
+
+    if (session) {
+      await session.update({
+        status: 'verified',
+        verifiedAt: new Date(),
+        phoneNumber: sender
+      });
+
+      // 유저 정보 업데이트
+      const user = await User.findOne({ where: { kakaoId: session.kakaoId } });
+      if (user) {
+        await user.update({
+          phoneNumber: sender,
+          phone_verified: true,
+          phone_verified_at: new Date()
         });
       }
-    }
-
-    if (phoneNumber && status === 'verified') {
-      const users = await User.findAll({ where: { phoneNumber } });
-      if (users && users.length > 0) {
-        await Promise.all(users.map((u) => u.update({ phone_verified: true, phone_verified_at: new Date() })));
-      }
+      console.log(`✅ Webhook: Phone verified for user ${session.kakaoId} (Code: ${content})`);
     }
 
     return res.json({ success: true });
   } catch (err) {
+    console.error('Webhook error:', err.message);
     return res.status(500).json({ success: false, error: 'server error' });
   }
 });
