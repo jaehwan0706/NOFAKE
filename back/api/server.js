@@ -502,7 +502,12 @@ app.post("/api/auth/kakao", async (req, res) => {
     try {
       await User.findOrCreate({
         where: { kakaoId },
-        defaults: { name: profile.nickname, email: kakaoAccount.email },
+        defaults: { 
+          name: profile.nickname, 
+          email: kakaoAccount.email,
+          phone_verified: false,
+          points: 0
+        },
       });
 
       res.json({
@@ -514,11 +519,11 @@ app.post("/api/auth/kakao", async (req, res) => {
         phone_number: null,
       });
     } catch (dbErr) {
-      console.error('User upsert failed:', dbErr.message);
-      res.json({ success: true, accessToken: access_token, name: profile.nickname, email: kakaoAccount.email, phone_verified: false });
+      console.error('❌ User upsert failed. Detail:', dbErr); // 로그 강화
+      res.status(500).json({ success: false, error: "사용자 정보 저장 실패", details: dbErr.message });
     }
   } catch (error) {
-    console.error("카카오 로그인 실패:", error.response?.data || error.message);
+    console.error("❌ 카카오 로그인 실패:", error.response?.data || error.message);
     res.status(500).json({ success: false, error: "카카오 통신 중 오류 발생" });
   }
 });
