@@ -154,6 +154,24 @@ const raffleItems = [
     color: "#222222",
     logo: "musinsa",
   },
+  {
+    brand: "Adidas",
+    title: "Samba OG Cloud White",
+    participants: "72,000명",
+    days: "D-4",
+    prize: "한정판 스니커즈 · 7명",
+    color: "#0F172A",
+    logo: "adidas",
+  },
+  {
+    brand: "New Balance",
+    title: "Made in USA 990v6",
+    participants: "68,000명",
+    days: "D-5",
+    prize: "프리미엄 스니커즈 · 4명",
+    color: "#334155",
+    logo: "NB",
+  },
 ];
 
 const partnerBrands = ["NIKE", "adidas", "MUSINSA", "Supreme", "JORDAN", "New Balance", "PUMA", "CONVERSE"];
@@ -164,6 +182,13 @@ const pointPartners = [
   { name: "GIFT", className: "right-[8%] bottom-[8%] bg-white text-black" },
   { name: "PUMA", className: "left-[18%] bottom-[4%] bg-red-600 text-white" },
   { name: "MUSINSA", className: "left-[5%] top-[36%] bg-black text-white" },
+];
+
+const partnershipPartners = [
+  { name: "NIKE", className: "left-[12%] top-[22%] bg-black text-white" },
+  { name: "MUSINSA", className: "right-[8%] top-[16%] bg-white text-black" },
+  { name: "adidas", className: "left-[4%] bottom-[18%] bg-white text-black" },
+  { name: "Supreme", className: "right-[3%] bottom-[20%] bg-black text-white" },
 ];
 
 const heroFeatures = [
@@ -199,7 +224,7 @@ const techStack = [
 function runDataTests() {
   console.assert(stats.length === 3, "Hero stats should contain 3 items.");
   console.assert(trustStats.length === 4, "Trust stats should contain 4 items.");
-  console.assert(raffleItems.length === 3, "Raffle list should contain 3 items.");
+  console.assert(raffleItems.length >= 5, "Raffle list should contain at least 5 items.");
   console.assert(techStack.length === 4, "Tech stack should contain 4 items.");
   console.assert(partnerBrands.includes("MUSINSA"), "Partner brands should include MUSINSA.");
 }
@@ -266,30 +291,70 @@ function DotRaffleIllustration() {
   );
 }
 
-function HeroSlideBar({ activeSlide, onSlideChange }) {
+
+//상단 슬라이드바 부분
+// function HeroSlideBar({ activeSlide, onSlideChange }) {
+//   return (
+//     <div className="mx-auto mb-8 w-[360px] max-w-[70vw]">
+//       <div className="h-3 overflow-hidden rounded-full bg-neutral-200/60 shadow-inner">
+//         <div
+//           className="h-full w-1/2 rounded-full bg-neutral-300/90 transition-transform duration-500 ease-out"
+//           style={{ transform: `translateX(${activeSlide * 100}%)` }}
+//         />
+//       </div>
+//       <div className="mt-2 grid grid-cols-2 text-center text-sm font-semibold text-neutral-400">
+//         <button
+//           type="button"
+//           onClick={() => onSlideChange(0)}
+//           className={`transition ${activeSlide === 0 ? "text-neutral-500" : "hover:text-neutral-500"}`}
+//         >
+//           1/2
+//         </button>
+//         <button
+//           type="button"
+//           onClick={() => onSlideChange(1)}
+//           className={`transition ${activeSlide === 1 ? "text-neutral-500" : "hover:text-neutral-500"}`}
+//         >
+//           2/2
+//         </button>
+//       </div>
+//     </div>
+//   );
+// }
+
+function RaffleHeroPanel() {
   return (
-    <div className="mx-auto mb-8 w-[360px] max-w-[70vw]">
-      <div className="h-3 overflow-hidden rounded-full bg-neutral-200/60 shadow-inner">
-        <div
-          className="h-full w-1/2 rounded-full bg-neutral-300/90 transition-transform duration-500 ease-out"
-          style={{ transform: `translateX(${activeSlide * 100}%)` }}
-        />
-      </div>
-      <div className="mt-2 grid grid-cols-2 text-center text-sm font-semibold text-neutral-400">
-        <button
-          type="button"
-          onClick={() => onSlideChange(0)}
-          className={`transition ${activeSlide === 0 ? "text-neutral-500" : "hover:text-neutral-500"}`}
-        >
-          1/2
-        </button>
-        <button
-          type="button"
-          onClick={() => onSlideChange(1)}
-          className={`transition ${activeSlide === 1 ? "text-neutral-500" : "hover:text-neutral-500"}`}
-        >
-          2/2
-        </button>
+    <div className="rounded-[2rem] bg-white p-8 shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:p-10">
+      <div className="grid h-[600px] items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        <div>
+          <div className="mb-8 inline-flex rounded-full bg-blue-50 px-4 py-2 text-xs font-black tracking-[0.18em] text-blue-600">
+            TRANSPARENT RAFFLE PLATFORM
+          </div>
+
+          <h1 className="max-w-3xl text-5xl font-black leading-[1.12] tracking-[-0.06em] text-neutral-950 md:text-7xl">
+            모든 추첨을<br />
+            투명하게,<br />
+            누구나 <span className="text-blue-600">검증</span>할 수 있게
+          </h1>
+
+          <p className="mt-7 max-w-xl text-lg leading-8 text-neutral-600">
+            Hyperledger Fabric 기반 검증 시스템으로 래플 참여, 추첨 기록, 결과 공개까지 공정한 흐름을 제공합니다.
+          </p>
+
+          <div className="mt-10 flex flex-wrap gap-4">
+            <button className="group inline-flex items-center gap-2 rounded-full bg-neutral-950 px-8 py-4 text-sm font-bold text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-neutral-800 active:translate-y-0 active:scale-[0.98]">
+              추첨 참여하기
+              <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </button>
+            <button className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-8 py-4 text-sm font-bold text-neutral-900 transition-all duration-300 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98]">
+              검증 시스템 보기
+            </button>
+          </div>
+        </div>
+
+        <div className="flex justify-center lg:justify-end">
+          <DotRaffleIllustration />
+        </div>
       </div>
     </div>
   );
@@ -331,7 +396,7 @@ function PointExchangePanel() {
     <div className="relative overflow-hidden rounded-[2rem] bg-[#071226] p-8 text-white shadow-[0_18px_60px_rgba(15,23,42,0.16)] lg:p-10">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(37,99,235,0.22),transparent_34%),radial-gradient(circle_at_30%_85%,rgba(37,99,235,0.12),transparent_34%)]" />
 
-      <div className="relative grid min-h-[520px] items-center gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+      <div className="relative grid h-[600px] items-center gap-8 lg:grid-cols-[0.95fr_1.05fr]">
         <div>
           <div className="mb-8 inline-flex rounded-full bg-blue-500/10 px-4 py-2 text-xs font-black tracking-[0.18em] text-blue-400">
             POINT SWAP PLATFORM
@@ -368,6 +433,81 @@ function PointExchangePanel() {
     </div>
   );
 }
+
+//추가 1 시작
+function PartnershipIllustration() {
+  return (
+    <div className="relative mx-auto h-[300px] w-full max-w-[460px]">
+      <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-500/20 bg-blue-50/60" />
+      <div className="absolute left-1/2 top-1/2 h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-500/20" />
+      <div className="absolute left-1/2 top-1/2 h-28 w-40 -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-blue-300/50 bg-[radial-gradient(circle,rgba(37,99,235,0.16),transparent_65%)]" />
+
+      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center">
+        <div className="h-16 w-24 rounded-br-[30px] rounded-tl-[18px] border-2 border-blue-700 bg-blue-100" />
+        <div className="-ml-5 -mr-5 flex h-20 w-28 items-center justify-center rounded-full border-2 border-blue-700 bg-white shadow-xl">
+          <Icon name="users" className="h-11 w-11 text-blue-600" />
+        </div>
+        <div className="h-16 w-24 rounded-bl-[30px] rounded-tr-[18px] border-2 border-blue-700 bg-blue-100" />
+      </div>
+
+      {partnershipPartners.map((partner) => (
+        <div
+          key={partner.name}
+          className={`absolute flex h-16 w-20 items-center justify-center rounded-full border border-blue-100 text-xs font-black shadow-xl ${partner.className}`}
+        >
+          {partner.name}
+        </div>
+      ))}
+
+      {["left-[27%] top-[12%]", "right-[26%] top-[8%]", "left-[28%] bottom-[10%]", "right-[29%] bottom-[9%]"].map((position, index) => (
+        <span key={index} className={`absolute ${position} h-2 w-2 rounded-full bg-blue-500/45`} />
+      ))}
+    </div>
+  );
+}
+
+function PartnershipPanel() {
+  return (
+    <div className="relative overflow-hidden rounded-[2rem] bg-white p-8 shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:p-10">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(37,99,235,0.12),transparent_34%),radial-gradient(circle_at_34%_78%,rgba(37,99,235,0.08),transparent_34%)]" />
+
+      <div className="relative grid h-[600px] items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        <div>
+          <div className="mb-8 inline-flex rounded-full bg-blue-50 px-4 py-2 text-xs font-black tracking-[0.18em] text-blue-600">
+            PARTNERSHIP PLATFORM
+          </div>
+
+          <h2 className="max-w-3xl text-5xl font-black leading-[1.12] tracking-[-0.06em] text-neutral-950 md:text-7xl">
+            브랜드의 가치를<br />
+            {/* 더 많은 고객과<br /> */}
+            연결하는 <span className="text-blue-600">파트너십</span> 플랫폼
+          </h2>
+
+          <p className="mt-7 max-w-xl text-lg leading-8 text-neutral-600">
+            nofake와 함께 공정한 래플 캠페인을 운영하고, 브랜드 포인트를 더 많은 사용자에게 연결하세요.
+          </p>
+
+          <p className="mt-6 max-w-xl text-base font-black leading-7 text-blue-600">
+            캠페인 기획부터 운영, 검증 리포트까지 브랜드 성장을 함께 지원합니다.
+          </p>
+
+          <div className="mt-10 flex flex-wrap gap-4">
+            <button className="group inline-flex items-center gap-2 rounded-full bg-blue-600 px-8 py-4 text-sm font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,0.24)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-500 active:translate-y-0 active:scale-[0.98]">
+              파트너십 확인하기
+              <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </button>
+            <button className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-8 py-4 text-sm font-bold text-neutral-900 transition-all duration-300 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98]">
+              제휴 문의하기
+            </button>
+          </div>
+        </div>
+
+        <PartnershipIllustration />
+      </div>
+    </div>
+  );
+}
+//추가 1 끝
 
 function HeroFeatureStrip() {
   return (
@@ -545,28 +685,49 @@ function Header() {
 
 function Hero() {
   const [activeSlide, setActiveSlide] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(true);
+  const slideCount = 3;
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveSlide((prev) => (prev === 0 ? 1 : 0));
+      setActiveSlide((prev) => prev + 1);
     }, 4500);
 
     return () => clearInterval(interval);
   }, []);
+
+  
+  useEffect(() => {
+  if (activeSlide !== slideCount) return;
+
+  const resetTimer = setTimeout(() => {
+    setIsTransitioning(false);
+    setActiveSlide(0);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setIsTransitioning(true);
+      });
+    });
+  }, 1000);
+
+  return () => clearTimeout(resetTimer);
+}, [activeSlide]);
 
   return (
     <section className="relative min-h-screen overflow-hidden bg-neutral-50 pt-28">
       <Header />
 
       <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-        <HeroSlideBar activeSlide={activeSlide} onSlideChange={setActiveSlide} />
+        {/* <HeroSlideBar activeSlide={activeSlide} onSlideChange={setActiveSlide} /> */}
 
         <div className="overflow-hidden rounded-[2rem]">
           <div
-            className="flex transition-transform duration-700 ease-out"
+            className={`flex ${isTransitioning ? "transition-transform duration-1000 ease-in-out" : "transition-none"}`}
             style={{ transform: `translateX(-${activeSlide * 100}%)` }}
           >
-            <div className="w-full shrink-0 rounded-[2rem] bg-white p-8 shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:p-10">
+
+            {/* <div className="w-full shrink-0 rounded-[2rem] bg-white p-8 shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:p-10">
               <div className="grid min-h-[520px] items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
                 <div>
                   <div className="mb-8 inline-flex rounded-full bg-blue-50 px-4 py-2 text-xs font-black tracking-[0.18em] text-blue-600">
@@ -598,10 +759,20 @@ function Hero() {
                   <DotRaffleIllustration />
                 </div>
               </div>
+            </div> */}
+            <div className="w-full shrink-0">
+              <RaffleHeroPanel />
             </div>
 
             <div className="w-full shrink-0">
               <PointExchangePanel />
+            </div>
+            <div className="w-full shrink-0">
+              <PartnershipPanel />
+            </div>
+
+            <div className="w-full shrink-0">
+              <RaffleHeroPanel />
             </div>
           </div>
         </div>
@@ -637,6 +808,9 @@ function TrustIndicators() {
 function ActiveRaffles() {
   const sectionRef = useRef(null);
   const [darkProgress, setDarkProgress] = useState(0);
+  const [activeRaffleIndex, setActiveRaffleIndex] = useState(0);
+  const [isRafflePaused, setIsRafflePaused] = useState(false);
+  const [isRaffleTransitioning, setIsRaffleTransitioning] = useState(true);
 
   useEffect(() => {
     let ticking = false;
@@ -676,10 +850,49 @@ function ActiveRaffles() {
     };
   }, []);
 
+  useEffect(() => {
+  if (isRafflePaused) return;
+
+  const interval = setInterval(() => {
+    setActiveRaffleIndex((prev) => prev + 1);
+  }, 3500);
+
+  return () => clearInterval(interval);
+}, [isRafflePaused]);
+
+useEffect(() => {
+  if (activeRaffleIndex !== raffleItems.length) return;
+
+  const resetTimer = setTimeout(() => {
+    setIsRaffleTransitioning(false);
+    setActiveRaffleIndex(0);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setIsRaffleTransitioning(true);
+      });
+    });
+  }, 700);
+
+  return () => clearTimeout(resetTimer);
+}, [activeRaffleIndex]);
+
   const overlayOpacity = darkProgress * 0.76;
   const primaryTextColor = darkProgress > 0.45 ? "#ffffff" : "#0a0a0a";
   const secondaryTextColor = darkProgress > 0.45 ? "#a3a3a3" : "#525252";
   const borderColor = `rgba(255,255,255,${0.1 + darkProgress * 0.16})`;
+
+  // const visibleRaffleItems = [
+  //   raffleItems[activeRaffleIndex],
+  //   raffleItems[(activeRaffleIndex + 1) % raffleItems.length],
+  //   raffleItems[(activeRaffleIndex + 2) % raffleItems.length],
+  // ];
+
+  const visibleCount = 3;
+const loopedRaffleItems = [
+  ...raffleItems,
+  ...raffleItems.slice(0, visibleCount),
+];
 
   return (
     <section ref={sectionRef} id="raffles" className="relative overflow-hidden bg-white py-28" style={{ color: primaryTextColor }}>
@@ -716,7 +929,11 @@ function ActiveRaffles() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-7 md:grid-cols-3">
+        {/* <div
+          className="grid grid-cols-1 gap-7 md:grid-cols-3"
+          onMouseEnter={() => setIsRafflePaused(true)}
+          onMouseLeave={() => setIsRafflePaused(false)}
+        >
           {raffleItems.map((item, index) => (
             <article
               key={item.brand}
@@ -747,6 +964,79 @@ function ActiveRaffles() {
               </div>
             </article>
           ))}
+        </div> */}
+        <div
+          className="overflow-hidden"
+          onMouseEnter={() => setIsRafflePaused(true)}
+          onMouseLeave={() => setIsRafflePaused(false)}
+        >
+          <div
+            className={`flex gap-7 ${
+              isRaffleTransitioning
+                ? "transition-transform duration-700 ease-in-out"
+                : "transition-none"
+            }`}
+            style={{
+              transform: `translateX(calc(-${activeRaffleIndex} * (((100% - 56px) / 3) + 28px)))`,
+            }}
+          >
+            {loopedRaffleItems.map((item, index) => (
+              <article
+                key={`${item.brand}-${index}`}
+                className="w-[calc((100%_-_56px)/3)] shrink-0 overflow-hidden rounded-3xl bg-white text-black shadow-2xl transition duration-500 hover:-translate-y-1"
+                style={{
+                  border: `1px solid ${borderColor}`,
+                  boxShadow:
+                    darkProgress > 0.45
+                      ? "0 28px 80px rgba(0,0,0,0.42)"
+                      : "0 18px 45px rgba(15,23,42,0.10)",
+                  transform: `translateY(${(1 - darkProgress) * (10 + index * 3)}px)`,
+                }}
+              >
+                <div
+                  className="flex h-24 items-center justify-center text-2xl font-black text-white"
+                  style={{ backgroundColor: item.color }}
+                >
+                  {item.logo}
+                </div>
+
+                <div className="p-7">
+                  <p className="mb-2 text-xs font-bold tracking-[0.22em] text-neutral-400">
+                    BRAND
+                  </p>
+                  <h3 className="text-2xl font-black">{item.brand}</h3>
+                  <p className="mt-3 min-h-12 text-lg font-bold leading-snug text-neutral-900">
+                    {item.title}
+                  </p>
+
+                  <div className="my-6 h-px bg-neutral-200" />
+
+                  <div className="space-y-3 text-sm font-medium text-neutral-700">
+                    <div className="flex items-center gap-3">
+                      <Icon name="users" className="h-4 w-4 text-blue-600" />
+                      참여자 {item.participants}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Icon name="calendar" className="h-4 w-4 text-blue-600" />
+                      {item.days} 마감
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Icon name="gift" className="h-4 w-4 text-blue-600" />
+                      {item.prize}
+                    </div>
+                  </div>
+
+                  <button className="group mt-8 flex w-full items-center justify-center gap-2 rounded-full bg-neutral-950 px-5 py-4 text-sm font-black text-white shadow-[0_8px_22px_rgba(15,23,42,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-neutral-800 active:translate-y-0 active:scale-[0.98]">
+                    추첨 참여하기
+                    <Icon
+                      name="arrow"
+                      className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+                    />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         </div>
       </div>
     </section>
