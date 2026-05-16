@@ -54,6 +54,8 @@ const raffleItems = [
   { brand: "NIKE", title: "Air Jordan 1 Retro High OG", participants: "120,000명", days: "D-3", prize: "한정판 스니커즈 · 5명", color: "#111111", logo: "NIKE" },
   { brand: "Supreme", title: "Box Logo Hoodie", participants: "85,000명", days: "D-3", prize: "박스로고 후드 · 3명", color: "#ED1C24", logo: "Supreme" },
   { brand: "MUSINSA", title: "한정 컬래버 패션 세트", participants: "95,000명", days: "D-3", prize: "컬래버 패션 세트 · 10명", color: "#222222", logo: "musinsa" },
+  { brand: "Adidas", title: "Samba OG Cloud White", participants: "72,000명", days: "D-4", prize: "한정판 스니커즈 · 7명", color: "#0F172A", logo: "adidas" },
+  { brand: "New Balance", title: "Made in USA 990v6", participants: "68,000명", days: "D-5", prize: "프리미엄 스니커즈 · 4명", color: "#334155", logo: "NB" },
 ];
 
 const partnerBrands = ["NIKE", "adidas", "MUSINSA", "Supreme", "JORDAN", "New Balance", "PUMA", "CONVERSE"];
@@ -64,6 +66,13 @@ const pointPartners = [
   { name: "GIFT", className: "right-[8%] bottom-[8%] bg-white text-black" },
   { name: "PUMA", className: "left-[18%] bottom-[4%] bg-red-600 text-white" },
   { name: "MUSINSA", className: "left-[5%] top-[36%] bg-black text-white" },
+];
+
+const partnershipPartners = [
+  { name: "NIKE", className: "left-[12%] top-[22%] bg-black text-white" },
+  { name: "MUSINSA", className: "right-[8%] top-[16%] bg-white text-black" },
+  { name: "adidas", className: "left-[4%] bottom-[18%] bg-white text-black" },
+  { name: "Supreme", className: "right-[3%] bottom-[20%] bg-black text-white" },
 ];
 
 // 히어로 피처 — 각각 라우트 경로 연결
@@ -79,6 +88,79 @@ const techStack = [
   { icon: "server", title: "AWS 클라우드 인프라", desc: "대규모 참여 트래픽에도 안정적으로 운영될 수 있는 서버 구조를 지향합니다." },
   { icon: "lock", title: "사용자 인증 & 보안", desc: "본인인증, 중복 참여 차단, 실시간 모니터링으로 공정성을 보조합니다." },
   { icon: "code", title: "React 기반 프론트엔드", desc: "래플 참여와 포인트 환전을 직관적으로 사용할 수 있는 UI를 제공합니다." },
+];
+
+const navigationMenus = [
+  {
+    label: "서비스 소개",
+    columns: [
+      {
+        title: "서비스 소개",
+        items: [
+          { icon: "shield", title: "nofake 소개", desc: "공정한 래플 플랫폼 nofake를 소개합니다", path: "/about/fairness" },
+          { icon: "database", title: "회사 소개", desc: "nofake를 만드는 사람들", path: "/about/trust" },
+        ],
+      },
+      {
+        title: "핵심 가치",
+        items: [
+          { icon: "ticket", title: "공정성", desc: "조작 없는 온체인 추첨 시스템", path: "/about/fairness" },
+          { icon: "globe", title: "투명성", desc: "모든 트랜잭션을 누구나 검증", path: "/about/fairness" },
+          { icon: "lock", title: "신뢰", desc: "데이터 무결성 위의 변하지 않는 약속", path: "/about/trust" },
+        ],
+      },
+    ],
+  },
+  {
+    label: "래플 이벤트",
+    columns: [
+      {
+        title: "래플 소개",
+        items: [
+          { icon: "ticket", title: "nofake 래플", desc: "공정한 블록체인 기반 추첨 시스템", path: "/raffles" },
+        ],
+      },
+      { title: "카테고리", gridItems: ["스니커즈", "의류", "액세서리", "한정판 컬렉션"], gridPath: "/raffles" },
+    ],
+  },
+  {
+    label: "포인트 거래",
+    columns: [
+      {
+        title: "포인트 교환",
+        items: [
+          { icon: "arrow", title: "포인트 교환 센터", desc: "nofake 포인트를 파트너 브랜드 포인트로 교환", path: "/point-swap" },
+        ],
+      },
+      { title: "교환 가능 파트너", gridItems: ["Nike", "무신사", "Adidas", "기프트카드"], gridPath: "/brands" },
+    ],
+  },
+  {
+    label: "고객센터",
+    columns: [
+      {
+        title: "고객 지원",
+        items: [
+          { icon: "message", title: "1:1 문의", desc: "담당자가 직접 답변해드립니다", path: "/support/contact" },
+          { icon: "shield", title: "FAQ", desc: "자주 묻는 질문 모음", path: "/support/faq" },
+        ],
+      },
+      { title: "안내", gridItems: ["공지사항", "이용약관", "개인정보처리방침"], gridPath: "/support/contact" },
+    ],
+  },
+  {
+    label: "파트너십",
+    columns: [
+      {
+        title: "파트너십",
+        items: [
+          { icon: "users", title: "브랜드 제휴", desc: "공정한 래플 캠페인을 함께 운영합니다", path: "/partnership" },
+          { icon: "mail", title: "제휴 문의", desc: "파트너십 담당자에게 문의하기", path: "/support/contact" },
+        ],
+      },
+      { title: "운영 지원", gridItems: ["캠페인 설계", "포인트 제휴", "검증 리포트", "정산 지원"], gridPath: "/partnership" },
+    ],
+  },
 ];
 
 /* ─── Illustrations ─── */
@@ -140,102 +222,338 @@ function PointExchangeIllustration() {
   );
 }
 
+function PartnershipIllustration() {
+  return (
+    <div className="relative mx-auto h-[300px] w-full max-w-[460px]">
+      <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-500/20 bg-blue-50/60" />
+      <div className="absolute left-1/2 top-1/2 h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-500/20" />
+      <div className="absolute left-1/2 top-1/2 h-28 w-40 -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-blue-300/50 bg-[radial-gradient(circle,rgba(37,99,235,0.16),transparent_65%)]" />
+      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center">
+        <div className="h-16 w-24 rounded-br-[30px] rounded-tl-[18px] border-2 border-blue-700 bg-blue-100" />
+        <div className="-ml-5 -mr-5 flex h-20 w-28 items-center justify-center rounded-full border-2 border-blue-700 bg-white shadow-xl">
+          <Icon name="users" className="h-11 w-11 text-blue-600" />
+        </div>
+        <div className="h-16 w-24 rounded-bl-[30px] rounded-tr-[18px] border-2 border-blue-700 bg-blue-100" />
+      </div>
+      {partnershipPartners.map((p) => (
+        <div key={p.name} className={`absolute flex h-16 w-20 items-center justify-center rounded-full border border-blue-100 text-xs font-black shadow-xl ${p.className}`}>
+          {p.name}
+        </div>
+      ))}
+      {(["left-[27%] top-[12%]","right-[26%] top-[8%]","left-[28%] bottom-[10%]","right-[29%] bottom-[9%]"] as string[]).map((pos,i) => (
+        <span key={i} className={`absolute ${pos} h-2 w-2 rounded-full bg-blue-500/45`} />
+      ))}
+    </div>
+  );
+}
+
+/* ─── MegaMenu ─── */
+interface NavColumn {
+  title: string;
+  items?: { icon: string; title: string; desc: string; path: string }[];
+  gridItems?: string[];
+  gridPath?: string;
+}
+
+interface NavMenu {
+  label: string;
+  columns: NavColumn[];
+}
+
+function MegaMenuPanel({ menu, onNavigate }: { menu: NavMenu; onNavigate: (path: string) => void }) {
+  return (
+    <div className="absolute left-1/2 top-full z-50 w-[min(920px,calc(100vw-48px))] -translate-x-1/2 pt-3">
+      <div className="overflow-hidden rounded-[28px] border border-neutral-100 bg-white p-8 shadow-[0_24px_80px_rgba(15,23,42,0.14)]">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
+          {menu.columns.map((column) => (
+            <div key={column.title}>
+              <p className="mb-6 text-sm font-black text-neutral-400">{column.title}</p>
+              {column.items && (
+                <div className="space-y-5">
+                  {column.items.map((item) => (
+                    <button
+                      key={item.title}
+                      onClick={() => onNavigate(item.path)}
+                      className="group flex w-full items-start gap-4 rounded-2xl p-2 text-left transition hover:bg-neutral-50"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white">
+                        <Icon name={item.icon} className="h-5 w-5" />
+                      </span>
+                      <span>
+                        <span className="block text-base font-black text-neutral-950">{item.title}</span>
+                        <span className="mt-1 block text-sm leading-6 text-neutral-400">{item.desc}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {column.gridItems && (
+                <div className="grid grid-cols-2 gap-x-12 gap-y-6 text-base font-medium text-neutral-600">
+                  {column.gridItems.map((item) => (
+                    <button
+                      key={item}
+                      onClick={() => onNavigate(column.gridPath ?? "/")}
+                      className="text-left transition hover:text-blue-600"
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Header ─── */
+function Header() {
+  const go = useNav();
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+
+  return (
+    <header
+      className="fixed left-0 right-0 top-0 z-50 border-b border-black/5 bg-white/90 backdrop-blur-md"
+      onMouseLeave={() => setActiveMenu(null)}
+    >
+      <div className="relative mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+        <button
+          onClick={() => go("/")}
+          className="text-2xl font-black tracking-tight text-neutral-950"
+        >
+          nofake
+        </button>
+
+        <nav className="hidden items-center gap-2 text-sm font-semibold text-neutral-700 md:flex">
+          {navigationMenus.map((menu) => (
+            <div key={menu.label} className="relative">
+              <button
+                type="button"
+                onMouseEnter={() => setActiveMenu(menu.label)}
+                className={`rounded-2xl px-5 py-3 transition-all duration-200 ${
+                  activeMenu === menu.label
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-neutral-700 hover:bg-neutral-50 hover:text-neutral-950"
+                }`}
+              >
+                {menu.label}
+              </button>
+            </div>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-4 text-sm font-semibold">
+          <button
+            onClick={() => go("/login")}
+            className="hidden rounded-2xl px-4 py-3 text-neutral-700 transition hover:bg-neutral-50 sm:block"
+          >
+            로그인
+          </button>
+        </div>
+
+        {activeMenu && (
+          <MegaMenuPanel
+            menu={navigationMenus.find((m) => m.label === activeMenu)!}
+            onNavigate={(path) => { go(path); setActiveMenu(null); }}
+          />
+        )}
+      </div>
+    </header>
+  );
+}
+
+/* ─── Hero Panels ─── */
+function RaffleHeroPanel({ onNavigate }: { onNavigate: (path: string) => void }) {
+  return (
+    <div className="rounded-[2rem] bg-white p-8 shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:p-10">
+      <div className="grid min-h-[520px] items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        <div>
+          <div className="mb-8 inline-flex rounded-full bg-blue-50 px-4 py-2 text-xs font-black tracking-[0.18em] text-blue-600">
+            TRANSPARENT RAFFLE PLATFORM
+          </div>
+          <h1 className="max-w-3xl text-5xl font-black leading-[1.12] tracking-[-0.06em] text-neutral-950 md:text-7xl">
+            모든 추첨을<br />투명하게,<br />누구나 <span className="text-blue-600">검증</span>할 수 있게
+          </h1>
+          <p className="mt-7 max-w-xl text-lg leading-8 text-neutral-600">
+            Hyperledger Fabric 기반 검증 시스템으로 래플 참여, 추첨 기록, 결과 공개까지 공정한 흐름을 제공합니다.
+          </p>
+          <div className="mt-10 flex flex-wrap gap-4">
+            <button
+              onClick={() => onNavigate("/raffles")}
+              className="group inline-flex items-center gap-2 rounded-full bg-neutral-950 px-8 py-4 text-sm font-bold text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-neutral-800 active:scale-[0.98]"
+            >
+              추첨 참여하기
+              <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </button>
+            <button
+              onClick={() => onNavigate("/about/fairness")}
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-8 py-4 text-sm font-bold text-neutral-900 transition-all duration-300 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98]"
+            >
+              검증 시스템 보기
+            </button>
+          </div>
+        </div>
+        <div className="flex justify-center lg:justify-end">
+          <DotRaffleIllustration />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PointExchangePanel({ onNavigate }: { onNavigate: (path: string) => void }) {
+  return (
+    <div className="relative overflow-hidden rounded-[2rem] bg-[#071226] p-8 text-white shadow-[0_18px_60px_rgba(15,23,42,0.16)] lg:p-10">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(37,99,235,0.22),transparent_34%),radial-gradient(circle_at_30%_85%,rgba(37,99,235,0.12),transparent_34%)]" />
+      <div className="relative grid min-h-[520px] items-center gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+        <div>
+          <div className="mb-8 inline-flex rounded-full bg-blue-500/10 px-4 py-2 text-xs font-black tracking-[0.18em] text-blue-400">
+            POINT SWAP PLATFORM
+          </div>
+          <h2 className="text-4xl font-black leading-[1.14] tracking-[-0.05em] md:text-5xl">
+            흩어진 포인트를<br />하나로 <span className="text-blue-500">연결</span>하는<br />플랫폼
+          </h2>
+          <p className="mt-7 text-base leading-8 text-slate-300">
+            Nike, 무신사, Adidas 등 다양한 브랜드와 연결된 포인트 교환 시스템을 제공합니다.
+          </p>
+          <p className="mt-7 text-base font-black leading-7 text-blue-500">
+            여러 브랜드 포인트를<br />쉽고 빠르게 관리하세요.
+          </p>
+          <div className="mt-9 flex flex-wrap gap-4">
+            <button
+              onClick={() => onNavigate("/point-swap")}
+              className="group inline-flex items-center gap-2 rounded-full bg-blue-600 px-7 py-4 text-sm font-black text-white shadow-[0_12px_34px_rgba(37,99,235,0.35)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-500 active:scale-[0.98]"
+            >
+              포인트 교환하기
+              <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </button>
+            <button
+              onClick={() => onNavigate("/brands")}
+              className="rounded-full border border-white/20 px-7 py-4 text-sm font-black text-white transition-all duration-300 hover:bg-white/5 active:scale-[0.98]"
+            >
+              제휴 브랜드 보기
+            </button>
+          </div>
+        </div>
+        <PointExchangeIllustration />
+      </div>
+    </div>
+  );
+}
+
+function PartnershipPanel({ onNavigate }: { onNavigate: (path: string) => void }) {
+  return (
+    <div className="relative overflow-hidden rounded-[2rem] bg-white p-8 shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:p-10">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_24%,rgba(37,99,235,0.12),transparent_34%),radial-gradient(circle_at_34%_78%,rgba(37,99,235,0.08),transparent_34%)]" />
+      <div className="relative grid min-h-[520px] items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        <div>
+          <div className="mb-8 inline-flex rounded-full bg-blue-50 px-4 py-2 text-xs font-black tracking-[0.18em] text-blue-600">
+            PARTNERSHIP PLATFORM
+          </div>
+          <h2 className="max-w-3xl text-5xl font-black leading-[1.12] tracking-[-0.06em] text-neutral-950 md:text-7xl">
+            브랜드의 가치를<br />연결하는 <span className="text-blue-600">파트너십</span> 플랫폼
+          </h2>
+          <p className="mt-7 max-w-xl text-lg leading-8 text-neutral-600">
+            nofake와 함께 공정한 래플 캠페인을 운영하고, 브랜드 포인트를 더 많은 사용자에게 연결하세요.
+          </p>
+          <p className="mt-6 max-w-xl text-base font-black leading-7 text-blue-600">
+            캠페인 기획부터 운영, 검증 리포트까지 브랜드 성장을 함께 지원합니다.
+          </p>
+          <div className="mt-10 flex flex-wrap gap-4">
+            <button
+              onClick={() => onNavigate("/partnership")}
+              className="group inline-flex items-center gap-2 rounded-full bg-blue-600 px-8 py-4 text-sm font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,0.24)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-500 active:scale-[0.98]"
+            >
+              파트너십 확인하기
+              <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </button>
+            <button
+              onClick={() => onNavigate("/support/contact")}
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-8 py-4 text-sm font-bold text-neutral-900 transition-all duration-300 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98]"
+            >
+              제휴 문의하기
+            </button>
+          </div>
+        </div>
+        <PartnershipIllustration />
+      </div>
+    </div>
+  );
+}
+
 /* ─── Hero ─── */
 function Hero() {
   const go = useNav();
+  const SLIDE_COUNT = 3;
   const [activeSlide, setActiveSlide] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(true);
 
+  // 자동 슬라이드
   useEffect(() => {
-    const interval = setInterval(() => setActiveSlide((p) => (p + 1) % 2), 4500);
+    const interval = setInterval(() => {
+      setActiveSlide((prev) => prev + 1);
+    }, 4500);
     return () => clearInterval(interval);
   }, []);
 
+  // 무한 루프: 마지막 클론 슬라이드 도달 시 순간이동
+  useEffect(() => {
+    if (activeSlide !== SLIDE_COUNT) return;
+    const timer = setTimeout(() => {
+      setIsTransitioning(false);
+      setActiveSlide(0);
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => setIsTransitioning(true))
+      );
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [activeSlide]);
+
+  const handleDotClick = (i: number) => {
+    setIsTransitioning(true);
+    setActiveSlide(i);
+  };
+
   return (
-    <section className="relative overflow-hidden bg-neutral-50 pt-10">
+    <section className="relative min-h-screen overflow-hidden bg-neutral-50 pt-28">
       <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
         <div className="overflow-hidden rounded-[2rem]">
           <div
-            className="flex transition-transform duration-700 ease-out"
+            className={`flex ${isTransitioning ? "transition-transform duration-1000 ease-in-out" : "transition-none"}`}
             style={{ transform: `translateX(-${activeSlide * 100}%)` }}
           >
             {/* Slide 1 — 래플 */}
-            <div className="w-full shrink-0 rounded-[2rem] bg-white p-8 shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:p-10">
-              <div className="grid min-h-[520px] items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-                <div>
-                  <div className="mb-8 inline-flex rounded-full bg-blue-50 px-4 py-2 text-xs font-black tracking-[0.18em] text-blue-600">
-                    TRANSPARENT RAFFLE PLATFORM
-                  </div>
-                  <h1 className="max-w-3xl text-5xl font-black leading-[1.12] tracking-[-0.06em] text-neutral-950 md:text-7xl">
-                    모든 추첨을<br />투명하게,<br />누구나 <span className="text-blue-600">검증</span>할 수 있게
-                  </h1>
-                  <p className="mt-7 max-w-xl text-lg leading-8 text-neutral-600">
-                    Hyperledger Fabric 기반 검증 시스템으로 래플 참여, 추첨 기록, 결과 공개까지 공정한 흐름을 제공합니다.
-                  </p>
-                  <div className="mt-10 flex flex-wrap gap-4">
-                    <button
-                      onClick={() => go("/raffles")}
-                      className="group inline-flex items-center gap-2 rounded-full bg-neutral-950 px-8 py-4 text-sm font-bold text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-neutral-800 active:scale-[0.98]"
-                    >
-                      추첨 참여하기
-                      <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                    </button>
-                    <button
-                      onClick={() => go("/about/fairness")}
-                      className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-8 py-4 text-sm font-bold text-neutral-900 transition-all duration-300 hover:border-neutral-400 hover:bg-neutral-50 active:scale-[0.98]"
-                    >
-                      검증 시스템 보기
-                    </button>
-                  </div>
-                </div>
-                <div className="flex justify-center lg:justify-end">
-                  <DotRaffleIllustration />
-                </div>
-              </div>
+            <div className="w-full shrink-0">
+              <RaffleHeroPanel onNavigate={go} />
             </div>
-
             {/* Slide 2 — 포인트 */}
-            <div className="w-full shrink-0 overflow-hidden rounded-[2rem] bg-[#071226] p-8 text-white shadow-[0_18px_60px_rgba(15,23,42,0.16)] lg:p-10">
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(37,99,235,0.22),transparent_34%),radial-gradient(circle_at_30%_85%,rgba(37,99,235,0.12),transparent_34%)]" />
-              <div className="relative grid min-h-[520px] items-center gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-                <div>
-                  <div className="mb-8 inline-flex rounded-full bg-blue-500/10 px-4 py-2 text-xs font-black tracking-[0.18em] text-blue-400">
-                    POINT SWAP PLATFORM
-                  </div>
-                  <h2 className="text-4xl font-black leading-[1.14] tracking-[-0.05em] md:text-5xl">
-                    흩어진 포인트를<br />하나로 <span className="text-blue-500">연결</span>하는<br />플랫폼
-                  </h2>
-                  <p className="mt-7 text-base leading-8 text-slate-300">
-                    Nike, 무신사, Adidas 등 다양한 브랜드와 연결된 포인트 교환 시스템을 제공합니다.
-                  </p>
-                  <div className="mt-9 flex flex-wrap gap-4">
-                    <button
-                      onClick={() => go("/point-swap")}
-                      className="group inline-flex items-center gap-2 rounded-full bg-blue-600 px-7 py-4 text-sm font-black text-white shadow-[0_12px_34px_rgba(37,99,235,0.35)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-500 active:scale-[0.98]"
-                    >
-                      포인트 교환하기
-                      <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                    </button>
-                    <button
-                      onClick={() => go("/brands")}
-                      className="rounded-full border border-white/20 px-7 py-4 text-sm font-black text-white transition-all duration-300 hover:bg-white/5 active:scale-[0.98]"
-                    >
-                      제휴 브랜드 보기
-                    </button>
-                  </div>
-                </div>
-                <PointExchangeIllustration />
-              </div>
+            <div className="w-full shrink-0">
+              <PointExchangePanel onNavigate={go} />
+            </div>
+            {/* Slide 3 — 파트너십 */}
+            <div className="w-full shrink-0">
+              <PartnershipPanel onNavigate={go} />
+            </div>
+            {/* Clone of Slide 1 for seamless loop */}
+            <div className="w-full shrink-0">
+              <RaffleHeroPanel onNavigate={go} />
             </div>
           </div>
         </div>
 
         {/* 슬라이드 인디케이터 */}
         <div className="mt-5 flex justify-center gap-2">
-          {[0, 1].map((i) => (
+          {[0, 1, 2].map((i) => (
             <button
               key={i}
-              onClick={() => setActiveSlide(i)}
-              className={`rounded-full transition-all duration-300 ${activeSlide === i ? "h-3 w-8 bg-blue-600" : "h-3 w-3 bg-neutral-300 hover:bg-neutral-400"}`}
+              onClick={() => handleDotClick(i)}
+              className={`rounded-full transition-all duration-300 ${
+                (activeSlide % SLIDE_COUNT) === i
+                  ? "h-3 w-8 bg-blue-600"
+                  : "h-3 w-3 bg-neutral-300 hover:bg-neutral-400"
+              }`}
             />
           ))}
         </div>
@@ -292,6 +610,14 @@ function ActiveRaffles() {
   const sectionRef = useRef<HTMLElement>(null);
   const [darkProgress, setDarkProgress] = useState(0);
 
+  // 래플 카드 자동 슬라이딩 (파일 2)
+  const VISIBLE_COUNT = 3;
+  const [activeRaffleIndex, setActiveRaffleIndex] = useState(0);
+  const [isRafflePaused, setIsRafflePaused] = useState(false);
+  const [isRaffleTransitioning, setIsRaffleTransitioning] = useState(true);
+  const loopedRaffleItems = [...raffleItems, ...raffleItems.slice(0, VISIBLE_COUNT)];
+
+  // 스크롤 다크 오버레이
   useEffect(() => {
     let ticking = false;
     const smoothStep = (v: number) => { const c = Math.max(0, Math.min(1, v)); return c * c * (3 - 2 * c); };
@@ -309,6 +635,28 @@ function ActiveRaffles() {
     window.addEventListener("resize", req);
     return () => { window.removeEventListener("scroll", req); window.removeEventListener("resize", req); };
   }, []);
+
+  // 래플 카드 자동 넘기기
+  useEffect(() => {
+    if (isRafflePaused) return;
+    const interval = setInterval(() => {
+      setActiveRaffleIndex((prev) => prev + 1);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [isRafflePaused]);
+
+  // 무한 루프 리셋
+  useEffect(() => {
+    if (activeRaffleIndex !== raffleItems.length) return;
+    const timer = setTimeout(() => {
+      setIsRaffleTransitioning(false);
+      setActiveRaffleIndex(0);
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => setIsRaffleTransitioning(true))
+      );
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [activeRaffleIndex]);
 
   const primaryTextColor = darkProgress > 0.45 ? "#ffffff" : "#0a0a0a";
   const secondaryTextColor = darkProgress > 0.45 ? "#a3a3a3" : "#525252";
@@ -340,38 +688,49 @@ function ActiveRaffles() {
             전체 래플 보기
           </button>
         </div>
-        <div className="grid grid-cols-1 gap-7 md:grid-cols-3">
-          {raffleItems.map((item, index) => (
-            <article
-              key={item.brand}
-              className="overflow-hidden rounded-3xl bg-white text-black shadow-2xl transition duration-500 hover:-translate-y-1"
-              style={{
-                border: `1px solid ${borderColor}`,
-                boxShadow: darkProgress > 0.45 ? "0 28px 80px rgba(0,0,0,0.42)" : "0 18px 45px rgba(15,23,42,0.10)",
-                transform: `translateY(${(1 - darkProgress) * (10 + index * 3)}px)`,
-              }}
-            >
-              <div className="flex h-24 items-center justify-center text-2xl font-black text-white" style={{ backgroundColor: item.color }}>{item.logo}</div>
-              <div className="p-7">
-                <p className="mb-2 text-xs font-bold tracking-[0.22em] text-neutral-400">BRAND</p>
-                <h3 className="text-2xl font-black">{item.brand}</h3>
-                <p className="mt-3 min-h-12 text-lg font-bold leading-snug text-neutral-900">{item.title}</p>
-                <div className="my-6 h-px bg-neutral-200" />
-                <div className="space-y-3 text-sm font-medium text-neutral-700">
-                  <div className="flex items-center gap-3"><Icon name="users" className="h-4 w-4 text-blue-600" />참여자 {item.participants}</div>
-                  <div className="flex items-center gap-3"><Icon name="calendar" className="h-4 w-4 text-blue-600" />{item.days} 마감</div>
-                  <div className="flex items-center gap-3"><Icon name="gift" className="h-4 w-4 text-blue-600" />{item.prize}</div>
+
+        {/* 자동 슬라이딩 래플 카드 */}
+        <div
+          className="overflow-hidden"
+          onMouseEnter={() => setIsRafflePaused(true)}
+          onMouseLeave={() => setIsRafflePaused(false)}
+        >
+          <div
+            className={`flex gap-7 ${isRaffleTransitioning ? "transition-transform duration-700 ease-in-out" : "transition-none"}`}
+            style={{ transform: `translateX(calc(-${activeRaffleIndex} * (((100% - 56px) / 3) + 28px)))` }}
+          >
+            {loopedRaffleItems.map((item, index) => (
+              <article
+                key={`${item.brand}-${index}`}
+                className="w-[calc((100%_-_56px)/3)] shrink-0 overflow-hidden rounded-3xl bg-white text-black shadow-2xl transition duration-500 hover:-translate-y-1"
+                style={{
+                  border: `1px solid ${borderColor}`,
+                  boxShadow: darkProgress > 0.45 ? "0 28px 80px rgba(0,0,0,0.42)" : "0 18px 45px rgba(15,23,42,0.10)",
+                  transform: `translateY(${(1 - darkProgress) * (10 + index * 3)}px)`,
+                }}
+              >
+                <div className="flex h-24 items-center justify-center text-2xl font-black text-white" style={{ backgroundColor: item.color }}>{item.logo}</div>
+                <div className="p-7">
+                  <p className="mb-2 text-xs font-bold tracking-[0.22em] text-neutral-400">BRAND</p>
+                  <h3 className="text-2xl font-black">{item.brand}</h3>
+                  <p className="mt-3 min-h-12 text-lg font-bold leading-snug text-neutral-900">{item.title}</p>
+                  <div className="my-6 h-px bg-neutral-200" />
+                  <div className="space-y-3 text-sm font-medium text-neutral-700">
+                    <div className="flex items-center gap-3"><Icon name="users" className="h-4 w-4 text-blue-600" />참여자 {item.participants}</div>
+                    <div className="flex items-center gap-3"><Icon name="calendar" className="h-4 w-4 text-blue-600" />{item.days} 마감</div>
+                    <div className="flex items-center gap-3"><Icon name="gift" className="h-4 w-4 text-blue-600" />{item.prize}</div>
+                  </div>
+                  <button
+                    onClick={() => go("/raffles")}
+                    className="group mt-8 flex w-full items-center justify-center gap-2 rounded-full bg-neutral-950 px-5 py-4 text-sm font-black text-white shadow-[0_8px_22px_rgba(15,23,42,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-neutral-800 active:scale-[0.98]"
+                  >
+                    추첨 참여하기
+                    <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => go("/raffles")}
-                  className="group mt-8 flex w-full items-center justify-center gap-2 rounded-full bg-neutral-950 px-5 py-4 text-sm font-black text-white shadow-[0_8px_22px_rgba(15,23,42,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-neutral-800 active:scale-[0.98]"
-                >
-                  추첨 참여하기
-                  <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </button>
-              </div>
-            </article>
-          ))}
+              </article>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -460,8 +819,6 @@ function TechnologyStack() {
             </div>
           </div>
         </div>
-
-        {/* 기술 스택 하단 CTA */}
         <div className="mt-10 text-center">
           <button
             onClick={() => go("/about/fairness")}
@@ -557,6 +914,7 @@ export function Home() {
 
   return (
     <main className="min-h-screen bg-white font-sans text-neutral-950">
+      <Header />
       <Hero />
       <TrustIndicators />
       <ActiveRaffles />

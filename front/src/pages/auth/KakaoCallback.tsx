@@ -17,6 +17,7 @@ type KakaoLoginResponse = {
   email?: string;
   message?: string;
   error?: string;
+  phone_verified?: boolean;
 };
 
 export function KakaoCallback() {
