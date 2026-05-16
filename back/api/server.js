@@ -985,8 +985,8 @@ app.get('/api/mypage/points', verifyTokenMiddleware, async (req, res) => {
 
 const ensureSchema = async () => {
   try {
-    await sequelize.sync();
-    console.log(`✅ Database synced successfully`);
+    await sequelize.sync({ alter: true });
+    console.log(`✅ Database synced successfully (with alter)`);
   } catch (error) {
     console.error(`❌ Database sync error:`, error);
   }
