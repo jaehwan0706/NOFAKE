@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { BrowserRouter, Outlet, Routes, Route, useLocation } from "react-router";
+import { useEffect, useState } from "react";
+import { BrowserRouter, Outlet, Routes, Route, useLocation, Navigate } from "react-router";
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { Home } from "./pages/main/Home";
@@ -28,6 +28,66 @@ import { MyPage } from "./pages/user/MyPage";
 import { BrandsPage } from "./pages/about/BrandsPage";
 import { HowItWorksPage } from "./pages/about/HowItWorksPage";
 import { PartnerPage } from "./pages/partnership/PartnerPage";
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) ?? "";
+const LOGIN_TOKEN_KEY = "nofakeAccessToken";
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const [status, setStatus] = useState<{ loading: boolean; isAllowed: boolean }>({
+    loading: true,
+    isAllowed: false,
+  });
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem(LOGIN_TOKEN_KEY);
+      if (!token) {
+        setStatus({ loading: false, isAllowed: false });
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/status`, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          },
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          // 로그인되어 있고 휴대폰 인증까지 완료된 경우만 허용
+          if (data.isAuthenticated && data.isPhoneVerified) {
+            setStatus({ loading: false, isAllowed: true });
+          } else {
+            setStatus({ loading: false, isAllowed: false });
+          }
+        } else {
+          setStatus({ loading: false, isAllowed: false });
+        }
+      } catch (err) {
+        console.error("Auth check failed:", err);
+        setStatus({ loading: false, isAllowed: false });
+      }
+    };
+    checkAuth();
+  }, []);
+
+  if (status.loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-400"></div>
+      </div>
+    );
+  }
+
+  if (!status.isAllowed) {
+    return <Navigate to="/verify-phone" replace />;
+  }
+
+  return <>{children}</>;
+}
 
 function Root() {
   return (
@@ -87,7 +147,11 @@ export default function App() {
           <Route path="raffles" element={<RafflesPage />} />
 
           {/* 4. 포인트 거래 */}
-          <Route path="point-swap" element={<PointSwapPage />} />
+          <Route path="point-swap" element={
+            <ProtectedRoute>
+              <PointSwapPage />
+            </ProtectedRoute>
+          } />
 
           {/* 5. 고객센터 */}
           <Route path="support" element={<Support />} />
@@ -121,7 +185,11 @@ export default function App() {
           
           
           {/* 8. 마이페이지 (로그인 후 활성화) */}
-          <Route path="mypage" element={<MyPage />} />
+          <Route path="mypage" element={
+            <ProtectedRoute>
+              <MyPage />
+            </ProtectedRoute>
+          } />
 
           {/* 예외 처리 */}
           <Route path="*" element={<NotFound />} />

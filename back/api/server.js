@@ -500,6 +500,7 @@ app.post("/api/auth/kakao", async (req, res) => {
     const kakaoId = String(userResponse.data.id || userResponse.data?.id || "");
 
     try {
+      // 1. 유저 찾기 또는 생성
       await User.findOrCreate({
         where: { kakaoId },
         defaults: { 
@@ -510,17 +511,20 @@ app.post("/api/auth/kakao", async (req, res) => {
         },
       });
 
+      const user = await User.findOne({ where: { kakaoId } });
+
       res.json({
         success: true,
         accessToken: access_token,
-        name: profile.nickname,
-        email: kakaoAccount.email,
-        phone_verified: false,
-        phone_number: null,
+        name: user.name,
+        email: user.email,
+        phone_verified: user.phone_verified,
+        walletAddress: user.walletAddress,
+        phone_number: user.phoneNumber,
       });
     } catch (dbErr) {
-      console.error('❌ User upsert failed. Detail:', dbErr); // 로그 강화
-      res.status(500).json({ success: false, error: "사용자 정보 저장 실패", details: dbErr.message });
+      console.error('❌ User registration failed:', dbErr);
+      res.status(500).json({ success: false, error: "사용자 정보 처리 실패", details: dbErr.message });
     }
   } catch (error) {
     console.error("❌ 카카오 로그인 실패:", error.response?.data || error.message);
@@ -556,15 +560,49 @@ app.get("/api/auth/me", async (req, res) => {
 });
 
 // ============================================
+// 인증 상태 확인 API (프론트엔드 가드용)
+// ============================================
+app.get("/api/auth/status", verifyTokenMiddleware, async (req, res) => {
+  try {
+    const kakaoId = req.user.kakaoId;
+    const user = await User.findOne({ where: { kakaoId } });
+    
+    res.json({
+      isAuthenticated: true,
+      isPhoneVerified: user ? user.phone_verified : false,
+      user: {
+        kakaoId: req.user.kakaoId,
+        name: user?.name || user?.nickname || req.user.name,
+        email: user?.email || req.user.email,
+        phone_verified: user ? user.phone_verified : false
+      }
+    });
+  } catch (error) {
+    res.status(401).json({ isAuthenticated: false, error: "인증 실패" });
+  }
+});
+
+// ============================================
 // 사용자 프로필 API
 // ============================================
 
 app.get("/api/user/profile", verifyTokenMiddleware, async (req, res) => {
   try {
+    const kakaoId = req.user.kakaoId;
+    const user = await User.findOne({ where: { kakaoId } });
+
+    if (!user || !user.phone_verified) {
+      return res.status(403).json({ 
+        error: 'PHONE_NOT_VERIFIED', 
+        message: '휴대폰 인증이 필요합니다.' 
+      });
+    }
+
     res.json({
-      name: req.user.name || "사용자",
-      email: req.user.email || "",
-      walletAddress: req.user.walletAddress || null,
+      name: user.name || user.nickname || "사용자",
+      email: user.email || "",
+      walletAddress: user.walletAddress || null,
+      phone_verified: user.phone_verified
     });
   } catch (error) {
     res.status(500).json({ error: "프로필 조회 실패" });
@@ -945,17 +983,28 @@ app.get("/api/metadata/:tokenId", async (req, res) => {
 app.get('/api/mypage', verifyTokenMiddleware, async (req, res) => {
   try {
     const kakaoId = req.user.kakaoId;
-    let userData = await User.findOne({ where: { kakaoId } });
-    const currentPoints = userData ? userData.points : 55000;
+    if (!kakaoId) return res.status(401).json({ error: "인증 정보가 없습니다." });
+
+    const userData = await User.findOne({ where: { kakaoId } });
+    
+    // 🛑 강력한 차단: 유저가 없거나 휴대폰 인증이 안 된 경우
+    if (!userData || !userData.phone_verified) {
+      return res.status(403).json({ 
+        error: 'PHONE_NOT_VERIFIED', 
+        message: '휴대폰 인증이 완료된 유저만 접근 가능합니다.' 
+      });
+    }
+    
+    const currentPoints = userData.points || 0;
 
     res.json({
       // 1. 사용자 기본 프로필
       profile: {
-        name: userData?.name || userData?.nickname || req.user.name || "NoFake 유저",
-        email: userData?.email || req.user.email,
-        walletAddress: userData?.walletAddress || "0x398591b6257b8BA14Baf06728a706a5B73dd2795",
-        did: userData?.did || "did:nofake:0x398591b6257b8BA14Baf06728a706a5B73dd2795",
-        joinedAt: userData?.joinedAt || new Date().toISOString(),
+        name: userData.name || userData.nickname || "NoFake 유저",
+        email: userData.email,
+        walletAddress: userData.walletAddress || "0x398591b6257b8BA14Baf06728a706a5B73dd2795",
+        did: userData.did || "did:nofake:0x398591b6257b8BA14Baf06728a706a5B73dd2795",
+        joinedAt: userData.joinedAt,
         profileImage: null
       },
 
