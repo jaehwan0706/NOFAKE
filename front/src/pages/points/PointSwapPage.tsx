@@ -3,8 +3,7 @@ import { useNavigate } from "react-router";
 import { useAuthUser } from "../../components/Header";
 
 const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string) ??
-  "https://outrage-overboard-unrevised.ngrok-free.dev";
+  (import.meta.env.VITE_API_BASE_URL as string) ?? "";
 const LOGIN_TOKEN_KEY = "nofakeAccessToken";
 
 const T = {
@@ -76,14 +75,29 @@ function ExchangePanel({ partner, myPoints, onSuccess, onLoginRequired }: { part
       return;
     }
     if (!isValid) return;
-    
     setDone(true);
-    // 실제 환경에서는 여기서 포인트를 차감하는 API를 호출해야 합니다.
-    setTimeout(() => {
-      onSuccess(inputNum);
-      setDone(false);
-      setAmount("");
-    }, 2000);
+    (async () => {
+      try {
+        const token = localStorage.getItem(LOGIN_TOKEN_KEY);
+        const res = await fetch(`${API_BASE_URL}/api/points/swap`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ fromBrand: 'NOFAKE', toBrand: partner.name.toUpperCase(), amount: inputNum })
+        });
+        if (res.ok) {
+          const body = await res.json();
+          onSuccess(inputNum);
+        } else {
+          console.error('Swap failed', await res.text());
+          setDone(false);
+        }
+      } catch (err) {
+        console.error('Swap error', err);
+        setDone(false);
+      } finally {
+        setAmount("");
+      }
+    })();
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,18 +200,17 @@ export const PointSwapPage = () => {
         setIsLoading(false);
         return;
       }
-      try {
-        const token = localStorage.getItem(LOGIN_TOKEN_KEY);
-        const res = await fetch(`${API_BASE_URL}/api/mypage`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "69420",
-          },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setMyPoints(data.points ?? 0);
-        }
+        try {
+          const token = localStorage.getItem(LOGIN_TOKEN_KEY);
+          const res = await fetch(`${API_BASE_URL}/api/points/balance`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setMyPoints(data.data?.nofake ?? 0);
+          }
       } catch (error) {
         console.error("포인트 정보를 가져오는데 실패했습니다.");
         setMyPoints(0);
@@ -248,6 +261,7 @@ export const PointSwapPage = () => {
           <p style={{ color: "#60a5fa", fontSize: ".78rem", fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 8 }}>Point Swap</p>
           <h1 style={{ color: "#fff", fontSize: "clamp(1.6rem,4vw,2.4rem)", fontWeight: 900, marginBottom: 12 }}>포인트 교환 센터</h1>
           <p style={{ color: "#94a3b8", fontSize: ".95rem", lineHeight: 1.7 }}>nofake 포인트를 파트너 브랜드 포인트로 교환하세요. 수수료만 차감 후 즉시 적립됩니다.</p>
+          <p style={{ color: "#f3f4f6", fontSize: ".9rem", marginTop: 8 }}><strong>안내:</strong> NoFake 포인트를 다른 브랜드로 교환 시 5%의 수수료가 발생합니다.</p>
 
           {user ? (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginTop: 20, padding: "12px 20px", background: "rgba(96,165,250,.15)", border: "1px solid rgba(96,165,250,.3)", borderRadius: 10 }}>
