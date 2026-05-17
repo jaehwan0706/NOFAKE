@@ -186,6 +186,7 @@ function ExchangePanel({ partner, myPoints, onSuccess, onLoginRequired }: { part
 export const PointSwapPage = () => {
   const [selectedPartner, setSelectedPartner] = useState<any>(null);
   const [myPoints, setMyPoints] = useState(0); // ✅ 초기값을 0으로 설정
+  const [balances, setBalances] = useState({ nofake: 0, nike: 0, musinsa: 0 });
   const [history, setHistory] = useState<any[]>([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -193,32 +194,45 @@ export const PointSwapPage = () => {
   const navigate = useNavigate();
   const user = useAuthUser();
 
-  // ✅ 사용자 포인트 실시간 로드
-  useEffect(() => {
-    const fetchUserPoints = async () => {
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-        try {
-          const token = localStorage.getItem(LOGIN_TOKEN_KEY);
-          const res = await fetch(`${API_BASE_URL}/api/points/balance`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setMyPoints(data.data?.nofake ?? 0);
-          }
-      } catch (error) {
-        console.error("포인트 정보를 가져오는데 실패했습니다.");
-        setMyPoints(0);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const fetchUserPoints = async () => {
+    if (!user) {
+      setIsLoading(false);
+      setBalances({ nofake: 0, nike: 0, musinsa: 0 });
+      setMyPoints(0);
+      return;
+    }
 
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem(LOGIN_TOKEN_KEY);
+      const res = await fetch(`${API_BASE_URL}/api/points/balance`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const fetched = data.data || { nofake: 0, nike: 0, musinsa: 0 };
+        setBalances({
+          nofake: Number(fetched.nofake ?? 0),
+          nike: Number(fetched.nike ?? 0),
+          musinsa: Number(fetched.musinsa ?? 0)
+        });
+        setMyPoints(Number(fetched.nofake ?? 0));
+      } else {
+        setBalances({ nofake: 0, nike: 0, musinsa: 0 });
+        setMyPoints(0);
+      }
+    } catch (error) {
+      console.error("포인트 정보를 가져오는데 실패했습니다.");
+      setBalances({ nofake: 0, nike: 0, musinsa: 0 });
+      setMyPoints(0);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchUserPoints();
   }, [user]);
 
@@ -236,7 +250,7 @@ export const PointSwapPage = () => {
   };
 
   const handleSuccess = (amount: number) => {
-    setMyPoints((prev) => prev - amount);
+    fetchUserPoints();
     setHistory((prev) => [
       {
         partner: selectedPartner.name,
@@ -264,13 +278,18 @@ export const PointSwapPage = () => {
           <p style={{ color: "#f3f4f6", fontSize: ".9rem", marginTop: 8 }}><strong>안내:</strong> NoFake 포인트를 다른 브랜드로 교환 시 5%의 수수료가 발생합니다.</p>
 
           {user ? (
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginTop: 20, padding: "12px 20px", background: "rgba(96,165,250,.15)", border: "1px solid rgba(96,165,250,.3)", borderRadius: 10 }}>
-              <span style={{ fontSize: "1.2rem" }}>💎</span>
-              <div>
-                <span style={{ color: "#94a3b8", fontSize: ".75rem" }}>보유 포인트</span>
-                <span style={{ color: "#60a5fa", fontWeight: 900, fontSize: "1.2rem", marginLeft: 10 }}>
-                  {isLoading ? "..." : `${myPoints.toLocaleString()} P`}
-                </span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 16, marginTop: 20 }}>
+              <div style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 16, padding: "20px" }}>
+                <div style={{ color: "#94a3b8", fontSize: ".78rem", marginBottom: 8 }}>NOFAKE 포인트</div>
+                <div style={{ color: "#60a5fa", fontWeight: 900, fontSize: "1.7rem" }}>{isLoading ? "..." : `${balances.nofake.toLocaleString()} P`}</div>
+              </div>
+              <div style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 16, padding: "20px" }}>
+                <div style={{ color: "#94a3b8", fontSize: ".78rem", marginBottom: 8 }}>Nike 포인트</div>
+                <div style={{ color: "#111", fontWeight: 900, fontSize: "1.7rem" }}>{isLoading ? "..." : `${balances.nike.toLocaleString()} P`}</div>
+              </div>
+              <div style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 16, padding: "20px" }}>
+                <div style={{ color: "#94a3b8", fontSize: ".78rem", marginBottom: 8 }}>무신사 포인트</div>
+                <div style={{ color: "#111", fontWeight: 900, fontSize: "1.7rem" }}>{isLoading ? "..." : `${balances.musinsa.toLocaleString()} P`}</div>
               </div>
             </div>
           ) : (

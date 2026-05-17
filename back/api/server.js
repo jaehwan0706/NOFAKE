@@ -9,7 +9,7 @@ import axios from "axios";
 import { Sequelize, DataTypes, Op } from "sequelize";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import jwksClient from "jwks-rsa";
+import { importJWK, jwtVerify } from "jose";
 
 // ============================================
 // 초기 설정
@@ -119,6 +119,16 @@ const User = sequelize.define("User", {
   timestamps: true
 });
 
+const PointBalance = sequelize.define("PointBalance", {
+  walletAddress: { type: DataTypes.STRING, primaryKey: true, allowNull: false },
+  nofake: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  musinsa: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  nike: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 }
+}, {
+  timestamps: true,
+  tableName: "PointBalances"
+});
+
 const PhoneVerificationSession = sequelize.define('PhoneVerificationSession', {
   sessionId: { type: DataTypes.STRING, primaryKey: true },
   kakaoId: { type: DataTypes.STRING, allowNull: true },
@@ -148,18 +158,17 @@ const writeContract = signer && CONTRACT_ADDRESS ? new ethers.Contract(CONTRACT_
 // ============================================
 // 인증 미들웨어
 // ============================================
-const client = jwksClient({
-  jwksUri: process.env.JWKS_URI || ""
-});
-
-function getKey(header, callback) {
-  client.getSigningKey(header.kid, (err, key) => {
-    const signingKey = key?.getPublicKey() || key?.rsaPublicKey;
-    callback(null, signingKey);
-  });
-}
-
 const verifyTokenMiddleware = async (req, res, next) => {
+  if (process.env.USE_MOCK_AUTH === 'true') {
+    req.user = {
+      kakaoId: 'test_kakao_1234',
+      walletAddress: '0x398591b6257b8BA14Baf06728a706a5B73dd2795',
+      email: 'mock@example.com',
+      name: 'Mock User'
+    };
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     console.log("⚠️ 인증 헤더 없음");
@@ -171,25 +180,32 @@ const verifyTokenMiddleware = async (req, res, next) => {
   // 1. 먼저 JWT 검증 시도 (ID Token 등)
   if (process.env.JWKS_URI) {
     try {
-      const decoded = await new Promise((resolve, reject) => {
-        jwt.verify(token, getKey, {
-          algorithms: ['RS256'],
-          audience: process.env.TOKEN_AUDIENCE
-        }, (err, decoded) => {
-          if (err) reject(err);
-          else resolve(decoded);
-        });
-      });
+      const jwksUri = process.env.JWKS_URI;
+      const jwksResponse = await axios.get(jwksUri);
+      const keys = jwksResponse.data?.keys || [];
+      const decodedHeader = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString('utf8'));
+      const jwk = keys.find((key) => key.kid === decodedHeader.kid);
 
-      console.log("✅ JWT 검증 성공:", decoded.sub || decoded.Sub);
-      req.user = {
-        walletAddress: decoded.wallets?.[0]?.address || decoded.Sub || decoded.sub,
-        email: decoded.email,
-        kakaoId: decoded.sub || decoded.Sub
-      };
-      return next();
+      if (jwk) {
+        const verificationKey = await importJWK(jwk, jwk.alg || 'RS256');
+        const { payload } = await jwtVerify(token, verificationKey, {
+          audience: process.env.TOKEN_AUDIENCE,
+          issuer: process.env.TOKEN_ISSUER
+        });
+
+        console.log("✅ JWT 검증 성공:", payload.sub || payload.Sub);
+        req.user = {
+          walletAddress: payload.wallets?.[0]?.address || payload.Sub || payload.sub,
+          email: payload.email,
+          kakaoId: payload.sub || payload.Sub,
+          name: payload.name || payload.nickname
+        };
+        return next();
+      }
+
+      console.log("ℹ️ JWKS 키를 찾을 수 없습니다. 카카오 액세스 토큰으로 재시도...");
     } catch (err) {
-      console.log("ℹ️ JWT 검증 실패, 카카오 액세스 토큰으로 재시도...");
+      console.log("ℹ️ JWT 검증 실패, 카카오 액세스 토큰으로 재시도...", err.message);
     }
   }
 
@@ -524,6 +540,14 @@ app.post("/api/auth/kakao", async (req, res) => {
 });
 
 app.get("/api/auth/me", async (req, res) => {
+  if (process.env.USE_MOCK_AUTH === 'true') {
+    return res.json({
+      success: true,
+      name: 'Mock User',
+      email: 'mock@example.com'
+    });
+  }
+
   const authHeader = req.headers.authorization ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
   if (!token) return res.status(401).json({ success: false, error: "토큰이 없습니다." });
@@ -1073,30 +1097,101 @@ app.post('/api/phone-verification/mock-verify', async (req, res) => {
 // 간단한 Fabric 클라이언트 모듈 (mock 또는 실제 연결 확장 가능)
 const useFabricMock = (process.env.FABRIC_MOCK || 'true') === 'true';
 
+const TEST_WALLET_ADDRESS = '0x398591b6257b8BA14Baf06728a706a5B73dd2795';
+const TEST_KAKAO_ID = 'test_kakao_1234';
+
+const BRAND_KEY_MAP = {
+  NOFAKE: 'nofake',
+  MUSINSA: 'musinsa',
+  NIKE: 'nike'
+};
+
+const normalizeBrandKey = (brand = '') => {
+  if (!brand || typeof brand !== 'string') return null;
+  return BRAND_KEY_MAP[brand.toUpperCase()] || null;
+};
+
+async function getOrCreatePointBalance(walletAddress) {
+  const normalizedWallet = normalizeWalletAddress(walletAddress);
+  if (!normalizedWallet) {
+    return { walletAddress, nofake: 0, musinsa: 0, nike: 0 };
+  }
+
+  const [record] = await PointBalance.findOrCreate({
+    where: { walletAddress: normalizedWallet },
+    defaults: { walletAddress: normalizedWallet, nofake: 0, musinsa: 0, nike: 0 }
+  });
+
+  return {
+    walletAddress: record.walletAddress,
+    nofake: Number(record.nofake || 0),
+    musinsa: Number(record.musinsa || 0),
+    nike: Number(record.nike || 0)
+  };
+}
+
 async function submitSwapTransactionMock(walletAddress, fromBrand, toBrand, amount) {
-  // 시뮬레이션 tx id
-  return { txId: `MOCK_TX_${Date.now()}`, result: { walletAddress, fromBrand, toBrand, amount } };
+  const normalizedWallet = normalizeWalletAddress(walletAddress);
+  if (!normalizedWallet) {
+    throw new Error('Invalid walletAddress');
+  }
+
+  const fromKey = normalizeBrandKey(fromBrand);
+  const toKey = normalizeBrandKey(toBrand);
+  if (!fromKey || !toKey) {
+    throw new Error('Invalid fromBrand or toBrand');
+  }
+  if (fromKey === toKey) {
+    throw new Error('fromBrand and toBrand must differ');
+  }
+  const amountNumber = Number(amount);
+  if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+    throw new Error('Amount must be a positive integer');
+  }
+
+  const balanceRecord = await getOrCreatePointBalance(normalizedWallet);
+  if (balanceRecord[fromKey] < amountNumber) {
+    throw new Error('INSUFFICIENT_BALANCE: not enough balance');
+  }
+
+  const fee = fromKey === 'nofake' && (toKey === 'musinsa' || toKey === 'nike')
+    ? Math.floor(amountNumber * 0.05)
+    : 0;
+  const finalAmount = amountNumber - fee;
+
+  const updated = {
+    nofake: balanceRecord.nofake,
+    musinsa: balanceRecord.musinsa,
+    nike: balanceRecord.nike
+  };
+
+  updated[fromKey] -= amountNumber;
+  updated[toKey] += finalAmount;
+
+  await PointBalance.upsert({
+    walletAddress: normalizedWallet,
+    nofake: updated.nofake,
+    musinsa: updated.musinsa,
+    nike: updated.nike
+  });
+
+  return {
+    txId: `MOCK_TX_${Date.now()}`,
+    result: {
+      walletAddress: normalizedWallet,
+      fromBrand: fromBrand.toUpperCase(),
+      toBrand: toBrand.toUpperCase(),
+      amount: amountNumber,
+      fee,
+      finalAmount
+    },
+    balances: updated
+  };
 }
 
 async function queryBalancesMock(walletAddress) {
-  // 테스트용 고정 값 또는 DB에서 일부 가져오도록 수정 가능
-  return { walletAddress, nofake: 55000, musinsa: 12000, nike: 3000 };
+  return getOrCreatePointBalance(walletAddress);
 }
-
-// Mock 인증 우회 미들웨어: 개발 시 인증 없이 테스트 유저 사용
-function mockAuthMiddleware(req, res, next) {
-  if (process.env.USE_MOCK_AUTH === 'true' || req.headers['x-mock-user'] === 'true') {
-    req.user = {
-      kakaoId: 'test_kakao_1234',
-      walletAddress: '0x398591b6257b8BA14Baf06728a706a5B73dd2795',
-      name: 'Mock User',
-      email: 'mock@example.com'
-    };
-  }
-  next();
-}
-
-app.use(mockAuthMiddleware);
 
 // GET 잔액 조회 (체인코드 조회)
 app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
@@ -1126,7 +1221,7 @@ app.post('/api/points/swap', verifyTokenMiddleware, async (req, res) => {
 
     if (useFabricMock) {
       const result = await submitSwapTransactionMock(walletAddress, fromBrand, toBrand, Number(amount));
-      return res.json({ success: true, txHash: result.txId, result: result.result });
+      return res.json({ success: true, txHash: result.txId, result: result.result, data: result.balances });
     }
 
     // 실제 Fabric Gateway submitTransaction 구현 위치
@@ -1150,7 +1245,31 @@ const ensureSchema = async () => {
   }
 };
 
-ensureSchema().then(() => {
+const ensureTestData = async () => {
+  try {
+    await PointBalance.upsert({
+      walletAddress: TEST_WALLET_ADDRESS,
+      nofake: 0,
+      musinsa: 0,
+      nike: 10000
+    });
+
+    await User.upsert({
+      kakaoId: TEST_KAKAO_ID,
+      nickname: 'Mock User',
+      name: 'Mock User',
+      email: 'mock@example.com',
+      walletAddress: TEST_WALLET_ADDRESS,
+      points: 0
+    });
+    console.log(`✅ Test balance initialized for wallet ${TEST_WALLET_ADDRESS}`);
+  } catch (error) {
+    console.error('❌ Test data initialization failed:', error);
+  }
+};
+
+ensureSchema().then(async () => {
+  await ensureTestData();
   app.listen(PORT, () => {
     console.log(`==========================================`);
     console.log(`🚀 NOFAKE 통합 서버 가동 (Port: ${PORT})`);
