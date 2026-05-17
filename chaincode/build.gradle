@@ -25,7 +25,8 @@ application {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        // 개발 환경에 맞춰 Java 21 이상을 사용하도록 변경 (로컬 JDK에 따라 조정 가능)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 

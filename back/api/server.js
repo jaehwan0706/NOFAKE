@@ -1067,6 +1067,77 @@ app.post('/api/phone-verification/mock-verify', async (req, res) => {
 });
 
 // ============================================
+// Fabric Gateway 연동 (간단 클라이언트)
+// ============================================
+
+// 간단한 Fabric 클라이언트 모듈 (mock 또는 실제 연결 확장 가능)
+const useFabricMock = (process.env.FABRIC_MOCK || 'true') === 'true';
+
+async function submitSwapTransactionMock(walletAddress, fromBrand, toBrand, amount) {
+  // 시뮬레이션 tx id
+  return { txId: `MOCK_TX_${Date.now()}`, result: { walletAddress, fromBrand, toBrand, amount } };
+}
+
+async function queryBalancesMock(walletAddress) {
+  // 테스트용 고정 값 또는 DB에서 일부 가져오도록 수정 가능
+  return { walletAddress, nofake: 55000, musinsa: 12000, nike: 3000 };
+}
+
+// Mock 인증 우회 미들웨어: 개발 시 인증 없이 테스트 유저 사용
+function mockAuthMiddleware(req, res, next) {
+  if (process.env.USE_MOCK_AUTH === 'true' || req.headers['x-mock-user'] === 'true') {
+    req.user = {
+      kakaoId: 'test_kakao_1234',
+      walletAddress: '0x398591b6257b8BA14Baf06728a706a5B73dd2795',
+      name: 'Mock User',
+      email: 'mock@example.com'
+    };
+  }
+  next();
+}
+
+app.use(mockAuthMiddleware);
+
+// GET 잔액 조회 (체인코드 조회)
+app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
+  try {
+    const walletAddress = req.user?.walletAddress || req.query.walletAddress;
+    if (!walletAddress) return res.status(400).json({ error: 'walletAddress required' });
+
+    if (useFabricMock) {
+      const balances = await queryBalancesMock(walletAddress);
+      return res.json({ success: true, data: balances });
+    }
+
+    // 실제 Fabric Gateway 연동 로직은 여기 확장
+    return res.status(501).json({ error: 'Fabric integration not implemented in this environment' });
+  } catch (err) {
+    console.error('/api/points/balance error:', err);
+    res.status(500).json({ error: 'server error' });
+  }
+});
+
+// POST 포인트 스왑 (체인코드 SwapPoint 호출)
+app.post('/api/points/swap', verifyTokenMiddleware, async (req, res) => {
+  try {
+    const walletAddress = req.user?.walletAddress || req.body.walletAddress;
+    const { fromBrand, toBrand, amount } = req.body;
+    if (!walletAddress || !fromBrand || !toBrand || !amount) return res.status(400).json({ error: 'walletAddress, fromBrand, toBrand, amount required' });
+
+    if (useFabricMock) {
+      const result = await submitSwapTransactionMock(walletAddress, fromBrand, toBrand, Number(amount));
+      return res.json({ success: true, txHash: result.txId, result: result.result });
+    }
+
+    // 실제 Fabric Gateway submitTransaction 구현 위치
+    return res.status(501).json({ error: 'Fabric submitTransaction not implemented' });
+  } catch (err) {
+    console.error('/api/points/swap error:', err);
+    res.status(500).json({ error: err.message || 'server error' });
+  }
+});
+
+// ============================================
 // 서버 시작
 // ============================================
 
