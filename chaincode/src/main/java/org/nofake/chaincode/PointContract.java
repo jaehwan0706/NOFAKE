@@ -42,6 +42,33 @@ public class PointContract implements ContractInterface {
      * @param toBrand 대상 브랜드 (예: NOFAKE, MUSINSA)
      * @param amount 교환 신청 수량
      */
+    /**
+     * 포인트 충전 (발행)
+     * - 테스트/운영에서 사용자에게 NoFake 플랫폼 포인트를 적립
+     * - chargePoint는 brand="NOFAKE"만 허용한다.
+     */
+    @Transaction
+    public void chargePoint(Context ctx, String userId, long amount) {
+        if (amount <= 0) {
+            throw new ChaincodeException("INVALID_AMOUNT: amount must be > 0");
+        }
+
+        // brand 고정: NOFAKE
+        String brand = "NOFAKE";
+
+        long current = getBalance(ctx, userId, brand);
+        updateBalance(ctx, userId, brand, current + amount);
+
+        ctx.getStub().setEvent("PointCharged", genson.serialize(userId).getBytes());
+    }
+
+    /**
+     * 포인트 교환 실행 (Bridge 모델)
+     * @param userId 사용자 식별자 (Web3Auth 지갑 주소 매핑)
+     * @param fromBrand 원천 브랜드 (예: NIKE, NOFAKE)
+     * @param toBrand 대상 브랜드 (예: NOFAKE, MUSINSA)
+     * @param amount 교환 신청 수량
+     */
     @Transaction
     public void exchangePoint(Context ctx, String userId, String fromBrand, String toBrand, long amount) {
         fromBrand = fromBrand.toUpperCase();

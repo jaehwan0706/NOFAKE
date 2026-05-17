@@ -869,9 +869,24 @@ app.post("/api/mint", ensurePhoneVerified, async (req, res) => {
     const tx = await writeContract.mintRaffleTicket(userAddress, raffle.id);
     const receipt = await tx.wait();
 
-    await RaffleParticipant.upsert({
+    const participantWallet = normalizeWalletAddress(userAddress);
+
+    // ✅ (래플 단위 1회 규칙) 이미 해당 raffleId에 참여한 적이 있으면 재민팅 차단
+    const existing = await RaffleParticipant.findOne({
+      where: { raffleId: raffle.id, walletAddress: participantWallet },
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        error: "ALREADY_PARTICIPATED_FOR_RAFFLE",
+        message: "해당 래플(raffleId)은 이미 참여했습니다.",
+      });
+    }
+
+    await RaffleParticipant.create({
       raffleId: raffle.id,
-      walletAddress: normalizeWalletAddress(userAddress),
+      walletAddress: participantWallet,
       joinedAt: new Date(),
       result: "pending",
     });
