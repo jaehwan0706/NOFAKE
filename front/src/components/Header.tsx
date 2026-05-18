@@ -224,7 +224,6 @@ export function Header() {
 
   const user = useAuthUser();
   const avatarInitial = user?.name ? user.name[0] : "U";
-  const [isAdminVisible, setIsAdminVisible] = useState(false);
 
   // 경로 변경 시 메뉴 닫기
   useEffect(() => {
@@ -232,25 +231,6 @@ export function Header() {
     setIsMobileMenuOpen(false);
     setIsUserMenuOpen(false);
   }, [location.pathname]);
-
-  // Check if current user wallet matches configured root admin wallet
-  useEffect(() => {
-    (async () => {
-      try {
-        const token = localStorage.getItem(LOGIN_TOKEN_KEY);
-        if (!token) return setIsAdminVisible(false);
-        const res = await fetch(`${API_BASE_URL}/api/user/profile`, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) return setIsAdminVisible(false);
-        const data = await res.json();
-        const walletAddress = data.walletAddress || data.wallet || "";
-        const rootAdmin = (import.meta.env.VITE_ROOT_ADMIN_WALLET || "").toLowerCase();
-        if (walletAddress && rootAdmin && walletAddress.toLowerCase() === rootAdmin) setIsAdminVisible(true);
-        else setIsAdminVisible(false);
-      } catch (err) {
-        setIsAdminVisible(false);
-      }
-    })();
-  }, [user]);
 
   // 외부 클릭 시 유저 메뉴 닫기
   useEffect(() => {
@@ -327,31 +307,31 @@ export function Header() {
                             {section.title}
                           </p>
                           <div className="space-y-1">
-                              {section.items.map((subItem: any, ii) => (
-                                <Link
-                                  key={ii}
-                                  to={subItem.path}
-                                  onClick={() => setOpenDropdown(null)}
-                                  className="group flex items-start gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-white/5"
-                                >
-                                  {subItem.icon && (
-                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                                      {subItem.icon}
+                            {section.items.map((subItem: any, ii) => (
+                              <Link
+                                key={ii}
+                                to={subItem.path}
+                                onClick={() => setOpenDropdown(null)}
+                                className="group flex items-start gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-white/5"
+                              >
+                                {subItem.icon && (
+                                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+                                    {subItem.icon}
+                                  </span>
+                                )}
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-bold text-white group-hover:text-white">
+                                    {subItem.name}
+                                  </span>
+                                  {subItem.desc && (
+                                    <span className="mt-0.5 block whitespace-nowrap text-xs leading-5 text-gray-400">
+                                      {subItem.desc}
                                     </span>
                                   )}
-                                  <span className="min-w-0">
-                                    <span className="block text-sm font-bold text-gray-100 group-hover:text-white">
-                                      {subItem.name}
-                                    </span>
-                                    {subItem.desc && (
-                                      <span className="mt-0.5 block whitespace-nowrap text-xs leading-5 text-gray-500">
-                                        {subItem.desc}
-                                      </span>
-                                    )}
-                                  </span>
-                                </Link>
-                              ))}
-                            </div>
+                                </span>
+                              </Link>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -372,7 +352,7 @@ export function Header() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
                     {avatarInitial}
                   </span>
-                  <span className="text-sm font-semibold text-gray-200">{user.name}</span>
+                  <span className="text-sm font-semibold text-white">{user.name}</span>
                   <ChevronDown
                     className={`h-3.5 w-3.5 text-gray-400 transition-transform ${isUserMenuOpen ? "rotate-180" : ""}`}
                   />
@@ -381,16 +361,16 @@ export function Header() {
                 {isUserMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-xl">
                     <div className="border-b border-white/10 px-4 py-3">
-                      <p className="text-sm font-bold text-gray-100">{user.name}</p>
+                      <p className="text-sm font-bold text-white">{user.name}</p>
                       {user.email && (
-                        <p className="mt-0.5 truncate text-xs text-gray-500">{user.email}</p>
+                        <p className="mt-0.5 truncate text-xs text-gray-400">{user.email}</p>
                       )}
                     </div>
                     <div className="p-1.5">
                       <Link
                         to="/mypage"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
                       >
                         <User className="h-4 w-4" />
                         마이페이지
@@ -398,7 +378,7 @@ export function Header() {
                       <Link
                         to="/mypage?tab=points"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
                       >
                         <Gift className="h-4 w-4" />
                         포인트
@@ -406,7 +386,7 @@ export function Header() {
                       <Link
                         to="/mypage?tab=settings"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
                       >
                         <Settings className="h-4 w-4" />
                         설정
@@ -469,10 +449,10 @@ export function Header() {
                             key={ii}
                             to={subItem.path}
                             onClick={() => setIsMobileMenuOpen(false)}
-                            className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-gray-400 hover:bg-white/5 hover:text-white"
+                            className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-white hover:bg-white/5 hover:text-white"
                           >
                             {subItem.icon && (
-                              <span className="text-gray-500">{subItem.icon}</span>
+                              <span className="text-gray-400">{subItem.icon}</span>
                             )}
                             {subItem.name}
                           </Link>
@@ -492,8 +472,8 @@ export function Header() {
                       {avatarInitial}
                     </span>
                     <div>
-                      <p className="text-sm font-bold text-gray-100">{user.name}</p>
-                      {user.email && <p className="text-xs text-gray-500">{user.email}</p>}
+                      <p className="text-sm font-bold text-white">{user.name}</p>
+                      {user.email && <p className="text-xs text-gray-400">{user.email}</p>}
                     </div>
                   </div>
                   {MY_MENU.map((item) => (
@@ -501,22 +481,12 @@ export function Header() {
                       key={item.path}
                       to={item.path}
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-300 hover:bg-white/5"
+                      className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-white hover:bg-white/5"
                     >
                       {item.icon}
                       {item.name}
                     </Link>
                   ))}
-                  {isAdminVisible && (
-                    <Link
-                      to="/admin"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      <Building className="h-4 w-4" />
-                      Admin Dashboard
-                    </Link>
-                  )}
                   <button
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10"
@@ -526,7 +496,6 @@ export function Header() {
                   </button>
                 </div>
               ) : (
-                // 비로그인 상태: 모바일에서도 아무것도 표시하지 않음
                 null
               )}
             </div>
