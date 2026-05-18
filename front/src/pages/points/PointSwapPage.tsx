@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAuthUser } from "../../components/Header";
-import { fetchPointBalances, PointBalances } from "../../lib/pointBalances";
+import { fetchPointBalances } from "../../lib/pointBalances";
+import type { PointBalances } from "../../lib/pointBalances";
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string) ?? "";
@@ -60,7 +61,7 @@ function BrandCard({ brand, selected, onSelect }: { brand: any; selected: boolea
   );
 }
 
-function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLoginRequired }: { direction: SwapDirection; fromBrand: any; toBrand: any; myBalances: { nofake: number; nike: number; musinsa: number }; onSuccess: (amount: number) => void; onLoginRequired: () => void }) {
+function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLoginRequired }: { direction: SwapDirection; fromBrand: any; toBrand: any; myBalances: PointBalances; onSuccess: (amount: number) => void; onLoginRequired: () => void }) {
   const [amount, setAmount] = useState("");
   const [done, setDone] = useState(false);
   const user = useAuthUser();
@@ -98,7 +99,7 @@ function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLog
           body: JSON.stringify({ fromBrand: fromBrandName, toBrand: toBrandName, amount: inputNum })
         });
         if (res.ok) {
-          const body = await res.json();
+          await res.json();
           onSuccess(inputNum);
         } else {
           console.error('Swap failed', await res.text());
@@ -203,7 +204,7 @@ function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLog
 export const PointSwapPage = () => {
   const [direction, setDirection] = useState<SwapDirection>("from-nofake");
   const [selectedBrand, setSelectedBrand] = useState<any>(null);
-  const [myBalances, setMyBalances] = useState({ nofake: 0, nike: 0, musinsa: 0 });
+  const [myBalances, setMyBalances] = useState<PointBalances>({ nofake: 0, nike: 0, musinsa: 0 });
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
