@@ -1,0 +1,34 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group 'org.nofake'
+version '1.0'
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    // 1. 패브릭 체인코드 코어(Shim) 라이브러리 (이 안에 Contract 기능이 모두 들어있습니다!)
+    implementation 'org.hyperledger.fabric-chaincode-java:fabric-chaincode-shim:2.4.1'
+    
+    // 2. JSON 파싱 라이브러리
+    implementation 'com.owlike:genson:1.6'
+}
+
+application {
+    mainClass = 'org.hyperledger.fabric.contract.ContractRouter'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}

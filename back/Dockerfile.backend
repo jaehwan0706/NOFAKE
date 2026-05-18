@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy backend package.json and install dependencies
+COPY back/package*.json ./
+RUN npm install --legacy-peer-deps
+
+# Copy backend files
+COPY back ./
+
+# Create data directory for SQLite
+RUN mkdir -p /data
+
+EXPOSE 3002
+
+# Start the API server
+CMD ["npm", "start"]
