@@ -13,11 +13,12 @@ type KakaoLoginResponse = {
   success?: boolean;
   accessToken?: string;
   token?: string;
+  access_token?: string; // 🚀 카카오가 주는 진짜 이름 추가
   name?: string;
   email?: string;
   message?: string;
   error?: string;
-  phone_verified?: boolean;
+  phone_verified?: boolean; // 🚀 휴대폰 인증 여부 추가
 };
 
 export function KakaoCallback() {
@@ -57,7 +58,12 @@ export function KakaoCallback() {
           throw new Error(data.message || data.error || "카카오 로그인에 실패했습니다.");
         }
 
-        const token = data.accessToken ?? data.token;
+        const token = data.access_token || data.accessToken || data.token;
+
+        if (!token) {
+          throw new Error("서버에서 토큰을 받지 못했습니다.");
+        }
+        
         if (token) {
           // ✅ Header와 동일한 키로 저장
           localStorage.setItem(LOGIN_TOKEN_KEY, token);

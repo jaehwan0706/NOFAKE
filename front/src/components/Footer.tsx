@@ -105,7 +105,11 @@ export function Footer() {
         <div className="border-t border-gray-800 pt-8">
           <div className="text-sm space-y-2">
             <p>
+<<<<<<< HEAD
               대표이사 : ??? | 개인정보보호책임자 : 김영웅 | 이메일 :{" "}
+=======
+              대표이사 : ??? | 개인정보보호책임자 : ??? | 이메일 :{" "}
+>>>>>>> d00e0fd0602b50ff668739c7df29b95450bbacd5
               <a href="mailto:help@nofake.kr" className="hover:text-white transition-colors">
                 ??@??.com
               </a>
