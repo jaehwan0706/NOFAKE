@@ -146,7 +146,7 @@ const whyUsPoints = [
 /* ─── NEW: Testimonials ─── */
 const testimonials = [
   {
-    name: "김민준",
+    name: "복재환",
     handle: "@minjun_k",
     brand: "Nike Air Jordan 1",
     text: "진짜로 블록체인에서 검증하니까 믿음이 가요. 다른 래플 사이트는 당첨 기준이 불투명한데 nofake는 트랜잭션까지 직접 확인할 수 있어서 납득이 됩니다.",
@@ -155,7 +155,7 @@ const testimonials = [
     color: "#111",
   },
   {
-    name: "이서연",
+    name: "신정민",
     handle: "@seoyeon_fits",
     brand: "Supreme Box Logo",
     text: "Supreme 박스로고 후드 당첨됐을 때 반신반의했는데 수령 인증까지 완벽하게 됐어요. 친구들한테 무조건 추천하고 있습니다.",
@@ -164,7 +164,7 @@ const testimonials = [
     color: "#ED1C24",
   },
   {
-    name: "박준호",
+    name: "김영웅",
     handle: "@junho_sneakers",
     brand: "Adidas Samba OG",
     text: "포인트 교환이 생각보다 훨씬 편리해요. Nike 포인트를 adidas 래플 응모에 바로 쓸 수 있는 게 너무 좋습니다.",
@@ -173,7 +173,16 @@ const testimonials = [
     color: "#0F172A",
   },
   {
-    name: "최지은",
+    name: "백재민",
+    handle: "@jieun.picks",
+    brand: "New Balance 990v6",
+    text: "1,000명 넘는 응모에서 당첨된 게 아직도 믿기지 않아요. 당첨자 발표 때 내 이름 옆에 블록체인 해시가 붙어 있는 거 보고 소름 돋았습니다.",
+    verified: true,
+    productImg: "NB",
+    color: "#334155",
+  },
+  {
+    name: "성광",
     handle: "@jieun.picks",
     brand: "New Balance 990v6",
     text: "1,000명 넘는 응모에서 당첨된 게 아직도 믿기지 않아요. 당첨자 발표 때 내 이름 옆에 블록체인 해시가 붙어 있는 거 보고 소름 돋았습니다.",
