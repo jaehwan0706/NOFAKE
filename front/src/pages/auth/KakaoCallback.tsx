@@ -18,6 +18,7 @@ type KakaoLoginResponse = {
   email?: string;
   message?: string;
   error?: string;
+  phone_verified?: boolean; // 🚀 휴대폰 인증 여부 추가
 };
 
 export function KakaoCallback() {

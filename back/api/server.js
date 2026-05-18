@@ -8,8 +8,8 @@ import cors from "cors";
 import axios from "axios";
 import { Sequelize, DataTypes, Op } from "sequelize";
 import crypto from "crypto";
-import jwt from "jsonwebtoken";
-import jwksClient from "jwks-rsa";
+import { importJWK, jwtVerify } from "jose";
+import { Gateway, Wallets } from "fabric-network";
 
 // ============================================
 // 초기 설정
@@ -21,10 +21,17 @@ dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 const app = express();
 app.use(cors({
-  origin: true, 
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error('Invalid JSON body:', err.message);
+    return res.status(400).json({ error: 'Invalid JSON payload' });
+  }
+  next(err);
+});
 
 const PORT = process.env.PORT || 3002;
 const RPC_URL = process.env.RPC_URL || "";
@@ -119,6 +126,16 @@ const User = sequelize.define("User", {
   timestamps: true
 });
 
+const PointBalance = sequelize.define("PointBalance", {
+  walletAddress: { type: DataTypes.STRING, primaryKey: true, allowNull: false },
+  nofake: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  musinsa: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  nike: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 }
+}, {
+  timestamps: true,
+  tableName: "PointBalances"
+});
+
 const PhoneVerificationSession = sequelize.define('PhoneVerificationSession', {
   sessionId: { type: DataTypes.STRING, primaryKey: true },
   kakaoId: { type: DataTypes.STRING, allowNull: true },
@@ -148,21 +165,17 @@ const writeContract = signer && CONTRACT_ADDRESS ? new ethers.Contract(CONTRACT_
 // ============================================
 // 인증 미들웨어
 // ============================================
-const client = jwksClient({
-  jwksUri: process.env.JWKS_URI || ""
-});
-
-function getKey(header, callback) {
-  client.getSigningKey(header.kid, (err, key) => {
-    const signingKey = key?.getPublicKey() || key?.rsaPublicKey;
-    callback(null, signingKey);
-  });
-}
-
 const verifyTokenMiddleware = async (req, res, next) => {
-   if (req.method === 'OPTIONS') {
-       return next();
-     }
+  if (process.env.USE_MOCK_AUTH === 'true') {
+    req.user = {
+      kakaoId: 'test_kakao_1234',
+      walletAddress: '0x398591b6257b8BA14Baf06728a706a5B73dd2795',
+      email: 'mock@example.com',
+      name: 'Mock User'
+    };
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     console.log("⚠️ 인증 헤더 없음");
@@ -174,25 +187,32 @@ const verifyTokenMiddleware = async (req, res, next) => {
   // 1. 먼저 JWT 검증 시도 (ID Token 등)
   if (process.env.JWKS_URI) {
     try {
-      const decoded = await new Promise((resolve, reject) => {
-        jwt.verify(token, getKey, {
-          algorithms: ['RS256'],
-          audience: process.env.TOKEN_AUDIENCE
-        }, (err, decoded) => {
-          if (err) reject(err);
-          else resolve(decoded);
-        });
-      });
+      const jwksUri = process.env.JWKS_URI;
+      const jwksResponse = await axios.get(jwksUri);
+      const keys = jwksResponse.data?.keys || [];
+      const decodedHeader = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString('utf8'));
+      const jwk = keys.find((key) => key.kid === decodedHeader.kid);
 
-      console.log("✅ JWT 검증 성공:", decoded.sub || decoded.Sub);
-      req.user = {
-        walletAddress: decoded.wallets?.[0]?.address || decoded.Sub || decoded.sub,
-        email: decoded.email,
-        kakaoId: decoded.sub || decoded.Sub
-      };
-      return next();
+      if (jwk) {
+        const verificationKey = await importJWK(jwk, jwk.alg || 'RS256');
+        const { payload } = await jwtVerify(token, verificationKey, {
+          audience: process.env.TOKEN_AUDIENCE,
+          issuer: process.env.TOKEN_ISSUER
+        });
+
+        console.log("✅ JWT 검증 성공:", payload.sub || payload.Sub);
+        req.user = {
+          walletAddress: payload.wallets?.[0]?.address || payload.Sub || payload.sub,
+          email: payload.email,
+          kakaoId: payload.sub || payload.Sub,
+          name: payload.name || payload.nickname
+        };
+        return next();
+      }
+
+      console.log("ℹ️ JWKS 키를 찾을 수 없습니다. 카카오 액세스 토큰으로 재시도...");
     } catch (err) {
-      console.log("ℹ️ JWT 검증 실패, 카카오 액세스 토큰으로 재시도...");
+      console.log("ℹ️ JWT 검증 실패, 카카오 액세스 토큰으로 재시도...", err.message);
     }
   }
 
@@ -503,26 +523,59 @@ app.post("/api/auth/kakao", async (req, res) => {
     const kakaoId = String(userResponse.data.id || userResponse.data?.id || "");
 
     try {
-      await User.findOrCreate({
-        where: { kakaoId },
-        defaults: { 
-          name: profile.nickname, 
-          email: kakaoAccount.email,
+      // 🚀 1. 카카오 전화번호 포맷팅 (+82 10-1234-5678 -> 01012345678)
+      let formattedPhone = null;
+      if (kakaoAccount.phone_number) {
+        formattedPhone = kakaoAccount.phone_number.replace(/^\+82\s?/, '0').replace(/[^0-9]/g, '');
+      }
+
+      // 🚀 2. 기존 findOrCreate 대신 유저를 찾아서 분기 처리
+      let user = await User.findOne({ where: { kakaoId } });
+
+      if (!user) {
+        // [신규 유저] 지갑 자동 생성 후 DB 저장
+        const newWallet = ethers.Wallet.createRandom();
+        
+        user = await User.create({
+          kakaoId: kakaoId,
+          nickname: profile.nickname || "",
+          email: kakaoAccount.email || "",
+          name: profile.nickname || "",
+          phoneNumber: formattedPhone,
+          walletAddress: newWallet.address, // 🚀 지갑 주소 삽입
           phone_verified: false,
           points: 0
-        },
-      });
+        });
+        console.log(`✅ 신규 유저 지갑 자동 생성: ${newWallet.address}`);
+      } else {
+        // [기존 유저] 지갑이 비어있으면 새로 생성
+        let currentWallet = user.walletAddress;
+        if (!currentWallet) {
+          const newWallet = ethers.Wallet.createRandom();
+          currentWallet = newWallet.address;
+          console.log(`✅ 기존 유저 빈 지갑 신규 할당: ${currentWallet}`);
+        }
+
+        // 기존 정보 및 지갑 업데이트
+        await user.update({
+          nickname: profile.nickname || user.nickname,
+          email: kakaoAccount.email || user.email,
+          name: profile.nickname || user.name,
+          phoneNumber: formattedPhone || user.phoneNumber,
+          walletAddress: currentWallet // 🚀 지갑 주소 업데이트
+        });
+      }
 
       res.json({
         success: true,
         accessToken: access_token,
-        name: profile.nickname,
-        email: kakaoAccount.email,
-        phone_verified: false,
-        phone_number: null,
+        name: user.name,
+        email: user.email,
+        phone_verified: user.phone_verified,
+        phone_number: user.phoneNumber,
       });
     } catch (dbErr) {
-      console.error('❌ User upsert failed. Detail:', dbErr); // 로그 강화
+      console.error('❌ User DB 처리 실패 Detail:', dbErr);
       res.status(500).json({ success: false, error: "사용자 정보 저장 실패", details: dbErr.message });
     }
   } catch (error) {
@@ -532,6 +585,14 @@ app.post("/api/auth/kakao", async (req, res) => {
 });
 
 app.get("/api/auth/me", async (req, res) => {
+  if (process.env.USE_MOCK_AUTH === 'true') {
+    return res.json({
+      success: true,
+      name: 'Mock User',
+      email: 'mock@example.com'
+    });
+  }
+
   const authHeader = req.headers.authorization ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
   if (!token) return res.status(401).json({ success: false, error: "토큰이 없습니다." });
@@ -877,9 +938,24 @@ app.post("/api/mint", ensurePhoneVerified, async (req, res) => {
     const tx = await writeContract.mintRaffleTicket(userAddress, raffle.id);
     const receipt = await tx.wait();
 
-    await RaffleParticipant.upsert({
+    const participantWallet = normalizeWalletAddress(userAddress);
+
+    // ✅ (래플 단위 1회 규칙) 이미 해당 raffleId에 참여한 적이 있으면 재민팅 차단
+    const existing = await RaffleParticipant.findOne({
+      where: { raffleId: raffle.id, walletAddress: participantWallet },
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        error: "ALREADY_PARTICIPATED_FOR_RAFFLE",
+        message: "해당 래플(raffleId)은 이미 참여했습니다.",
+      });
+    }
+
+    await RaffleParticipant.create({
       raffleId: raffle.id,
-      walletAddress: normalizeWalletAddress(userAddress),
+      walletAddress: participantWallet,
       joinedAt: new Date(),
       result: "pending",
     });
@@ -956,8 +1032,9 @@ app.get('/api/mypage', verifyTokenMiddleware, async (req, res) => {
       profile: {
         name: userData?.name || userData?.nickname || req.user.name || "NoFake 유저",
         email: userData?.email || req.user.email,
-        walletAddress: userData?.walletAddress || "0x398591b6257b8BA14Baf06728a706a5B73dd2795",
-        did: userData?.did || "did:nofake:0x398591b6257b8BA14Baf06728a706a5B73dd2795",
+        // 🚀 가짜 주소("0x3985...") 삭제하고 DB 값만 반환
+        walletAddress: userData?.walletAddress || null,
+        did: userData?.walletAddress ? `did:nofake:${userData.walletAddress}` : null,
         joinedAt: userData?.joinedAt || new Date().toISOString(),
         profileImage: null
       },
@@ -1060,6 +1137,319 @@ app.post('/api/phone-verification/mock-verify', async (req, res) => {
 });
 
 // ============================================
+// Fabric Gateway 연동 (간단 클라이언트)
+// ============================================
+
+// 간단한 Fabric 클라이언트 모듈 (mock 또는 실제 연결 확장 가능)
+const useFabricMock = (process.env.FABRIC_MOCK || 'true') === 'true';
+const FABRIC_CONFIG_PATH = process.env.FABRIC_CONFIG_PATH || path.resolve(__dirname, '..', '..', 'fabric-samples', 'test-network', 'organizations', 'peerOrganizations', 'org1.example.com');
+const FABRIC_USER_ID = process.env.FABRIC_USER_ID || 'User1@org1.example.com';
+const FABRIC_IDENTITY_LABEL = process.env.FABRIC_IDENTITY_LABEL || 'appUser';
+const FABRIC_CHANNEL = process.env.FABRIC_CHANNEL || 'nofake-channel';
+const FABRIC_CHAINCODE = process.env.FABRIC_CHAINCODE || 'point-cc';
+
+const TEST_WALLET_ADDRESS = '0x398591b6257b8BA14Baf06728a706a5B73dd2795';
+const TEST_KAKAO_ID = 'test_kakao_1234';
+
+const BRAND_KEY_MAP = {
+  NOFAKE: 'nofake',
+  MUSINSA: 'musinsa',
+  NIKE: 'nike'
+};
+
+const normalizeBrandKey = (brand = '') => {
+  if (!brand || typeof brand !== 'string') return null;
+  return BRAND_KEY_MAP[brand.toUpperCase()] || null;
+};
+
+function normalizeConnectionProfile(profile) {
+  if (!profile || typeof profile !== 'object') return profile;
+  const patched = JSON.parse(JSON.stringify(profile));
+  const fixPath = (value) => {
+    if (typeof value !== 'string') return value;
+    if (value.startsWith('..') || value.startsWith('./')) {
+      return path.resolve(FABRIC_CONFIG_PATH, value);
+    }
+    return value;
+  };
+
+  if (patched.peers) {
+    for (const peer of Object.values(patched.peers)) {
+      if (peer.tlsCACerts?.path) peer.tlsCACerts.path = fixPath(peer.tlsCACerts.path);
+    }
+  }
+  if (patched.certificateAuthorities) {
+    for (const ca of Object.values(patched.certificateAuthorities)) {
+      if (ca.tlsCACerts?.path) ca.tlsCACerts.path = fixPath(ca.tlsCACerts.path);
+    }
+  }
+  return patched;
+}
+
+async function buildFabricWallet() {
+  const wallet = await Wallets.newInMemoryWallet();
+  if (await wallet.get(FABRIC_IDENTITY_LABEL)) return wallet;
+
+  const certDir = path.join(FABRIC_CONFIG_PATH, 'users', FABRIC_USER_ID, 'msp', 'signcerts');
+  const keyDir = path.join(FABRIC_CONFIG_PATH, 'users', FABRIC_USER_ID, 'msp', 'keystore');
+  const certFiles = fs.existsSync(certDir)
+    ? fs.readdirSync(certDir).filter((name) => name.endsWith('.pem') || name.endsWith('.crt'))
+    : [];
+  const keyFiles = fs.existsSync(keyDir)
+    ? fs.readdirSync(keyDir).filter((name) => name.endsWith('.pem') || name.endsWith('.key') || name.endsWith('_sk'))
+    : [];
+
+  if (!certFiles.length || !keyFiles.length) {
+    throw new Error(`Fabric identity files not found in ${certDir} or ${keyDir}`);
+  }
+
+  const certificate = fs.readFileSync(path.join(certDir, certFiles[0]), 'utf8');
+  const privateKey = fs.readFileSync(path.join(keyDir, keyFiles[0]), 'utf8');
+
+  await wallet.put(FABRIC_IDENTITY_LABEL, {
+    credentials: {
+      certificate,
+      privateKey,
+    },
+    mspId: 'Org1MSP',
+    type: 'X.509',
+  });
+
+  return wallet;
+}
+
+async function connectFabricContract() {
+  const ccpPath = path.join(FABRIC_CONFIG_PATH, 'connection-org1.json');
+  if (!fs.existsSync(ccpPath)) {
+    throw new Error(`Fabric connection profile not found: ${ccpPath}`);
+  }
+
+  const ccp = normalizeConnectionProfile(JSON.parse(fs.readFileSync(ccpPath, 'utf8')));
+  const wallet = await buildFabricWallet();
+  const gateway = new Gateway();
+  await gateway.connect(ccp, {
+    wallet,
+    identity: FABRIC_IDENTITY_LABEL,
+    discovery: { enabled: true, asLocalhost: true },
+  });
+
+  const network = await gateway.getNetwork(FABRIC_CHANNEL);
+  console.log('Fabric network object type:', network?.constructor?.name, 'getContract:', typeof network?.getContract);
+  if (typeof network?.getContract !== 'function') {
+    console.error('Fabric network object does not expose getContract()', network);
+    gateway.disconnect();
+    throw new Error('Fabric network error: getContract unavailable');
+  }
+  const contract = network.getContract(FABRIC_CHAINCODE);
+  return { gateway, contract };
+}
+
+async function queryBalancesFabric(walletAddress) {
+  const { gateway, contract } = await connectFabricContract();
+  try {
+    const resultBytes = await contract.evaluateTransaction('GetBalances', walletAddress);
+    return JSON.parse(resultBytes.toString());
+  } finally {
+    gateway.disconnect();
+  }
+}
+
+async function submitSwapTransactionFabric(walletAddress, fromBrand, toBrand, amount) {
+  const { gateway, contract } = await connectFabricContract();
+  try {
+    const tx = contract.createTransaction('SwapPoint');
+    const resultBytes = await tx.submit(walletAddress, fromBrand.toUpperCase(), toBrand.toUpperCase(), String(amount));
+    const result = JSON.parse(resultBytes.toString());
+    return { txId: tx.getTransactionId(), result };
+  } finally {
+    gateway.disconnect();
+  }
+}
+
+async function getOrCreatePointBalance(walletAddress) {
+  const normalizedWallet = normalizeWalletAddress(walletAddress);
+  if (!normalizedWallet) {
+    return { walletAddress, nofake: 0, musinsa: 0, nike: 0 };
+  }
+
+  const [record] = await PointBalance.findOrCreate({
+    where: { walletAddress: normalizedWallet },
+    defaults: { walletAddress: normalizedWallet, nofake: 0, musinsa: 0, nike: 0 }
+  });
+
+  return {
+    walletAddress: record.walletAddress,
+    nofake: Number(record.nofake || 0),
+    musinsa: Number(record.musinsa || 0),
+    nike: Number(record.nike || 0)
+  };
+}
+
+async function submitSwapTransactionMock(walletAddress, fromBrand, toBrand, amount) {
+  const normalizedWallet = normalizeWalletAddress(walletAddress);
+  if (!normalizedWallet) {
+    throw new Error('Invalid walletAddress');
+  }
+
+  const fromKey = normalizeBrandKey(fromBrand);
+  const toKey = normalizeBrandKey(toBrand);
+  if (!fromKey || !toKey) {
+    throw new Error('Invalid fromBrand or toBrand');
+  }
+  if (fromKey === toKey) {
+    throw new Error('fromBrand and toBrand must differ');
+  }
+  const amountNumber = Number(amount);
+  if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+    throw new Error('Amount must be a positive integer');
+  }
+
+  const balanceRecord = await getOrCreatePointBalance(normalizedWallet);
+  if (balanceRecord[fromKey] < amountNumber) {
+    throw new Error('INSUFFICIENT_BALANCE: not enough balance');
+  }
+
+  // Apply 5% fee for swaps involving NOFAKE in either direction
+  const fee = (fromKey === 'nofake' || toKey === 'nofake')
+    ? Math.floor(amountNumber * 0.05)
+    : 0;
+  const finalAmount = amountNumber - fee;
+
+  const updated = {
+    nofake: balanceRecord.nofake,
+    musinsa: balanceRecord.musinsa,
+    nike: balanceRecord.nike
+  };
+
+  updated[fromKey] -= amountNumber;
+  updated[toKey] += finalAmount;
+
+  await PointBalance.upsert({
+    walletAddress: normalizedWallet,
+    nofake: updated.nofake,
+    musinsa: updated.musinsa,
+    nike: updated.nike
+  });
+
+  return {
+    txId: `MOCK_TX_${Date.now()}`,
+    result: {
+      walletAddress: normalizedWallet,
+      fromBrand: fromBrand.toUpperCase(),
+      toBrand: toBrand.toUpperCase(),
+      amount: amountNumber,
+      fee,
+      finalAmount
+    },
+    balances: updated
+  };
+}
+
+async function queryBalancesMock(walletAddress) {
+  return getOrCreatePointBalance(walletAddress);
+}
+
+// GET 잔액 조회 (체인코드 조회)
+app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
+  try {
+    const walletAddress = req.user?.walletAddress || req.query.walletAddress;
+    if (!walletAddress) return res.status(400).json({ error: 'walletAddress required' });
+
+    if (useFabricMock) {
+      const balances = await queryBalancesMock(walletAddress);
+      return res.json({ success: true, data: balances });
+    }
+
+    const balances = await queryBalancesFabric(walletAddress);
+    return res.json({ success: true, data: balances });
+  } catch (err) {
+    console.error('/api/points/balance error:', err);
+    return res.status(500).json({ error: err.message || 'server error' });
+  }
+});
+
+// POST 포인트 민트 (테스트 충전용) - requires authentication
+app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
+  try {
+    const { walletAddress, brand, amount } = req.body || {};
+    if (!walletAddress || !brand || !amount) return res.status(400).json({ error: 'walletAddress, brand, amount required' });
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ error: 'amount must be a positive number' });
+
+    if (useFabricMock) {
+      // Update local DB
+      const normalized = normalizeWalletAddress(walletAddress) || walletAddress;
+      const key = normalizeBrandKey(brand);
+      if (!key) return res.status(400).json({ error: 'invalid brand' });
+      const current = await getOrCreatePointBalance(normalized);
+      current[key] = Number(current[key]) + amt;
+      await PointBalance.upsert({ walletAddress: normalized, nofake: current.nofake, nike: current.nike, musinsa: current.musinsa });
+      return res.json({ success: true, data: current });
+    }
+
+    // Call Fabric chaincode MintPoints
+    const { gateway, contract } = await connectFabricContract();
+    try {
+      const tx = contract.createTransaction('MintPoints');
+      const resultBytes = await tx.submit(walletAddress, brand.toUpperCase(), String(amt));
+      const result = JSON.parse(resultBytes.toString());
+      return res.json({ success: true, data: result, txId: tx.getTransactionId() });
+    } finally {
+      gateway.disconnect();
+    }
+  } catch (err) {
+    console.error('/api/points/mint error:', err);
+    return res.status(500).json({ error: err.message || 'server error' });
+  }
+});
+
+// Admin: get accumulated fees for NOFAKE_ADMIN
+app.get('/api/admin/fees', async (req, res) => {
+  try {
+    const adminKey = 'NOFAKE_ADMIN';
+    if (useFabricMock) {
+      const data = await queryBalancesMock(adminKey);
+      return res.json({ success: true, data });
+    }
+    const data = await queryBalancesFabric(adminKey);
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('/api/admin/fees error:', err);
+    res.status(500).json({ success: false, error: err.message || 'server error' });
+  }
+});
+
+// POST 포인트 스왑 (체인코드 SwapPoint 호출)
+app.post('/api/points/swap', verifyTokenMiddleware, async (req, res) => {
+  try {
+    const walletAddress = req.user?.walletAddress || req.body.walletAddress;
+    const { fromBrand, toBrand, amount } = req.body;
+    if (!walletAddress || !fromBrand || !toBrand || !amount) return res.status(400).json({ error: 'walletAddress, fromBrand, toBrand, amount required' });
+    // Enforce minimum swap amount
+    const MIN_SWAP = 5000;
+    if (Number(amount) < MIN_SWAP) return res.status(400).json({ error: `MINIMUM_AMOUNT: amount must be >= ${MIN_SWAP}` });
+
+    if (useFabricMock) {
+      const result = await submitSwapTransactionMock(walletAddress, fromBrand, toBrand, Number(amount));
+      return res.json({ success: true, txHash: result.txId, result: result.result, data: result.balances });
+    }
+
+    const swapResponse = await submitSwapTransactionFabric(walletAddress, fromBrand, toBrand, Number(amount));
+    const finalBalances = await queryBalancesFabric(walletAddress);
+
+    return res.json({
+      success: true,
+      txHash: swapResponse.txId,
+      result: swapResponse.result,
+      data: finalBalances
+    });
+  } catch (err) {
+    console.error('/api/points/swap error:', err);
+    return res.status(500).json({ error: err.message || 'server error' });
+  }
+});
+
+// ============================================
 // 서버 시작
 // ============================================
 
@@ -1072,7 +1462,31 @@ const ensureSchema = async () => {
   }
 };
 
-ensureSchema().then(() => {
+const ensureTestData = async () => {
+  try {
+    await PointBalance.upsert({
+      walletAddress: TEST_WALLET_ADDRESS,
+      nofake: 0,
+      musinsa: 0,
+      nike: 10000
+    });
+
+    await User.upsert({
+      kakaoId: TEST_KAKAO_ID,
+      nickname: 'Mock User',
+      name: 'Mock User',
+      email: 'mock@example.com',
+      walletAddress: TEST_WALLET_ADDRESS,
+      points: 0
+    });
+    console.log(`✅ Test balance initialized for wallet ${TEST_WALLET_ADDRESS}`);
+  } catch (error) {
+    console.error('❌ Test data initialization failed:', error);
+  }
+};
+
+ensureSchema().then(async () => {
+  await ensureTestData();
   app.listen(PORT, () => {
     console.log(`==========================================`);
     console.log(`🚀 NOFAKE 통합 서버 가동 (Port: ${PORT})`);
