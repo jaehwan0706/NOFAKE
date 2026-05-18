@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { AlertCircle, CalendarDays, Loader2, Search, Ticket, Users } from "lucide-react";
+import { AlertCircle, CalendarDays, Loader2, LogIn, Search, Ticket, Users } from "lucide-react";
 import { apiRequest } from "../../lib/api";
+import { useAuthUser } from "../../components/Header"; // 기존 Header에서 export된 훅 사용
 
 interface ApiRaffle {
   id: number;
@@ -15,6 +16,7 @@ interface ApiRaffle {
   maxParticipants?: number;
   status?: string;
   hasParticipated?: boolean;
+  walletAddress?: string | null; // 유저별 지갑 주소
 }
 
 interface RaffleItem {
@@ -131,12 +133,17 @@ const toRaffleItem = (raffle: ApiRaffle): RaffleItem => {
 export const RafflesPage = () => {
   const { search } = useLocation();
   const navigate = useNavigate();
+  const user = useAuthUser();
+
   const [items, setItems] = useState<RaffleItem[]>(fallbackItems);
   const [productKeyword, setProductKeyword] = useState("");
   const [appliedKeyword, setAppliedKeyword] = useState("");
   const [loading, setLoading] = useState(true);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<{ type: "info" | "success" | "error"; message: string } | null>(null);
   const [joiningId, setJoiningId] = useState<number | null>(null);
+
+  // 유저 이메일을 지갑 주소로 사용 (실제 서비스에서는 별도 walletAddress 필드 사용)
+  const userWalletAddress = user?.email ?? null;
 
   const currentCategoryKey = useMemo(() => {
     const query = new URLSearchParams(search).get("category") || "all";
@@ -147,16 +154,19 @@ export const RafflesPage = () => {
 
   const loadRaffles = async () => {
     setLoading(true);
-    setNotice("");
+    setNotice(null);
     try {
       const raffles = await apiRequest<ApiRaffle[]>("/api/raffles");
       setItems(raffles.length ? raffles.map(toRaffleItem) : fallbackItems);
       if (!raffles.length) {
-        setNotice("백엔드에 등록된 래플이 없어 샘플 목록을 보여주고 있습니다.");
+        setNotice({ type: "info", message: "백엔드에 등록된 래플이 없어 샘플 목록을 보여주고 있습니다." });
       }
     } catch (error) {
       setItems(fallbackItems);
-      setNotice(error instanceof Error ? error.message : "백엔드 연결에 실패해 샘플 목록을 보여주고 있습니다.");
+      setNotice({
+        type: "info",
+        message: error instanceof Error ? error.message : "백엔드 연결에 실패해 샘플 목록을 보여주고 있습니다.",
+      });
     } finally {
       setLoading(false);
     }
@@ -181,29 +191,38 @@ export const RafflesPage = () => {
   };
 
   const handleJoin = async (raffle: RaffleItem) => {
-    const walletAddress = window.prompt("응모에 사용할 지갑 주소를 입력해 주세요.");
-    if (!walletAddress?.trim()) {
-      setNotice("응모하려면 지갑 주소가 필요합니다.");
+    // 비로그인 상태: 로그인 페이지로 유도
+    if (!user || !userWalletAddress) {
+      setNotice({ type: "error", message: "래플 참여는 로그인 후 이용할 수 있습니다." });
       return;
     }
 
     setJoiningId(raffle.id);
-    setNotice("");
+    setNotice(null);
     try {
       await apiRequest("/api/mint", {
         method: "POST",
         body: {
           raffleId: raffle.id,
-          userAddress: walletAddress.trim(),
+          userAddress: userWalletAddress,
         },
       });
-      setNotice("응모가 완료되었습니다.");
+      setNotice({ type: "success", message: `${raffle.brand} ${raffle.title} 응모가 완료되었습니다.` });
       await loadRaffles();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "응모 요청에 실패했습니다.");
+      setNotice({
+        type: "error",
+        message: error instanceof Error ? error.message : "응모 요청에 실패했습니다.",
+      });
     } finally {
       setJoiningId(null);
     }
+  };
+
+  const noticeColors = {
+    info: "bg-blue-50 text-blue-800",
+    success: "bg-green-50 text-green-800",
+    error: "bg-red-50 text-red-700",
   };
 
   return (
@@ -251,9 +270,11 @@ export const RafflesPage = () => {
       </nav>
 
       {notice && (
-        <div className="mx-auto mb-8 flex max-w-7xl items-center gap-2 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          <AlertCircle size={16} />
-          {notice}
+        <div
+          className={`mx-auto mb-8 flex max-w-7xl items-center gap-2 rounded-lg px-4 py-3 text-sm ${noticeColors[notice.type]}`}
+        >
+          <AlertCircle size={16} className="shrink-0" />
+          <span>{notice.message}</span>
         </div>
       )}
 
@@ -284,12 +305,35 @@ export const RafflesPage = () => {
                 현재 {item.participants.toLocaleString()}명 응모 중
               </div>
               <button
-                onClick={() => handleJoin(item)}
-                disabled={joiningId === item.id || item.hasParticipated || item.status !== "MINTING"}
+                onClick={() => {
+                  if (!user) {
+                    navigate("/login");
+                  } else {
+                    handleJoin(item);
+                  }
+                }}
+                disabled={
+                  joiningId === item.id ||
+                  (!!user && (item.hasParticipated || item.status !== "MINTING"))
+                }
                 className="mt-auto flex h-12 items-center justify-center gap-2 rounded-lg bg-black text-sm font-bold uppercase tracking-widest text-white shadow-sm transition-all hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
               >
-                {joiningId === item.id ? <Loader2 className="animate-spin" size={16} /> : <Ticket size={16} />}
-                {item.hasParticipated ? "응모 완료" : item.status === "MINTING" ? "참여하기" : "대기 중"}
+                {joiningId === item.id ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : !user ? (
+                  <LogIn size={16} />
+                ) : (
+                  <Ticket size={16} />
+                )}
+                {joiningId === item.id
+                  ? "처리 중..."
+                  : item.hasParticipated
+                  ? "응모 완료"
+                  : item.status !== "MINTING"
+                  ? "대기 중"
+                  : !user
+                  ? "로그인 필요"
+                  : "참여하기"}
               </button>
             </article>
           ))}
