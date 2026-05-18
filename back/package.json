@@ -9,6 +9,7 @@
     "dev": "node --watch api/server.js",
     "deploy": "hardhat run scripts/deploy.js",
     "mint": "hardhat run scripts/mint.js",
+    "mint-fabric": "node api/mint-cli.js",
     "gen-hash": "node scripts/gen-provenance.js"
   },
   "dependencies": {

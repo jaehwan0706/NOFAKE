@@ -37,6 +37,7 @@ const PORT = process.env.PORT || 3002;
 const RPC_URL = process.env.RPC_URL || "";
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "";
 const OWNER_PRIVATE_KEY = process.env.OWNER_PRIVATE_KEY || process.env.PRIVATE_KEY || "";
+const ROOT_ADMIN_WALLET = (process.env.ROOT_ADMIN_WALLET || "").trim();
 const DB_STORAGE_PATH = process.env.DB_STORAGE_PATH || path.join(__dirname, "..", "database.sqlite");
 
 // ============================================
@@ -1220,6 +1221,16 @@ async function queryBalancesFabric(walletAddress) {
   }
 }
 
+function isAdminWalletRequest(req) {
+  if (!ROOT_ADMIN_WALLET) return true;
+  const authHeader = String(req.headers.authorization || "").trim();
+  const authToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
+  const candidate = String(req.headers["x-admin-wallet"] || req.query.adminWallet || authToken || "").trim();
+  const expected = normalizeWalletAddress(ROOT_ADMIN_WALLET) || ROOT_ADMIN_WALLET.toLowerCase();
+  const actual = normalizeWalletAddress(candidate) || candidate.toLowerCase();
+  return actual.toLowerCase() === expected.toLowerCase();
+}
+
 async function submitSwapTransactionFabric(walletAddress, fromBrand, toBrand, amount) {
   const { gateway, contract } = await connectFabricContract();
   try {
@@ -1369,14 +1380,19 @@ app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
   }
 });
 
-// Admin: get accumulated fees for NOFAKE_ADMIN
+// Admin: get accumulated fees for the configured admin wallet
 app.get('/api/admin/fees', async (req, res) => {
   try {
-    const adminKey = 'NOFAKE_ADMIN';
+    if (!isAdminWalletRequest(req)) {
+      return res.status(403).json({ success: false, error: 'admin wallet authentication failed' });
+    }
+
+    const adminKey = ROOT_ADMIN_WALLET || 'NOFAKE_ADMIN';
     if (useFabricMock) {
       const data = await queryBalancesMock(adminKey);
       return res.json({ success: true, data });
     }
+
     const data = await queryBalancesFabric(adminKey);
     return res.json({ success: true, data });
   } catch (err) {

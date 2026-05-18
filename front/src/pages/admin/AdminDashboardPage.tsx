@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 const API = (import.meta.env.VITE_API_BASE_URL as string) || '';
+const ADMIN_WALLET = (import.meta.env.VITE_ROOT_ADMIN_WALLET as string) || '';
 
 export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -11,7 +12,9 @@ export default function AdminDashboardPage() {
     (async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API}/api/admin/fees`);
+        const res = await fetch(`${API}/api/admin/fees`, {
+          headers: ADMIN_WALLET ? { 'X-Admin-Wallet': ADMIN_WALLET } : undefined,
+        });
         if (!res.ok) throw new Error('Failed to fetch');
         const body = await res.json();
         setData(body.data || body);

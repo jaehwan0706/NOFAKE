@@ -25,6 +25,7 @@ import {
 const LOGIN_TOKEN_KEY = "nofakeAccessToken";
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string) ?? "";
+const ADMIN_WALLET = (import.meta.env.VITE_ROOT_ADMIN_WALLET as string) || "";
 
 // ─── 전역 인증 상태 ───────────────────────────────────────────────────────────
 
@@ -391,6 +392,16 @@ export function Header() {
                         <Settings className="h-4 w-4" />
                         설정
                       </Link>
+                      {ADMIN_WALLET && (
+                        <Link
+                          to="/admin"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                        >
+                          <Building className="h-4 w-4" />
+                          Admin
+                        </Link>
+                      )}
                     </div>
                     <div className="border-t border-white/10 p-1.5">
                       <button

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAuthUser } from "../../components/Header";
+import { fetchPointBalances, PointBalances } from "../../lib/pointBalances";
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string) ?? "";
@@ -219,24 +220,10 @@ export const PointSwapPage = () => {
     try {
       setIsLoading(true);
       const token = localStorage.getItem(LOGIN_TOKEN_KEY);
-      const res = await fetch(`${API_BASE_URL}/api/points/balance`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const fetched = data.data || { nofake: 0, nike: 0, musinsa: 0 };
-        setMyBalances({
-          nofake: Number(fetched.nofake ?? 0),
-          nike: Number(fetched.nike ?? 0),
-          musinsa: Number(fetched.musinsa ?? 0)
-        });
-      } else {
-        setMyBalances({ nofake: 0, nike: 0, musinsa: 0 });
-      }
+      const fetched = await fetchPointBalances(token);
+      setMyBalances(fetched);
     } catch (error) {
-      console.error("포인트 정보를 가져오는데 실패했습니다.");
+      console.error("포인트 정보를 가져오는데 실패했습니다.", error);
       setMyBalances({ nofake: 0, nike: 0, musinsa: 0 });
     } finally {
       setIsLoading(false);

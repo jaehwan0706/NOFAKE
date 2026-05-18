@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useAuthUser, logoutUser } from "../../components/Header";
+import { fetchPointBalances } from "../../lib/pointBalances";
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string) ?? "";
@@ -428,6 +429,10 @@ export const MyPage = () => {
 
     const fetchMyData = async () => {
       const logs: string[] = [];
+      let profileOk = false;
+      let mypageOk = false;
+      let balanceOk = false;
+
       try {
         const token = localStorage.getItem(LOGIN_TOKEN_KEY);
         logs.push(`토큰: ${token ? token.slice(0, 20) + "…" : "없음 ❌"}`);
@@ -437,65 +442,73 @@ export const MyPage = () => {
           "ngrok-skip-browser-warning": "69420",
         };
 
-        // 병렬로 두 개의 API 요청
-        const [profileRes, mypageRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/user/profile`, { headers }),
-          fetch(`${API_BASE_URL}/api/mypage`, { headers }),
+        const profilePromise = fetch(`${API_BASE_URL}/api/user/profile`, { headers });
+        const mypagePromise = fetch(`${API_BASE_URL}/api/mypage`, { headers });
+        const balancePromise = fetchPointBalances(token);
+
+        const [profileSettled, mypageSettled, balanceSettled] = await Promise.allSettled([
+          profilePromise,
+          mypagePromise,
+          balancePromise,
         ]);
 
-        logs.push(`GET /api/user/profile → ${profileRes.status} ${profileRes.ok ? "✓" : "❌"}`);
-        logs.push(`GET /api/mypage → ${mypageRes.status} ${mypageRes.ok ? "✓" : "❌"}`);
-
-        // 프로필 데이터 처리
-        if (profileRes.ok) {
-          const profileData = await profileRes.json() as UserProfile;
-          logs.push(`profile 수신 OK: DID=${profileData.did ? "✓" : "—"}`);
-          setProfile(profileData);
-        } else {
-          const text = await profileRes.text().catch(() => "");
-          logs.push(`profile 에러: ${profileRes.status} - ${text.slice(0, 80)}`);
-        }
-
-        // 마이페이지 통합 데이터 처리
-        if (mypageRes.ok) {
-          const data = await mypageRes.json() as MyPageResponse;
-          logs.push(`mypage 수신 완료`);
-          
-          // 1. 사용자 기본 프로필 & 분산 신원인증 (DID) 
-          if (data.profile) {
-            logs.push(`  ✓ 프로필: ${data.profile.name}, DID=${data.profile.did ? "있음" : "없음"}`);
-            setProfile(data.profile);
-          }
-
-          // 2. 프라이빗 블록체인 기반의 'NoFake 포인트' 잔액
-          if (data.points !== undefined) {
-            logs.push(`  ✓ 포인트: ${data.points.toLocaleString()} P`);
-            setPoints(data.points);
-          }
-
-          // 3. 퍼블릭 블록체인 기반의 '래플 응모 및 NFT 당첨 내역'
-          if (data.raffleHistory) {
-            logs.push(`  ✓ 래플: ${data.raffleHistory.length}개`);
-            setRaffleHistory(data.raffleHistory);
-          }
-
-          // 4. 투명한 포인트 변동 이력 (포인트 내역)
-          if (data.pointHistory) {
-            logs.push(`  ✓ 포인트 이력: ${data.pointHistory.length}개`);
-            setPointHistory(data.pointHistory);
-          }
-
-          if (data.stats) {
-            logs.push(`  ✓ 통계: 총응모=${data.stats.totalApply}, 당첨=${data.stats.winCount}`);
-            setStats(data.stats);
+        if (profileSettled.status === "fulfilled") {
+          const profileRes = profileSettled.value as Response;
+          logs.push(`GET /api/user/profile → ${profileRes.status} ${profileRes.ok ? "✓" : "❌"}`);
+          if (profileRes.ok) {
+            const profileData = (await profileRes.json()) as UserProfile;
+            logs.push(`profile 수신 OK: DID=${profileData.did ? "✓" : "—"}`);
+            setProfile(profileData);
+            profileOk = true;
+          } else {
+            const text = await profileRes.text().catch(() => "");
+            logs.push(`profile 에러: ${profileRes.status} - ${text.slice(0, 80)}`);
           }
         } else {
-          const text = await mypageRes.text().catch(() => "");
-          logs.push(`mypage 에러: ${mypageRes.status} - ${text.slice(0, 80)}`);
+          logs.push(`GET /api/user/profile → ❌ ${String(profileSettled.reason)}`);
         }
 
-        // 모든 API가 정상이면 디버그 배너 숨김
-        if (profileRes.ok && mypageRes.ok) {
+        if (mypageSettled.status === "fulfilled") {
+          const mypageRes = mypageSettled.value as Response;
+          logs.push(`GET /api/mypage → ${mypageRes.status} ${mypageRes.ok ? "✓" : "❌"}`);
+          if (mypageRes.ok) {
+            const data = (await mypageRes.json()) as MyPageResponse;
+            logs.push(`mypage 수신 완료`);
+            if (data.profile) {
+              logs.push(`  ✓ 프로필: ${data.profile.name}, DID=${data.profile.did ? "있음" : "없음"}`);
+              setProfile(data.profile);
+            }
+            if (data.raffleHistory) {
+              logs.push(`  ✓ 래플: ${data.raffleHistory.length}개`);
+              setRaffleHistory(data.raffleHistory);
+            }
+            if (data.pointHistory) {
+              logs.push(`  ✓ 포인트 이력: ${data.pointHistory.length}개`);
+              setPointHistory(data.pointHistory);
+            }
+            if (data.stats) {
+              logs.push(`  ✓ 통계: 총응모=${data.stats.totalApply}, 당첨=${data.stats.winCount}`);
+              setStats(data.stats);
+            }
+            mypageOk = true;
+          } else {
+            const text = await mypageRes.text().catch(() => "");
+            logs.push(`mypage 에러: ${mypageRes.status} - ${text.slice(0, 80)}`);
+          }
+        } else {
+          logs.push(`GET /api/mypage → ❌ ${String(mypageSettled.reason)}`);
+        }
+
+        if (balanceSettled.status === "fulfilled") {
+          const balanceData = balanceSettled.value as { nofake: number; nike: number; musinsa: number };
+          logs.push(`GET /api/points/balance → ✓`);
+          setPoints(balanceData.nofake ?? 0);
+          balanceOk = true;
+        } else {
+          logs.push(`GET /api/points/balance → ❌ ${String(balanceSettled.reason)}`);
+        }
+
+        if (profileOk && mypageOk && balanceOk) {
           setDebugLog(null);
         } else {
           setDebugLog(logs.join("\n"));
