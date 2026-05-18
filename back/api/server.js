@@ -8,8 +8,8 @@ import cors from "cors";
 import axios from "axios";
 import { Sequelize, DataTypes, Op } from "sequelize";
 import crypto from "crypto";
-import jwt from "jsonwebtoken";
 import { importJWK, jwtVerify } from "jose";
+import { Gateway, Wallets } from "fabric-network";
 
 // ============================================
 // 초기 설정
@@ -25,6 +25,13 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error('Invalid JSON body:', err.message);
+    return res.status(400).json({ error: 'Invalid JSON payload' });
+  }
+  next(err);
+});
 
 const PORT = process.env.PORT || 3002;
 const RPC_URL = process.env.RPC_URL || "";
@@ -1096,6 +1103,11 @@ app.post('/api/phone-verification/mock-verify', async (req, res) => {
 
 // 간단한 Fabric 클라이언트 모듈 (mock 또는 실제 연결 확장 가능)
 const useFabricMock = (process.env.FABRIC_MOCK || 'true') === 'true';
+const FABRIC_CONFIG_PATH = process.env.FABRIC_CONFIG_PATH || path.resolve(__dirname, '..', '..', 'fabric-samples', 'test-network', 'organizations', 'peerOrganizations', 'org1.example.com');
+const FABRIC_USER_ID = process.env.FABRIC_USER_ID || 'User1@org1.example.com';
+const FABRIC_IDENTITY_LABEL = process.env.FABRIC_IDENTITY_LABEL || 'appUser';
+const FABRIC_CHANNEL = process.env.FABRIC_CHANNEL || 'nofake-channel';
+const FABRIC_CHAINCODE = process.env.FABRIC_CHAINCODE || 'point-cc';
 
 const TEST_WALLET_ADDRESS = '0x398591b6257b8BA14Baf06728a706a5B73dd2795';
 const TEST_KAKAO_ID = 'test_kakao_1234';
@@ -1110,6 +1122,110 @@ const normalizeBrandKey = (brand = '') => {
   if (!brand || typeof brand !== 'string') return null;
   return BRAND_KEY_MAP[brand.toUpperCase()] || null;
 };
+
+function normalizeConnectionProfile(profile) {
+  if (!profile || typeof profile !== 'object') return profile;
+  const patched = JSON.parse(JSON.stringify(profile));
+  const fixPath = (value) => {
+    if (typeof value !== 'string') return value;
+    if (value.startsWith('..') || value.startsWith('./')) {
+      return path.resolve(FABRIC_CONFIG_PATH, value);
+    }
+    return value;
+  };
+
+  if (patched.peers) {
+    for (const peer of Object.values(patched.peers)) {
+      if (peer.tlsCACerts?.path) peer.tlsCACerts.path = fixPath(peer.tlsCACerts.path);
+    }
+  }
+  if (patched.certificateAuthorities) {
+    for (const ca of Object.values(patched.certificateAuthorities)) {
+      if (ca.tlsCACerts?.path) ca.tlsCACerts.path = fixPath(ca.tlsCACerts.path);
+    }
+  }
+  return patched;
+}
+
+async function buildFabricWallet() {
+  const wallet = await Wallets.newInMemoryWallet();
+  if (await wallet.get(FABRIC_IDENTITY_LABEL)) return wallet;
+
+  const certDir = path.join(FABRIC_CONFIG_PATH, 'users', FABRIC_USER_ID, 'msp', 'signcerts');
+  const keyDir = path.join(FABRIC_CONFIG_PATH, 'users', FABRIC_USER_ID, 'msp', 'keystore');
+  const certFiles = fs.existsSync(certDir)
+    ? fs.readdirSync(certDir).filter((name) => name.endsWith('.pem') || name.endsWith('.crt'))
+    : [];
+  const keyFiles = fs.existsSync(keyDir)
+    ? fs.readdirSync(keyDir).filter((name) => name.endsWith('.pem') || name.endsWith('.key') || name.endsWith('_sk'))
+    : [];
+
+  if (!certFiles.length || !keyFiles.length) {
+    throw new Error(`Fabric identity files not found in ${certDir} or ${keyDir}`);
+  }
+
+  const certificate = fs.readFileSync(path.join(certDir, certFiles[0]), 'utf8');
+  const privateKey = fs.readFileSync(path.join(keyDir, keyFiles[0]), 'utf8');
+
+  await wallet.put(FABRIC_IDENTITY_LABEL, {
+    credentials: {
+      certificate,
+      privateKey,
+    },
+    mspId: 'Org1MSP',
+    type: 'X.509',
+  });
+
+  return wallet;
+}
+
+async function connectFabricContract() {
+  const ccpPath = path.join(FABRIC_CONFIG_PATH, 'connection-org1.json');
+  if (!fs.existsSync(ccpPath)) {
+    throw new Error(`Fabric connection profile not found: ${ccpPath}`);
+  }
+
+  const ccp = normalizeConnectionProfile(JSON.parse(fs.readFileSync(ccpPath, 'utf8')));
+  const wallet = await buildFabricWallet();
+  const gateway = new Gateway();
+  await gateway.connect(ccp, {
+    wallet,
+    identity: FABRIC_IDENTITY_LABEL,
+    discovery: { enabled: true, asLocalhost: true },
+  });
+
+  const network = await gateway.getNetwork(FABRIC_CHANNEL);
+  console.log('Fabric network object type:', network?.constructor?.name, 'getContract:', typeof network?.getContract);
+  if (typeof network?.getContract !== 'function') {
+    console.error('Fabric network object does not expose getContract()', network);
+    gateway.disconnect();
+    throw new Error('Fabric network error: getContract unavailable');
+  }
+  const contract = network.getContract(FABRIC_CHAINCODE);
+  return { gateway, contract };
+}
+
+async function queryBalancesFabric(walletAddress) {
+  const { gateway, contract } = await connectFabricContract();
+  try {
+    const resultBytes = await contract.evaluateTransaction('GetBalances', walletAddress);
+    return JSON.parse(resultBytes.toString());
+  } finally {
+    gateway.disconnect();
+  }
+}
+
+async function submitSwapTransactionFabric(walletAddress, fromBrand, toBrand, amount) {
+  const { gateway, contract } = await connectFabricContract();
+  try {
+    const tx = contract.createTransaction('SwapPoint');
+    const resultBytes = await tx.submit(walletAddress, fromBrand.toUpperCase(), toBrand.toUpperCase(), String(amount));
+    const result = JSON.parse(resultBytes.toString());
+    return { txId: tx.getTransactionId(), result };
+  } finally {
+    gateway.disconnect();
+  }
+}
 
 async function getOrCreatePointBalance(walletAddress) {
   const normalizedWallet = normalizeWalletAddress(walletAddress);
@@ -1204,11 +1320,11 @@ app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
       return res.json({ success: true, data: balances });
     }
 
-    // 실제 Fabric Gateway 연동 로직은 여기 확장
-    return res.status(501).json({ error: 'Fabric integration not implemented in this environment' });
+    const balances = await queryBalancesFabric(walletAddress);
+    return res.json({ success: true, data: balances });
   } catch (err) {
     console.error('/api/points/balance error:', err);
-    res.status(500).json({ error: 'server error' });
+    return res.status(500).json({ error: err.message || 'server error' });
   }
 });
 
@@ -1224,11 +1340,18 @@ app.post('/api/points/swap', verifyTokenMiddleware, async (req, res) => {
       return res.json({ success: true, txHash: result.txId, result: result.result, data: result.balances });
     }
 
-    // 실제 Fabric Gateway submitTransaction 구현 위치
-    return res.status(501).json({ error: 'Fabric submitTransaction not implemented' });
+    const swapResponse = await submitSwapTransactionFabric(walletAddress, fromBrand, toBrand, Number(amount));
+    const finalBalances = await queryBalancesFabric(walletAddress);
+
+    return res.json({
+      success: true,
+      txHash: swapResponse.txId,
+      result: swapResponse.result,
+      data: finalBalances
+    });
   } catch (err) {
     console.error('/api/points/swap error:', err);
-    res.status(500).json({ error: err.message || 'server error' });
+    return res.status(500).json({ error: err.message || 'server error' });
   }
 });
 

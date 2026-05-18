@@ -20,14 +20,13 @@ const T = {
   red: "#ef4444",
 };
 
-const PARTNERS = [
-  { id: "nike", name: "Nike", logo: "👟", color: "#111", colorLight: "#f5f5f5", fee: 3, unit: "Nike 포인트", minAmount: 5000, description: "Nike.com, SNKRS 앱에서 사용 가능" },
-  { id: "musinsa", name: "무신사", logo: "🛍", color: "#ff4800", colorLight: "#fff3ef", fee: 2, unit: "무신사 포인트", minAmount: 3000, description: "무신사 스토어 전 브랜드에서 사용 가능" },
-  { id: "adidas", name: "Adidas", logo: "🔱", color: "#000", colorLight: "#f5f5f5", fee: 3, unit: "Adidas 포인트", minAmount: 5000, description: "Adidas 공식몰, 아울렛에서 사용 가능" },
-  { id: "newbalance", name: "New Balance", logo: "🔵", color: "#cf102d", colorLight: "#fff0f2", fee: 3, unit: "NB 포인트", minAmount: 5000, description: "New Balance 공식몰에서 사용 가능" },
-  { id: "giftcard", name: "기프트카드", logo: "🎁", color: "#7c3aed", colorLight: "#f5f3ff", fee: 5, unit: "원 기프트카드", minAmount: 10000, description: "문화상품권, 신세계상품권으로 교환" },
-  { id: "kasina", name: "Kasina", logo: "🏪", color: "#1d4ed8", colorLight: "#eff6ff", fee: 2, unit: "카시나 포인트", minAmount: 3000, description: "카시나 온·오프라인 매장에서 사용 가능" },
-];
+const BRANDS = {
+  nofake: { name: "NoFake", logo: "💎", color: "#2563eb", colorLight: "#eff6ff", unit: "NoFake 포인트" },
+  nike: { name: "Nike", logo: "👟", color: "#111", colorLight: "#f5f5f5", unit: "Nike 포인트", minAmount: 5000, description: "Nike.com, SNKRS 앱에서 사용 가능" },
+  musinsa: { name: "무신사", logo: "🛍", color: "#ff4800", colorLight: "#fff3ef", unit: "무신사 포인트", minAmount: 3000, description: "무신사 스토어 전 브랜드에서 사용 가능" },
+};
+
+const NOFAKE_FEE_PERCENT = 5; // 5% fee when swapping out of NoFake
 
 // ─── 서브 컴포넌트 ────────────────────────────────────────────────────────────
 
@@ -47,29 +46,38 @@ function LoginPromptModal({ onClose, onLogin }: { onClose: () => void; onLogin: 
   );
 }
 
-function PartnerCard({ partner, selected, onSelect }: { partner: any; selected: boolean; onSelect: (p: any) => void }) {
+type SwapDirection = "to-nofake" | "from-nofake";
+
+function BrandCard({ brand, selected, onSelect }: { brand: any; selected: boolean; onSelect: () => void }) {
   return (
-    <button onClick={() => onSelect(partner)} style={{ background: selected ? partner.colorLight : T.white, border: `2px solid ${selected ? partner.color : T.border}`, borderRadius: "1.25rem", padding: "24px 20px", cursor: "pointer", textAlign: "left", transition: "all .2s", width: "100%", boxSizing: "border-box", position: "relative", outline: "none" }}>
-      {selected && <span style={{ position: "absolute", top: 12, right: 14, width: 20, height: 20, borderRadius: "50%", background: partner.color, color: "#fff", fontSize: ".65rem", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 }}>✓</span>}
-      <div style={{ fontSize: "1.8rem", marginBottom: 10 }}>{partner.logo}</div>
-      <div style={{ fontWeight: 800, color: T.navy, fontSize: "1rem", marginBottom: 4 }}>{partner.name}</div>
-      <div style={{ fontSize: ".75rem", color: T.gray, marginBottom: 8 }}>수수료 {partner.fee}% · 최소 {partner.minAmount.toLocaleString()}P</div>
-      <div style={{ fontSize: ".72rem", color: T.sub, lineHeight: 1.5 }}>{partner.description}</div>
+    <button onClick={onSelect} style={{ background: selected ? brand.colorLight : T.white, border: `2px solid ${selected ? brand.color : T.border}`, borderRadius: "1.25rem", padding: "24px 20px", cursor: "pointer", textAlign: "left", transition: "all .2s", width: "100%", boxSizing: "border-box", position: "relative", outline: "none" }}>
+      {selected && <span style={{ position: "absolute", top: 12, right: 14, width: 20, height: 20, borderRadius: "50%", background: brand.color, color: "#fff", fontSize: ".65rem", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 }}>✓</span>}
+      <div style={{ fontSize: "1.8rem", marginBottom: 10 }}>{brand.logo}</div>
+      <div style={{ fontWeight: 800, color: T.navy, fontSize: "1rem", marginBottom: 4 }}>{brand.name}</div>
+      {brand.description && <div style={{ fontSize: ".72rem", color: T.sub, lineHeight: 1.5 }}>{brand.description}</div>}
     </button>
   );
 }
 
-function ExchangePanel({ partner, myPoints, onSuccess, onLoginRequired }: { partner: any; myPoints: number; onSuccess: (amount: number) => void; onLoginRequired: () => void }) {
+function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLoginRequired }: { direction: SwapDirection; fromBrand: any; toBrand: any; myBalances: { nofake: number; nike: number; musinsa: number }; onSuccess: (amount: number) => void; onLoginRequired: () => void }) {
   const [amount, setAmount] = useState("");
   const [done, setDone] = useState(false);
   const user = useAuthUser();
 
   const inputNum = parseInt(amount.replace(/,/g, "")) || 0;
-  const fee = Math.floor(inputNum * (partner.fee / 100));
+  
+  // Calculate fee based on direction
+  const fee = direction === "from-nofake" ? Math.floor(inputNum * (NOFAKE_FEE_PERCENT / 100)) : 0;
   const receive = inputNum - fee;
-  const isValid = inputNum >= partner.minAmount && inputNum <= myPoints && inputNum > 0;
+  
+  // Get available balance for fromBrand
+  const fromBrandKey = fromBrand === BRANDS.nofake ? "nofake" : fromBrand === BRANDS.nike ? "nike" : "musinsa";
+  const availableBalance = myBalances[fromBrandKey as keyof typeof myBalances];
+  const minAmount = direction === "from-nofake" ? 1000 : 1000; // Set minimal threshold
+  
+  const isValid = inputNum >= minAmount && inputNum <= availableBalance && inputNum > 0;
 
-  const handleExchange = () => {
+  const handleSwap = () => {
     if (!user) {
       onLoginRequired();
       return;
@@ -79,10 +87,13 @@ function ExchangePanel({ partner, myPoints, onSuccess, onLoginRequired }: { part
     (async () => {
       try {
         const token = localStorage.getItem(LOGIN_TOKEN_KEY);
+        const fromBrandName = fromBrand === BRANDS.nofake ? "NOFAKE" : fromBrand === BRANDS.nike ? "NIKE" : "MUSINSA";
+        const toBrandName = toBrand === BRANDS.nofake ? "NOFAKE" : toBrand === BRANDS.nike ? "NIKE" : "MUSINSA";
+        
         const res = await fetch(`${API_BASE_URL}/api/points/swap`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ fromBrand: 'NOFAKE', toBrand: partner.name.toUpperCase(), amount: inputNum })
+          body: JSON.stringify({ fromBrand: fromBrandName, toBrand: toBrandName, amount: inputNum })
         });
         if (res.ok) {
           const body = await res.json();
@@ -105,34 +116,36 @@ function ExchangePanel({ partner, myPoints, onSuccess, onLoginRequired }: { part
     setAmount(raw ? parseInt(raw).toLocaleString() : "");
   };
 
-  const quickAmounts = [5000, 10000, 20000, myPoints].filter(v => v <= myPoints && v >= partner.minAmount);
+  const quickAmounts = [1000, 5000, 10000, availableBalance].filter(v => v <= availableBalance && v >= minAmount);
 
   if (done) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 32px", textAlign: "center" }}>
         <div style={{ fontSize: "4rem", marginBottom: 20 }}>✅</div>
-        <h3 style={{ fontSize: "1.4rem", fontWeight: 800, color: T.navy, marginBottom: 12 }}>교환 신청 완료!</h3>
-        <p style={{ color: T.gray, lineHeight: 1.7 }}>{receive.toLocaleString()} {partner.unit}이<br />곧 적립됩니다.</p>
+        <h3 style={{ fontSize: "1.4rem", fontWeight: 800, color: T.navy, marginBottom: 12 }}>교환 완료!</h3>
+        <p style={{ color: T.gray, lineHeight: 1.7 }}>{receive.toLocaleString()} {toBrand.unit}이<br />곧 적립됩니다.</p>
       </div>
     );
   }
 
   return (
     <div style={{ padding: "32px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28, padding: "20px 24px", background: partner.colorLight, borderRadius: "1rem", border: `1px solid ${partner.color}22` }}>
-        <span style={{ fontSize: "2.2rem" }}>{partner.logo}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28, padding: "20px 24px", background: fromBrand.colorLight, borderRadius: "1rem", border: `1px solid ${fromBrand.color}22` }}>
+        <span style={{ fontSize: "2.2rem" }}>{fromBrand.logo}</span>
         <div>
-          <div style={{ fontWeight: 800, color: T.navy, fontSize: "1.1rem" }}>{partner.name} 포인트 교환</div>
-          <div style={{ fontSize: ".8rem", color: T.sub, marginTop: 2 }}>수수료 {partner.fee}% · {partner.description}</div>
+          <div style={{ fontWeight: 800, color: T.navy, fontSize: "1.1rem" }}>{fromBrand.name} → {toBrand.name}</div>
+          <div style={{ fontSize: ".8rem", color: T.sub, marginTop: 2 }}>
+            {direction === "from-nofake" ? `수수료 ${NOFAKE_FEE_PERCENT}%` : "수수료 없음"}
+          </div>
         </div>
       </div>
 
       <div style={{ background: T.navy, borderRadius: "1rem", padding: "20px 24px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ color: "#64748b", fontSize: ".78rem", marginBottom: 4 }}>보유 nofake 포인트</div>
-          <div style={{ color: "#60a5fa", fontSize: "1.6rem", fontWeight: 900 }}>{myPoints.toLocaleString()} P</div>
+          <div style={{ color: "#64748b", fontSize: ".78rem", marginBottom: 4 }}>보유 {fromBrand.name} 포인트</div>
+          <div style={{ color: "#60a5fa", fontSize: "1.6rem", fontWeight: 900 }}>{availableBalance.toLocaleString()} P</div>
         </div>
-        <div style={{ fontSize: "2rem" }}>💎</div>
+        <div style={{ fontSize: "2rem" }}>{fromBrand.logo}</div>
       </div>
 
       <div style={{ marginBottom: 16 }}>
@@ -140,7 +153,7 @@ function ExchangePanel({ partner, myPoints, onSuccess, onLoginRequired }: { part
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {quickAmounts.map((v) => (
             <button key={v} onClick={() => setAmount(v.toLocaleString())} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: amount === v.toLocaleString() ? T.blue : T.white, color: amount === v.toLocaleString() ? "#fff" : T.text, fontWeight: 700, fontSize: ".8rem", cursor: "pointer", transition: "all .15s" }}>
-              {v === myPoints ? "전체" : `${v.toLocaleString()}P`}
+              {v === availableBalance ? "전체" : `${v.toLocaleString()}P`}
             </button>
           ))}
         </div>
@@ -149,32 +162,34 @@ function ExchangePanel({ partner, myPoints, onSuccess, onLoginRequired }: { part
       <div style={{ marginBottom: 24 }}>
         <label style={{ display: "block", fontSize: ".78rem", color: T.gray, fontWeight: 600, marginBottom: 8 }}>교환할 포인트 입력</label>
         <div style={{ position: "relative" }}>
-          <input type="text" value={amount} onChange={handleAmountChange} placeholder={`최소 ${partner.minAmount.toLocaleString()}P`} style={{ width: "100%", padding: "14px 50px 14px 18px", border: `2px solid ${amount && !isValid ? T.red : amount && isValid ? T.green : T.border}`, borderRadius: 10, fontSize: "1.1rem", fontWeight: 700, color: T.navy, outline: "none", boxSizing: "border-box", transition: "border .2s" }} />
+          <input type="text" value={amount} onChange={handleAmountChange} placeholder={`최소 ${minAmount.toLocaleString()}P`} style={{ width: "100%", padding: "14px 50px 14px 18px", border: `2px solid ${amount && !isValid ? T.red : amount && isValid ? T.green : T.border}`, borderRadius: 10, fontSize: "1.1rem", fontWeight: 700, color: T.navy, outline: "none", boxSizing: "border-box", transition: "border .2s" }} />
           <span style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", color: T.gray, fontWeight: 700, fontSize: ".85rem" }}>P</span>
         </div>
-        {amount && inputNum < partner.minAmount && <p style={{ color: T.red, fontSize: ".78rem", marginTop: 6 }}>최소 {partner.minAmount.toLocaleString()}P 이상 입력해주세요.</p>}
-        {amount && inputNum > myPoints && <p style={{ color: T.red, fontSize: ".78rem", marginTop: 6 }}>보유 포인트를 초과했습니다.</p>}
+        {amount && inputNum < minAmount && <p style={{ color: T.red, fontSize: ".78rem", marginTop: 6 }}>최소 {minAmount.toLocaleString()}P 이상 입력해주세요.</p>}
+        {amount && inputNum > availableBalance && <p style={{ color: T.red, fontSize: ".78rem", marginTop: 6 }}>보유 포인트를 초과했습니다.</p>}
       </div>
 
       {inputNum > 0 && (
         <div style={{ background: T.grayLight, borderRadius: "1rem", padding: "20px 24px", marginBottom: 24, border: `1px solid ${T.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: ".88rem" }}>
             <span style={{ color: T.sub }}>교환 신청액</span>
-            <span style={{ fontWeight: 700, color: T.text }}>{inputNum.toLocaleString()} P</span>
+            <span style={{ fontWeight: 700, color: T.text }}>{inputNum.toLocaleString()} {fromBrand.unit}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: ".88rem" }}>
-            <span style={{ color: T.sub }}>수수료 ({partner.fee}%)</span>
-            <span style={{ fontWeight: 700, color: T.red }}>− {fee.toLocaleString()} P</span>
-          </div>
+          {fee > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: ".88rem" }}>
+              <span style={{ color: T.sub }}>수수료 ({NOFAKE_FEE_PERCENT}%)</span>
+              <span style={{ fontWeight: 700, color: T.red }}>− {fee.toLocaleString()} P</span>
+            </div>
+          )}
           <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 12, display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontWeight: 800, color: T.navy }}>실수령 포인트</span>
-            <span style={{ fontWeight: 900, color: T.blue, fontSize: "1.1rem" }}>{receive.toLocaleString()} {partner.unit}</span>
+            <span style={{ fontWeight: 900, color: T.blue, fontSize: "1.1rem" }}>{receive.toLocaleString()} {toBrand.unit}</span>
           </div>
         </div>
       )}
 
-      <button onClick={handleExchange} disabled={!isValid} style={{ width: "100%", padding: "16px", background: isValid ? T.blue : T.border, color: isValid ? "#fff" : T.gray, borderRadius: 12, fontWeight: 800, fontSize: "1rem", border: "none", cursor: isValid ? "pointer" : "not-allowed", transition: "background .2s" }}>
-        {isValid ? `${partner.name} 포인트로 교환하기` : "포인트 금액을 입력해주세요"}
+      <button onClick={handleSwap} disabled={!isValid} style={{ width: "100%", padding: "16px", background: isValid ? T.blue : T.border, color: isValid ? "#fff" : T.gray, borderRadius: 12, fontWeight: 800, fontSize: "1rem", border: "none", cursor: isValid ? "pointer" : "not-allowed", transition: "background .2s" }}>
+        {isValid ? `${fromBrand.name}에서 ${toBrand.name}로 교환하기` : "포인트 금액을 입력해주세요"}
       </button>
       <p style={{ color: T.gray, fontSize: ".75rem", textAlign: "center", marginTop: 12 }}>교환 후 취소가 불가합니다 · 블록체인 원장에 즉시 기록됩니다</p>
     </div>
@@ -184,21 +199,19 @@ function ExchangePanel({ partner, myPoints, onSuccess, onLoginRequired }: { part
 // ─── 메인 컴포넌트 ────────────────────────────────────────────────────────────
 
 export const PointSwapPage = () => {
-  const [selectedPartner, setSelectedPartner] = useState<any>(null);
-  const [myPoints, setMyPoints] = useState(0); // ✅ 초기값을 0으로 설정
-  const [balances, setBalances] = useState({ nofake: 0, nike: 0, musinsa: 0 });
-  const [history, setHistory] = useState<any[]>([]);
+  const [direction, setDirection] = useState<SwapDirection>("from-nofake");
+  const [selectedBrand, setSelectedBrand] = useState<any>(null);
+  const [myBalances, setMyBalances] = useState({ nofake: 0, nike: 0, musinsa: 0 });
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
   const navigate = useNavigate();
   const user = useAuthUser();
 
-  const fetchUserPoints = async () => {
+  const fetchUserBalances = async () => {
     if (!user) {
       setIsLoading(false);
-      setBalances({ nofake: 0, nike: 0, musinsa: 0 });
-      setMyPoints(0);
+      setMyBalances({ nofake: 0, nike: 0, musinsa: 0 });
       return;
     }
 
@@ -213,35 +226,32 @@ export const PointSwapPage = () => {
       if (res.ok) {
         const data = await res.json();
         const fetched = data.data || { nofake: 0, nike: 0, musinsa: 0 };
-        setBalances({
+        setMyBalances({
           nofake: Number(fetched.nofake ?? 0),
           nike: Number(fetched.nike ?? 0),
           musinsa: Number(fetched.musinsa ?? 0)
         });
-        setMyPoints(Number(fetched.nofake ?? 0));
       } else {
-        setBalances({ nofake: 0, nike: 0, musinsa: 0 });
-        setMyPoints(0);
+        setMyBalances({ nofake: 0, nike: 0, musinsa: 0 });
       }
     } catch (error) {
       console.error("포인트 정보를 가져오는데 실패했습니다.");
-      setBalances({ nofake: 0, nike: 0, musinsa: 0 });
-      setMyPoints(0);
+      setMyBalances({ nofake: 0, nike: 0, musinsa: 0 });
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchUserPoints();
+    fetchUserBalances();
   }, [user]);
 
-  const handleSelectPartner = (partner: any) => {
+  const handleSelectBrand = (brand: any) => {
     if (!user) {
       setShowLoginModal(true);
       return;
     }
-    setSelectedPartner(partner);
+    setSelectedBrand(brand);
   };
 
   const handleLoginRedirect = () => {
@@ -249,22 +259,24 @@ export const PointSwapPage = () => {
     navigate("/login");
   };
 
-  const handleSuccess = (amount: number) => {
-    fetchUserPoints();
-    setHistory((prev) => [
-      {
-        partner: selectedPartner.name,
-        logo: selectedPartner.logo,
-        amount,
-        fee: Math.floor(amount * (selectedPartner.fee / 100)),
-        receive: amount - Math.floor(amount * (selectedPartner.fee / 100)),
-        unit: selectedPartner.unit,
-        date: new Date().toLocaleDateString("ko-KR"),
-      },
-      ...prev,
-    ]);
-    setSelectedPartner(null);
+  const handleSuccess = () => {
+    fetchUserBalances();
+    setSelectedBrand(null);
   };
+
+  // Determine from and to brands based on direction
+  let fromBrand, toBrand;
+  let availableBrands: any[] = [];
+
+  if (direction === "from-nofake") {
+    fromBrand = BRANDS.nofake;
+    availableBrands = [BRANDS.nike, BRANDS.musinsa];
+    toBrand = selectedBrand || availableBrands[0];
+  } else {
+    fromBrand = selectedBrand || BRANDS.nike;
+    toBrand = BRANDS.nofake;
+    availableBrands = [BRANDS.nike, BRANDS.musinsa];
+  }
 
   return (
     <div style={{ paddingTop: 96, minHeight: "100vh", backgroundColor: T.grayLight, fontFamily: "sans-serif" }}>
@@ -274,22 +286,22 @@ export const PointSwapPage = () => {
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 clamp(16px,4vw,48px)" }}>
           <p style={{ color: "#60a5fa", fontSize: ".78rem", fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 8 }}>Point Swap</p>
           <h1 style={{ color: "#fff", fontSize: "clamp(1.6rem,4vw,2.4rem)", fontWeight: 900, marginBottom: 12 }}>포인트 교환 센터</h1>
-          <p style={{ color: "#94a3b8", fontSize: ".95rem", lineHeight: 1.7 }}>nofake 포인트를 파트너 브랜드 포인트로 교환하세요. 수수료만 차감 후 즉시 적립됩니다.</p>
-          <p style={{ color: "#f3f4f6", fontSize: ".9rem", marginTop: 8 }}><strong>안내:</strong> NoFake 포인트를 다른 브랜드로 교환 시 5%의 수수료가 발생합니다.</p>
+          <p style={{ color: "#94a3b8", fontSize: ".95rem", lineHeight: 1.7 }}>브랜드 포인트와 NoFake 포인트를 자유롭게 교환하세요.</p>
+          <p style={{ color: "#f3f4f6", fontSize: ".9rem", marginTop: 8 }}><strong>안내:</strong> NoFake → 브랜드로 교환 시 5% 수수료, 브랜드 → NoFake는 수수료 없음.</p>
 
           {user ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 16, marginTop: 20 }}>
               <div style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 16, padding: "20px" }}>
-                <div style={{ color: "#94a3b8", fontSize: ".78rem", marginBottom: 8 }}>NOFAKE 포인트</div>
-                <div style={{ color: "#60a5fa", fontWeight: 900, fontSize: "1.7rem" }}>{isLoading ? "..." : `${balances.nofake.toLocaleString()} P`}</div>
+                <div style={{ color: "#94a3b8", fontSize: ".78rem", marginBottom: 8 }}>💎 NoFake</div>
+                <div style={{ color: "#60a5fa", fontWeight: 900, fontSize: "1.7rem" }}>{isLoading ? "..." : `${myBalances.nofake.toLocaleString()} P`}</div>
               </div>
               <div style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 16, padding: "20px" }}>
-                <div style={{ color: "#94a3b8", fontSize: ".78rem", marginBottom: 8 }}>Nike 포인트</div>
-                <div style={{ color: "#111", fontWeight: 900, fontSize: "1.7rem" }}>{isLoading ? "..." : `${balances.nike.toLocaleString()} P`}</div>
+                <div style={{ color: "#94a3b8", fontSize: ".78rem", marginBottom: 8 }}>👟 Nike</div>
+                <div style={{ color: "#111", fontWeight: 900, fontSize: "1.7rem" }}>{isLoading ? "..." : `${myBalances.nike.toLocaleString()} P`}</div>
               </div>
               <div style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 16, padding: "20px" }}>
-                <div style={{ color: "#94a3b8", fontSize: ".78rem", marginBottom: 8 }}>무신사 포인트</div>
-                <div style={{ color: "#111", fontWeight: 900, fontSize: "1.7rem" }}>{isLoading ? "..." : `${balances.musinsa.toLocaleString()} P`}</div>
+                <div style={{ color: "#94a3b8", fontSize: ".78rem", marginBottom: 8 }}>🛍 무신사</div>
+                <div style={{ color: "#ff4800", fontWeight: 900, fontSize: "1.7rem" }}>{isLoading ? "..." : `${myBalances.musinsa.toLocaleString()} P`}</div>
               </div>
             </div>
           ) : (
@@ -302,45 +314,72 @@ export const PointSwapPage = () => {
       </div>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px clamp(16px,4vw,48px)" }}>
-        <div style={{ display: "grid", gridTemplateColumns: selectedPartner ? "1fr 420px" : "1fr", gap: 28, alignItems: "start" }}>
+        {/* Swap Direction Toggle */}
+        <div style={{ marginBottom: 32 }}>
+          <label style={{ fontSize: ".78rem", color: T.gray, fontWeight: 700, marginBottom: 12, display: "block", textTransform: "uppercase" }}>교환 방향</label>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              onClick={() => { setDirection("from-nofake"); setSelectedBrand(null); }}
+              style={{
+                flex: 1,
+                padding: "14px",
+                borderRadius: 10,
+                border: `2px solid ${direction === "from-nofake" ? T.blue : T.border}`,
+                background: direction === "from-nofake" ? "#eff6ff" : T.white,
+                color: T.navy,
+                fontWeight: 700,
+                fontSize: ".9rem",
+                cursor: "pointer",
+                transition: "all .2s"
+              }}
+            >
+              💎 NoFake → 브랜드
+            </button>
+            <button
+              onClick={() => { setDirection("to-nofake"); setSelectedBrand(null); }}
+              style={{
+                flex: 1,
+                padding: "14px",
+                borderRadius: 10,
+                border: `2px solid ${direction === "to-nofake" ? T.blue : T.border}`,
+                background: direction === "to-nofake" ? "#eff6ff" : T.white,
+                color: T.navy,
+                fontWeight: 700,
+                fontSize: ".9rem",
+                cursor: "pointer",
+                transition: "all .2s"
+              }}
+            >
+              브랜드 → 💎 NoFake
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: selectedBrand ? "1fr 420px" : "1fr", gap: 28, alignItems: "start" }}>
           <div>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, color: T.navy, marginBottom: 20 }}>교환할 파트너 선택</h2>
+            <h2 style={{ fontSize: "1rem", fontWeight: 700, color: T.navy, marginBottom: 20 }}>
+              {direction === "from-nofake" ? "교환받을 브랜드 선택" : "제공할 브랜드 선택"}
+            </h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
-              {PARTNERS.map((p) => (
-                <PartnerCard key={p.id} partner={p} selected={selectedPartner?.id === p.id} onSelect={handleSelectPartner} />
+              {availableBrands.map((b) => (
+                <BrandCard key={b.name} brand={b} selected={selectedBrand?.name === b.name} onSelect={() => handleSelectBrand(b)} />
               ))}
             </div>
           </div>
 
-          {selectedPartner && user && (
+          {selectedBrand && user && (
             <div style={{ background: T.white, borderRadius: "1.5rem", border: `1px solid ${T.border}`, overflow: "hidden", position: "sticky", top: 112, boxShadow: "0 8px 32px rgba(0,0,0,.06)" }}>
-              <ExchangePanel partner={selectedPartner} myPoints={myPoints} onSuccess={handleSuccess} onLoginRequired={() => setShowLoginModal(true)} />
+              <SwapPanel
+                direction={direction}
+                fromBrand={fromBrand}
+                toBrand={toBrand}
+                myBalances={myBalances}
+                onSuccess={handleSuccess}
+                onLoginRequired={() => setShowLoginModal(true)}
+              />
             </div>
           )}
         </div>
-
-        {history.length > 0 && (
-          <div style={{ marginTop: 48 }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, color: T.navy, marginBottom: 20 }}>최근 교환 내역</h2>
-            <div style={{ background: T.white, borderRadius: "1.25rem", border: `1px solid ${T.border}`, overflow: "hidden" }}>
-              {history.map((h, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: i < history.length - 1 ? `1px solid ${T.border}` : "none", flexWrap: "wrap", gap: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                    <span style={{ fontSize: "1.6rem" }}>{h.logo}</span>
-                    <div>
-                      <div style={{ fontWeight: 700, color: T.navy, fontSize: ".9rem" }}>{h.partner} 포인트 교환</div>
-                      <div style={{ color: T.gray, fontSize: ".75rem", marginTop: 2 }}>{h.date} · 수수료 {h.fee.toLocaleString()}P 차감</div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ color: T.red, fontWeight: 700, fontSize: ".85rem" }}>− {h.amount.toLocaleString()} P</div>
-                    <div style={{ color: T.green, fontWeight: 700, fontSize: ".85rem" }}>+ {h.receive.toLocaleString()} {h.unit}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -130,6 +130,49 @@ public class PointContract implements ContractInterface {
         return genson.serialize(evt);
     }
 
+    private Map<String, Object> loadPointDocument(Context ctx, String walletAddress) {
+        byte[] data = ctx.getStub().getState(walletAddress);
+        if (data == null || data.length == 0) {
+            Map<String, Object> doc = new HashMap<>();
+            doc.put("docType", "point");
+            doc.put("walletAddress", walletAddress);
+            doc.put("nofake", 0L);
+            doc.put("musinsa", 0L);
+            doc.put("nike", 0L);
+            return doc;
+        }
+        return genson.deserialize(new String(data), Map.class);
+    }
+
+    private String resolveBrandKey(String brand) {
+        if (brand == null || brand.trim().isEmpty()) {
+            throw new ChaincodeException("INVALID_BRAND: supported brands are NOFAKE, MUSINSA, NIKE");
+        }
+        String normalized = brand.toUpperCase();
+        if (!VALID_BRANDS.containsKey(normalized)) {
+            throw new ChaincodeException("INVALID_BRAND: supported brands are NOFAKE, MUSINSA, NIKE");
+        }
+        return VALID_BRANDS.get(normalized);
+    }
+
+    @Transaction
+    public String MintPoints(Context ctx, String walletAddress, String brand, long amount) {
+        if (walletAddress == null || walletAddress.trim().isEmpty()) {
+            throw new ChaincodeException("INVALID_WALLET: walletAddress is required");
+        }
+        if (amount <= 0) {
+            throw new ChaincodeException("INVALID_AMOUNT: amount must be > 0");
+        }
+
+        String key = walletAddress;
+        Map<String, Object> doc = loadPointDocument(ctx, key);
+        String brandKey = resolveBrandKey(brand);
+        long currentBalance = ((Number) (doc.getOrDefault(brandKey, 0L))).longValue();
+        doc.put(brandKey, currentBalance + amount);
+        ctx.getStub().putState(key, genson.serialize(doc).getBytes());
+        return genson.serialize(doc);
+    }
+
     @Transaction
     public String GetBalances(Context ctx, String walletAddress) {
         if (walletAddress == null || walletAddress.trim().isEmpty()) {
