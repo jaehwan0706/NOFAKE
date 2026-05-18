@@ -51,6 +51,12 @@ public class PointContract implements ContractInterface {
             throw new ChaincodeException("INVALID_AMOUNT: amount must be > 0");
         }
 
+        // Enforce minimum swap amount (5,000 points)
+        final long MIN_SWAP_AMOUNT = 5000L;
+        if (amount < MIN_SWAP_AMOUNT) {
+            throw new ChaincodeException("MINIMUM_AMOUNT: amount must be >= " + MIN_SWAP_AMOUNT);
+        }
+
         // Load document (walletAddress as state key)
         String key = walletAddress;
         byte[] data = ctx.getStub().getState(key);
@@ -79,8 +85,9 @@ public class PointContract implements ContractInterface {
         long fee = 0L;
         long finalAmount = amount;
 
-        // If moving out of NOFAKE to partner, apply 5% fee
-        if (fromBrand.equals("NOFAKE") && (toBrand.equals("MUSINSA") || toBrand.equals("NIKE"))) {
+        // Apply 5% fee for swaps involving NOFAKE in either direction
+        // (NoFake -> Partner) or (Partner -> NoFake)
+        if (fromBrand.equals("NOFAKE") || toBrand.equals("NOFAKE")) {
             fee = (amount * NOFAKE_OUT_FEE_PERCENT) / 100;
             finalAmount = amount - fee;
         }
@@ -93,7 +100,8 @@ public class PointContract implements ContractInterface {
         doc.put(fromKey, newFrom);
         doc.put(toKey, newTo);
 
-        // Accumulate fee into platform admin doc (walletAddress: "NOFAKE_ADMIN") nofake balance
+        // Accumulate fee into platform admin doc (walletAddress: "NOFAKE_ADMIN")
+        // Store fee under the same currency key as the deducted amount (nofake/nike/musinsa)
         if (fee > 0) {
             String adminKey = "NOFAKE_ADMIN";
             byte[] adminData = ctx.getStub().getState(adminKey);
@@ -102,14 +110,18 @@ public class PointContract implements ContractInterface {
                 adminDoc = new HashMap<>();
                 adminDoc.put("docType", "point");
                 adminDoc.put("walletAddress", adminKey);
-                adminDoc.put("nofake", fee);
+                adminDoc.put("nofake", 0L);
                 adminDoc.put("musinsa", 0L);
                 adminDoc.put("nike", 0L);
             } else {
                 adminDoc = genson.deserialize(new String(adminData), Map.class);
-                long cur = ((Number) (adminDoc.getOrDefault("nofake", 0L))).longValue();
-                adminDoc.put("nofake", cur + fee);
             }
+
+            // Determine which admin currency to increment (the currency of 'fromBrand')
+            String feeCurrencyKey = fromKey; // fee is deducted from the fromBrand's balance
+            long curFeeBalance = ((Number) (adminDoc.getOrDefault(feeCurrencyKey, 0L))).longValue();
+            adminDoc.put(feeCurrencyKey, curFeeBalance + fee);
+
             ctx.getStub().putState(adminKey, genson.serialize(adminDoc).getBytes());
         }
 

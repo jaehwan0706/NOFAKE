@@ -25,6 +25,7 @@ import { ManagerSupportPage } from "./pages/partnership/ManagerSupportPage";
 import { PartnershipStatusPage } from "./pages/partnership/PartnershipStatusPage";
 import { PointSwapPage } from "./pages/points/PointSwapPage";
 import { MyPage } from "./pages/user/MyPage";
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import { BrandsPage } from "./pages/about/BrandsPage";
 import { HowItWorksPage } from "./pages/about/HowItWorksPage";
 import { PartnerPage } from "./pages/partnership/PartnerPage";
@@ -88,6 +89,8 @@ export default function App() {
 
           {/* 4. 포인트 거래 */}
           <Route path="point-swap" element={<PointSwapPage />} />
+          {/* Admin Dashboard */}
+          <Route path="admin" element={<AdminDashboardPage />} />
 
           {/* 5. 고객센터 */}
           <Route path="support" element={<Support />} />

@@ -224,6 +224,7 @@ export function Header() {
 
   const user = useAuthUser();
   const avatarInitial = user?.name ? user.name[0] : "U";
+  const [isAdminVisible, setIsAdminVisible] = useState(false);
 
   // 경로 변경 시 메뉴 닫기
   useEffect(() => {
@@ -231,6 +232,25 @@ export function Header() {
     setIsMobileMenuOpen(false);
     setIsUserMenuOpen(false);
   }, [location.pathname]);
+
+  // Check if current user wallet matches configured root admin wallet
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem(LOGIN_TOKEN_KEY);
+        if (!token) return setIsAdminVisible(false);
+        const res = await fetch(`${API_BASE_URL}/api/user/profile`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return setIsAdminVisible(false);
+        const data = await res.json();
+        const walletAddress = data.walletAddress || data.wallet || "";
+        const rootAdmin = (import.meta.env.VITE_ROOT_ADMIN_WALLET || "").toLowerCase();
+        if (walletAddress && rootAdmin && walletAddress.toLowerCase() === rootAdmin) setIsAdminVisible(true);
+        else setIsAdminVisible(false);
+      } catch (err) {
+        setIsAdminVisible(false);
+      }
+    })();
+  }, [user]);
 
   // 외부 클릭 시 유저 메뉴 닫기
   useEffect(() => {
@@ -487,6 +507,16 @@ export function Header() {
                       {item.name}
                     </Link>
                   ))}
+                  {isAdminVisible && (
+                    <Link
+                      to="/admin"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      <Building className="h-4 w-4" />
+                      Admin Dashboard
+                    </Link>
+                  )}
                   <button
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10"
