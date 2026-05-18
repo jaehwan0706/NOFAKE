@@ -1270,7 +1270,8 @@ async function submitSwapTransactionMock(walletAddress, fromBrand, toBrand, amou
     throw new Error('INSUFFICIENT_BALANCE: not enough balance');
   }
 
-  const fee = fromKey === 'nofake' && (toKey === 'musinsa' || toKey === 'nike')
+  // Apply 5% fee for swaps involving NOFAKE in either direction
+  const fee = (fromKey === 'nofake' || toKey === 'nofake')
     ? Math.floor(amountNumber * 0.05)
     : 0;
   const finalAmount = amountNumber - fee;
@@ -1328,12 +1329,66 @@ app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
   }
 });
 
+// POST 포인트 민트 (테스트 충전용) - requires authentication
+app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
+  try {
+    const { walletAddress, brand, amount } = req.body || {};
+    if (!walletAddress || !brand || !amount) return res.status(400).json({ error: 'walletAddress, brand, amount required' });
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ error: 'amount must be a positive number' });
+
+    if (useFabricMock) {
+      // Update local DB
+      const normalized = normalizeWalletAddress(walletAddress) || walletAddress;
+      const key = normalizeBrandKey(brand);
+      if (!key) return res.status(400).json({ error: 'invalid brand' });
+      const current = await getOrCreatePointBalance(normalized);
+      current[key] = Number(current[key]) + amt;
+      await PointBalance.upsert({ walletAddress: normalized, nofake: current.nofake, nike: current.nike, musinsa: current.musinsa });
+      return res.json({ success: true, data: current });
+    }
+
+    // Call Fabric chaincode MintPoints
+    const { gateway, contract } = await connectFabricContract();
+    try {
+      const tx = contract.createTransaction('MintPoints');
+      const resultBytes = await tx.submit(walletAddress, brand.toUpperCase(), String(amt));
+      const result = JSON.parse(resultBytes.toString());
+      return res.json({ success: true, data: result, txId: tx.getTransactionId() });
+    } finally {
+      gateway.disconnect();
+    }
+  } catch (err) {
+    console.error('/api/points/mint error:', err);
+    return res.status(500).json({ error: err.message || 'server error' });
+  }
+});
+
+// Admin: get accumulated fees for NOFAKE_ADMIN
+app.get('/api/admin/fees', async (req, res) => {
+  try {
+    const adminKey = 'NOFAKE_ADMIN';
+    if (useFabricMock) {
+      const data = await queryBalancesMock(adminKey);
+      return res.json({ success: true, data });
+    }
+    const data = await queryBalancesFabric(adminKey);
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('/api/admin/fees error:', err);
+    res.status(500).json({ success: false, error: err.message || 'server error' });
+  }
+});
+
 // POST 포인트 스왑 (체인코드 SwapPoint 호출)
 app.post('/api/points/swap', verifyTokenMiddleware, async (req, res) => {
   try {
     const walletAddress = req.user?.walletAddress || req.body.walletAddress;
     const { fromBrand, toBrand, amount } = req.body;
     if (!walletAddress || !fromBrand || !toBrand || !amount) return res.status(400).json({ error: 'walletAddress, fromBrand, toBrand, amount required' });
+    // Enforce minimum swap amount
+    const MIN_SWAP = 5000;
+    if (Number(amount) < MIN_SWAP) return res.status(400).json({ error: `MINIMUM_AMOUNT: amount must be >= ${MIN_SWAP}` });
 
     if (useFabricMock) {
       const result = await submitSwapTransactionMock(walletAddress, fromBrand, toBrand, Number(amount));

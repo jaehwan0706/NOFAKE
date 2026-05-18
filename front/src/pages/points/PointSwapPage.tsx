@@ -26,7 +26,7 @@ const BRANDS = {
   musinsa: { name: "무신사", logo: "🛍", color: "#ff4800", colorLight: "#fff3ef", unit: "무신사 포인트", minAmount: 3000, description: "무신사 스토어 전 브랜드에서 사용 가능" },
 };
 
-const NOFAKE_FEE_PERCENT = 5; // 5% fee when swapping out of NoFake
+const NOFAKE_FEE_PERCENT = 5; // 5% fee when swapping involving NoFake
 
 // ─── 서브 컴포넌트 ────────────────────────────────────────────────────────────
 
@@ -66,14 +66,15 @@ function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLog
 
   const inputNum = parseInt(amount.replace(/,/g, "")) || 0;
   
-  // Calculate fee based on direction
-  const fee = direction === "from-nofake" ? Math.floor(inputNum * (NOFAKE_FEE_PERCENT / 100)) : 0;
+  // Calculate fee: apply 5% when either side is NoFake
+  const toBrandKey = toBrand === BRANDS.nofake ? "nofake" : toBrand === BRANDS.nike ? "nike" : "musinsa";
+  const fee = (fromBrand === BRANDS.nofake || toBrand === BRANDS.nofake) ? Math.floor(inputNum * (NOFAKE_FEE_PERCENT / 100)) : 0;
   const receive = inputNum - fee;
   
   // Get available balance for fromBrand
   const fromBrandKey = fromBrand === BRANDS.nofake ? "nofake" : fromBrand === BRANDS.nike ? "nike" : "musinsa";
   const availableBalance = myBalances[fromBrandKey as keyof typeof myBalances];
-  const minAmount = direction === "from-nofake" ? 1000 : 1000; // Set minimal threshold
+  const minAmount = 5000; // Enforce minimum swap amount across all directions
   
   const isValid = inputNum >= minAmount && inputNum <= availableBalance && inputNum > 0;
 
@@ -135,7 +136,7 @@ function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLog
         <div>
           <div style={{ fontWeight: 800, color: T.navy, fontSize: "1.1rem" }}>{fromBrand.name} → {toBrand.name}</div>
           <div style={{ fontSize: ".8rem", color: T.sub, marginTop: 2 }}>
-            {direction === "from-nofake" ? `수수료 ${NOFAKE_FEE_PERCENT}%` : "수수료 없음"}
+            {(fromBrand === BRANDS.nofake || toBrand === BRANDS.nofake) ? `수수료 ${NOFAKE_FEE_PERCENT}%` : "수수료 없음"}
           </div>
         </div>
       </div>
@@ -287,7 +288,7 @@ export const PointSwapPage = () => {
           <p style={{ color: "#60a5fa", fontSize: ".78rem", fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 8 }}>Point Swap</p>
           <h1 style={{ color: "#fff", fontSize: "clamp(1.6rem,4vw,2.4rem)", fontWeight: 900, marginBottom: 12 }}>포인트 교환 센터</h1>
           <p style={{ color: "#94a3b8", fontSize: ".95rem", lineHeight: 1.7 }}>브랜드 포인트와 NoFake 포인트를 자유롭게 교환하세요.</p>
-          <p style={{ color: "#f3f4f6", fontSize: ".9rem", marginTop: 8 }}><strong>안내:</strong> NoFake → 브랜드로 교환 시 5% 수수료, 브랜드 → NoFake는 수수료 없음.</p>
+          <p style={{ color: "#f3f4f6", fontSize: ".9rem", marginTop: 8 }}><strong>안내:</strong> NoFake와의 교환(양방향)에 대해 5% 수수료가 적용됩니다.</p>
 
           {user ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 16, marginTop: 20 }}>
