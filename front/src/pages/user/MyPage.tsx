@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { useAuthUser, logoutUser } from "../../components/Header";
+import { useAuthUser, logoutUser, loginUser } from "../../components/Header"; // ✅ loginUser 추가
 import { fetchPointBalances } from "../../lib/pointBalances";
 
 const API_BASE_URL =
@@ -55,9 +55,9 @@ interface RaffleItem {
 interface UserProfile {
   name: string;
   email: string | null;
-  walletAddress: string | null;   // 지갑 주소 (예: 0x3a9f…c12e)
-  did: string | null;             // DID (예: did:nofake:0x3a9f…c12e)
-  joinedAt: string | null;        // Web3 최초 로그인 시각 (ISO8601)
+  walletAddress: string | null;
+  did: string | null;
+  joinedAt: string | null;
   profileImage: string | null;
 }
 
@@ -335,7 +335,6 @@ function SettingsTab({
 
   return (
     <div>
-      {/* ── DB 디버그 배너: API가 정상이면 자동으로 숨겨짐 ── */}
       {debugLog && (
         <div style={{ marginBottom: 16, padding: "14px 18px", background: "#fffbeb", border: `1px solid ${T.amber}44`, borderRadius: 12 }}>
           <div style={{ fontWeight: 700, color: T.amber, fontSize: ".8rem", marginBottom: 6 }}>⚠ API 연결 상태</div>
@@ -345,7 +344,6 @@ function SettingsTab({
 
       <div style={{ background: T.white, borderRadius: "1.25rem", border: `1px solid ${T.border}`, overflow: "hidden" }}>
 
-        {/* 이름 — 인라인 편집 */}
         <EditableRow
           icon="👤" label="이름" value={profile.name}
           apiEndpoint={`${API_BASE_URL}/api/user/name`} fieldKey="name"
@@ -353,7 +351,6 @@ function SettingsTab({
           onSaved={onNameUpdated}
         />
 
-        {/* 이메일 — 인라인 편집 */}
         <EditableRow
           icon="📧" label="이메일" value={profile.email}
           apiEndpoint={`${API_BASE_URL}/api/user/email`} fieldKey="email"
@@ -362,7 +359,6 @@ function SettingsTab({
           onSaved={onEmailUpdated}
         />
 
-        {/* 지갑 주소 (읽기 전용) */}
         <div style={{ display: "flex", alignItems: "center", padding: "20px 24px", borderBottom: `1px solid ${T.border}`, gap: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>💎</span>
           <div style={{ minWidth: 0 }}>
@@ -373,7 +369,6 @@ function SettingsTab({
           </div>
         </div>
 
-        {/* DID (읽기 전용) */}
         <div style={{ display: "flex", alignItems: "center", padding: "20px 24px", borderBottom: `1px solid ${T.border}`, gap: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>🔐</span>
           <div style={{ minWidth: 0 }}>
@@ -384,7 +379,6 @@ function SettingsTab({
           </div>
         </div>
 
-        {/* 가입일 (Web3 최초 로그인 기준, 읽기 전용) */}
         <div style={{ display: "flex", alignItems: "center", padding: "20px 24px", borderBottom: `1px solid ${T.border}`, gap: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>📅</span>
           <div>
@@ -395,7 +389,6 @@ function SettingsTab({
           </div>
         </div>
 
-        {/* 로그아웃 */}
         <div style={{ padding: "20px 24px", background: "#fff5f5" }}>
           <button onClick={onLogout} style={{ padding: "10px 20px", borderRadius: 8, border: `1px solid ${T.red}33`, background: "#fff", color: T.red, fontWeight: 700, fontSize: ".85rem", cursor: "pointer" }}>
             로그아웃
@@ -460,6 +453,15 @@ export const MyPage = () => {
             logs.push(`profile 수신 OK: DID=${profileData.did ? "✓" : "—"}`);
             setProfile(profileData);
             profileOk = true;
+
+            // ✅ 추가: 실제 이름을 받아서 헤더 전역 상태 즉시 갱신
+            if (profileData.name) {
+              loginUser({
+                name: profileData.name,
+                email: profileData.email ?? "",
+                phone_verified: true,
+              });
+            }
           } else {
             const text = await profileRes.text().catch(() => "");
             logs.push(`profile 에러: ${profileRes.status} - ${text.slice(0, 80)}`);
@@ -477,6 +479,16 @@ export const MyPage = () => {
             if (data.profile) {
               logs.push(`  ✓ 프로필: ${data.profile.name}, DID=${data.profile.did ? "있음" : "없음"}`);
               setProfile(data.profile);
+
+              // ✅ 추가: /api/mypage에서 받은 프로필로도 헤더 전역 상태 갱신
+              // (profile API가 실패했을 경우의 fallback)
+              if (data.profile.name && !profileOk) {
+                loginUser({
+                  name: data.profile.name,
+                  email: data.profile.email ?? "",
+                  phone_verified: true,
+                });
+              }
             }
             if (data.raffleHistory) {
               logs.push(`  ✓ 래플: ${data.raffleHistory.length}개`);
@@ -541,7 +553,6 @@ export const MyPage = () => {
     navigate("/", { replace: true });
   };
 
-  // profile이 없으면 useAuthUser 기본값으로 fallback
   const displayProfile: UserProfile = profile ?? {
     name: user.name,
     email: user.email ?? null,
@@ -606,8 +617,24 @@ export const MyPage = () => {
             profile={displayProfile}
             debugLog={debugLog}
             onLogout={handleLogout}
-            onNameUpdated={(newName) => setProfile(prev => prev ? { ...prev, name: newName } : { ...displayProfile, name: newName })}
-            onEmailUpdated={(newEmail) => setProfile(prev => prev ? { ...prev, email: newEmail } : { ...displayProfile, email: newEmail })}
+            onNameUpdated={(newName) => {
+              setProfile(prev => prev ? { ...prev, name: newName } : { ...displayProfile, name: newName });
+              // ✅ 추가: 이름 변경 저장 시 헤더도 즉시 갱신
+              loginUser({
+                name: newName,
+                email: displayProfile.email ?? "",
+                phone_verified: true,
+              });
+            }}
+            onEmailUpdated={(newEmail) => {
+              setProfile(prev => prev ? { ...prev, email: newEmail } : { ...displayProfile, email: newEmail });
+              // ✅ 추가: 이메일 변경 저장 시 헤더도 즉시 갱신
+              loginUser({
+                name: displayProfile.name,
+                email: newEmail,
+                phone_verified: true,
+              });
+            }}
           />
         )}
       </div>

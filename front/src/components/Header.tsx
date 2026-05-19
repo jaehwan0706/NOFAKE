@@ -73,12 +73,19 @@ export function useAuthUser() {
       },
     });
     if (!res.ok) { logoutUser(); return; }
-    const data = (await res.json()) as { success: boolean; name?: string; email?: string; phone_verified?: boolean };
+    const data = (await res.json()) as {
+      success: boolean;
+      name?: string;
+      email?: string;
+      phone_verified?: boolean;
+    };
+
+    // ✅ 수정: name이 실제로 있을 때만 loginUser 호출, 없으면 logoutUser
     if (data.success && data.name) {
-      loginUser({ 
-        name: data.name, 
+      loginUser({
+        name: data.name,                        // ?? "사용자" 제거 — 실제 이름 그대로 사용
         email: data.email ?? "",
-        phone_verified: data.phone_verified ?? false
+        phone_verified: data.phone_verified ?? false,
       });
     } else {
       logoutUser();
@@ -228,7 +235,8 @@ export function Header() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const user = useAuthUser();
-  const avatarInitial = user?.name ? user.name[0] : "U";
+  // ✅ 수정: name이 없거나 빈 문자열이면 "U" 대신 안전하게 처리
+  const avatarInitial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
 
   // 경로 변경 시 메뉴 닫기
   useEffect(() => {
@@ -357,6 +365,7 @@ export function Header() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
                     {avatarInitial}
                   </span>
+                  {/* ✅ 수정: user.name 직접 표시 (fallback 제거) */}
                   <span className="text-sm font-semibold text-white">{user.name}</span>
                   <ChevronDown
                     className={`h-3.5 w-3.5 text-gray-400 transition-transform ${isUserMenuOpen ? "rotate-180" : ""}`}
@@ -490,6 +499,7 @@ export function Header() {
                       {avatarInitial}
                     </span>
                     <div>
+                      {/* ✅ 수정: 모바일에서도 실제 이름 표시 */}
                       <p className="text-sm font-bold text-white">{user.name}</p>
                       {user.email && <p className="text-xs text-gray-400">{user.email}</p>}
                     </div>
