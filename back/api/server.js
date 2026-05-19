@@ -1414,19 +1414,20 @@ app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
   }
 });
 
-// Admin: get accumulated fees for the configured admin wallet
+// Admin: get accumulated platform treasury fees from Fabric ledger key NOFAKE_PLATFORM_TREASURY
+const PLATFORM_TREASURY_KEY = 'NOFAKE_PLATFORM_TREASURY';
+
 app.get('/api/admin/fees', async (req, res) => {
   try {
     if (!isAdminWalletRequest(req)) {
       return res.status(403).json({ success: false, error: 'admin wallet authentication failed' });
     }
 
-    const adminKey = ROOT_ADMIN_WALLET || 'NOFAKE_ADMIN';
     if (useFabricMock) {
-      const data = await queryBalancesMock(adminKey);
+      const data = await queryBalancesMock(PLATFORM_TREASURY_KEY);
       return res.json({ success: true, data });
     }
-    const data = await queryBalancesFabric(adminKey);
+    const data = await queryBalancesFabric(PLATFORM_TREASURY_KEY);
     return res.json({ success: true, data });
   } catch (err) {
     console.error('/api/admin/fees error:', err);
