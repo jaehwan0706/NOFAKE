@@ -3,8 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { useAuthUser, logoutUser } from "../../components/Header";
 
 const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string) ??
-  "https://outrage-overboard-unrevised.ngrok-free.dev";
+  (import.meta.env.VITE_API_BASE_URL as string) ?? "";
 const LOGIN_TOKEN_KEY = "nofakeAccessToken";
 
 const T = {
@@ -49,6 +48,40 @@ interface RaffleItem {
   price: string;
   purchaseDeadline: string | null;
   trackingNum?: string;
+}
+
+// ─── 백엔드에서 받아오는 유저 프로필 타입 ────────────────────────────────────
+interface UserProfile {
+  name: string;
+  email: string | null;
+  walletAddress: string | null;   // 지갑 주소 (예: 0x3a9f…c12e)
+  did: string | null;             // DID (예: did:nofake:0x3a9f…c12e)
+  joinedAt: string | null;        // Web3 최초 로그인 시각 (ISO8601)
+  profileImage: string | null;
+}
+
+interface Stats {
+  totalApply: number;
+  winCount: number;
+  winRate: string;
+  activeCount: number;
+}
+
+interface PointHistoryItem {
+  id: string;
+  label: string;
+  date: string;
+  amount: string;
+  color: string;
+  type: string;
+}
+
+interface MyPageResponse {
+  profile?: UserProfile;
+  points?: number;
+  raffleHistory?: RaffleItem[];
+  pointHistory?: PointHistoryItem[];
+  stats?: Stats;
 }
 
 const FILTER_TABS = ["전체", "진행중", "당첨", "미당첨", "발송완료"];
@@ -129,7 +162,7 @@ function RaffleCard({ raffle }: { raffle: RaffleItem }) {
   );
 }
 
-function RafflesTab({ raffles, stats }: { raffles: RaffleItem[]; stats: any }) {
+function RafflesTab({ raffles, stats }: { raffles: RaffleItem[]; stats: Stats }) {
   const [activeFilter, setActiveFilter] = useState("전체");
   const filtered = activeFilter === "전체" ? raffles : raffles.filter(r => r.status === activeFilter);
 
@@ -158,7 +191,7 @@ function RafflesTab({ raffles, stats }: { raffles: RaffleItem[]; stats: any }) {
   );
 }
 
-function PointsTab({ points, history }: { points: number; history: any[] }) {
+function PointsTab({ points, history }: { points: number; history: PointHistoryItem[] }) {
   return (
     <div>
       <div style={{ background: T.navy, borderRadius: "1.5rem", padding: "36px 32px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
@@ -188,33 +221,185 @@ function PointsTab({ points, history }: { points: number; history: any[] }) {
   );
 }
 
-function SettingsTab({ user, onLogout }: { user: { name: string; email: string }; onLogout: () => void }) {
-  const rows = [
-    { label: "이름",     value: user.name,                    icon: "👤", editable: true,  mono: false },
-    { label: "이메일",   value: user.email || "—",            icon: "📧", editable: true,  mono: false },
-    { label: "DID 인증", value: "did:nofake:0x3a9f…c12e",    icon: "🔐", editable: false, mono: true  },
-    { label: "가입일",   value: "2023.08.14",                 icon: "📅", editable: false, mono: false },
-  ];
+// ─── 인라인 편집 필드 공통 컴포넌트 ─────────────────────────────────────────
+function EditableRow({
+  icon, label, value, apiEndpoint, fieldKey, type = "text", validate, onSaved,
+}: {
+  icon: string; label: string; value: string | null;
+  apiEndpoint: string; fieldKey: string;
+  type?: string;
+  validate?: (v: string) => string | null;
+  onSaved: (newVal: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [input, setInput] = useState(value ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSave = async () => {
+    const trimmed = input.trim();
+    if (!trimmed) { setError("값을 입력해주세요."); return; }
+    if (validate) {
+      const msg = validate(trimmed);
+      if (msg) { setError(msg); return; }
+    }
+    setSaving(true); setError(null);
+    try {
+      const token = localStorage.getItem(LOGIN_TOKEN_KEY);
+      const res = await fetch(apiEndpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "69420" },
+        body: JSON.stringify({ [fieldKey]: trimmed }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "저장 실패" }));
+        throw new Error((err as { message?: string }).message ?? "저장 실패");
+      }
+      onSaved(trimmed);
+      setEditing(false);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setError(message || "저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => { setInput(value ?? ""); setEditing(false); setError(null); };
+
   return (
-    <div style={{ background: T.white, borderRadius: "1.25rem", border: `1px solid ${T.border}`, overflow: "hidden" }}>
-      {rows.map((item, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: i < rows.length - 1 ? `1px solid ${T.border}` : "none", flexWrap: "wrap", gap: 10 }}>
+    <div style={{ padding: "20px 24px", borderBottom: `1px solid ${T.border}` }}>
+      {!editing ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: "1.2rem" }}>{item.icon}</span>
+            <span style={{ fontSize: "1.2rem" }}>{icon}</span>
             <div>
-              <div style={{ fontSize: ".75rem", color: T.gray }}>{item.label}</div>
-              <div style={{ fontWeight: 600, color: T.navy, fontSize: ".9rem", fontFamily: item.mono ? "monospace" : "inherit" }}>{item.value}</div>
+              <div style={{ fontSize: ".75rem", color: T.gray }}>{label}</div>
+              <div style={{ fontWeight: 600, color: value ? T.navy : T.gray, fontSize: ".9rem" }}>
+                {value || "—"}
+              </div>
+              {success && <div style={{ fontSize: ".72rem", color: T.green, marginTop: 2 }}>✓ 저장되었습니다</div>}
             </div>
           </div>
-          {item.editable && (
-            <button style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.white, color: T.sub, fontWeight: 700, fontSize: ".78rem", cursor: "pointer" }}>변경</button>
-          )}
+          <button
+            onClick={() => { setEditing(true); setInput(value ?? ""); }}
+            style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.white, color: T.sub, fontWeight: 700, fontSize: ".78rem", cursor: "pointer" }}
+          >변경</button>
         </div>
-      ))}
-      <div style={{ padding: "20px 24px", background: "#fff5f5" }}>
-        <button onClick={onLogout} style={{ padding: "10px 20px", borderRadius: 8, border: `1px solid ${T.red}33`, background: "#fff", color: T.red, fontWeight: 700, fontSize: ".85rem", cursor: "pointer" }}>
-          로그아웃
-        </button>
+      ) : (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <span style={{ fontSize: "1.2rem" }}>{icon}</span>
+            <span style={{ fontSize: ".75rem", color: T.gray }}>{label}</span>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              type={type} value={input} autoFocus
+              onChange={e => { setInput(e.target.value); setError(null); }}
+              onKeyDown={e => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") handleCancel(); }}
+              style={{ flex: 1, minWidth: 200, padding: "9px 14px", borderRadius: 8, border: `1.5px solid ${error ? T.red : T.blue}`, fontSize: ".88rem", outline: "none", color: T.navy }}
+            />
+            <button onClick={handleSave} disabled={saving}
+              style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: T.blue, color: "#fff", fontWeight: 700, fontSize: ".82rem", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+              {saving ? "저장 중…" : "저장"}
+            </button>
+            <button onClick={handleCancel} disabled={saving}
+              style={{ padding: "9px 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.white, color: T.sub, fontWeight: 700, fontSize: ".82rem", cursor: "pointer" }}>
+              취소
+            </button>
+          </div>
+          {error && <div style={{ marginTop: 6, fontSize: ".75rem", color: T.red }}>{error}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SettingsTab ─────────────────────────────────────────────────────────────
+function SettingsTab({
+  profile, debugLog, onLogout, onNameUpdated, onEmailUpdated,
+}: {
+  profile: UserProfile;
+  debugLog: string | null;
+  onLogout: () => void;
+  onNameUpdated: (name: string) => void;
+  onEmailUpdated: (email: string) => void;
+}) {
+  const joinedDisplay = profile.joinedAt
+    ? new Date(profile.joinedAt).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\. /g, ".").replace(/\.$/, "")
+    : "—";
+
+  return (
+    <div>
+      {/* ── DB 디버그 배너: API가 정상이면 자동으로 숨겨짐 ── */}
+      {debugLog && (
+        <div style={{ marginBottom: 16, padding: "14px 18px", background: "#fffbeb", border: `1px solid ${T.amber}44`, borderRadius: 12 }}>
+          <div style={{ fontWeight: 700, color: T.amber, fontSize: ".8rem", marginBottom: 6 }}>⚠ API 연결 상태</div>
+          <pre style={{ margin: 0, fontSize: ".72rem", color: T.sub, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{debugLog}</pre>
+        </div>
+      )}
+
+      <div style={{ background: T.white, borderRadius: "1.25rem", border: `1px solid ${T.border}`, overflow: "hidden" }}>
+
+        {/* 이름 — 인라인 편집 */}
+        <EditableRow
+          icon="👤" label="이름" value={profile.name}
+          apiEndpoint={`${API_BASE_URL}/api/user/name`} fieldKey="name"
+          validate={v => v.length < 2 ? "이름은 2자 이상 입력해주세요." : null}
+          onSaved={onNameUpdated}
+        />
+
+        {/* 이메일 — 인라인 편집 */}
+        <EditableRow
+          icon="📧" label="이메일" value={profile.email}
+          apiEndpoint={`${API_BASE_URL}/api/user/email`} fieldKey="email"
+          type="email"
+          validate={v => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? "올바른 이메일 형식이 아닙니다." : null}
+          onSaved={onEmailUpdated}
+        />
+
+        {/* 지갑 주소 (읽기 전용) */}
+        <div style={{ display: "flex", alignItems: "center", padding: "20px 24px", borderBottom: `1px solid ${T.border}`, gap: 12 }}>
+          <span style={{ fontSize: "1.2rem" }}>💎</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: ".75rem", color: T.gray }}>지갑 주소</div>
+            <div style={{ fontWeight: 600, color: profile.walletAddress ? T.navy : T.gray, fontSize: ".88rem", fontFamily: "monospace", wordBreak: "break-all" }}>
+              {profile.walletAddress || "—"}
+            </div>
+          </div>
+        </div>
+
+        {/* DID (읽기 전용) */}
+        <div style={{ display: "flex", alignItems: "center", padding: "20px 24px", borderBottom: `1px solid ${T.border}`, gap: 12 }}>
+          <span style={{ fontSize: "1.2rem" }}>🔐</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: ".75rem", color: T.gray }}>DID 인증</div>
+            <div style={{ fontWeight: 600, color: profile.did ? T.navy : T.gray, fontSize: ".88rem", fontFamily: "monospace", wordBreak: "break-all" }}>
+              {profile.did || "—"}
+            </div>
+          </div>
+        </div>
+
+        {/* 가입일 (Web3 최초 로그인 기준, 읽기 전용) */}
+        <div style={{ display: "flex", alignItems: "center", padding: "20px 24px", borderBottom: `1px solid ${T.border}`, gap: 12 }}>
+          <span style={{ fontSize: "1.2rem" }}>📅</span>
+          <div>
+            <div style={{ fontSize: ".75rem", color: T.gray }}>
+              가입일 <span style={{ fontStyle: "italic" }}>(Web3 최초 로그인)</span>
+            </div>
+            <div style={{ fontWeight: 600, color: profile.joinedAt ? T.navy : T.gray, fontSize: ".9rem" }}>{joinedDisplay}</div>
+          </div>
+        </div>
+
+        {/* 로그아웃 */}
+        <div style={{ padding: "20px 24px", background: "#fff5f5" }}>
+          <button onClick={onLogout} style={{ padding: "10px 20px", borderRadius: 8, border: `1px solid ${T.red}33`, background: "#fff", color: T.red, fontWeight: 700, fontSize: ".85rem", cursor: "pointer" }}>
+            로그아웃
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -227,12 +412,13 @@ export const MyPage = () => {
   const navigate = useNavigate();
   const user = useAuthUser();
 
-  // ✅ 초기 상태값을 0 또는 빈 배열로 설정 (하드코딩 제거)
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [points, setPoints] = useState<number>(0);
   const [raffleHistory, setRaffleHistory] = useState<RaffleItem[]>([]);
-  const [pointHistory, setPointHistory] = useState<any[]>([]);
-  const [stats, setStats] = useState({ totalApply: 0, winCount: 0, winRate: "0.0", activeCount: 0 });
+  const [pointHistory, setPointHistory] = useState<PointHistoryItem[]>([]);
+  const [stats, setStats] = useState<Stats>({ totalApply: 0, winCount: 0, winRate: "0.0", activeCount: 0 });
   const [isLoading, setIsLoading] = useState(true);
+  const [debugLog, setDebugLog] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -241,27 +427,84 @@ export const MyPage = () => {
     }
 
     const fetchMyData = async () => {
+      const logs: string[] = [];
       try {
         const token = localStorage.getItem(LOGIN_TOKEN_KEY);
-        const res = await fetch(`${API_BASE_URL}/api/mypage`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "69420",
-          },
-        });
+        logs.push(`토큰: ${token ? token.slice(0, 20) + "…" : "없음 ❌"}`);
 
-        if (res.ok) {
-          const data = await res.json();
-          setPoints(data.points ?? 0);
-          setRaffleHistory(data.raffleHistory ?? []);
-          setPointHistory(data.pointHistory ?? []);
-          setStats(data.stats ?? { totalApply: 0, winCount: 0, winRate: "0.0", activeCount: 0 });
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "69420",
+        };
+
+        // 병렬로 두 개의 API 요청
+        const [profileRes, mypageRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/user/profile`, { headers }),
+          fetch(`${API_BASE_URL}/api/mypage`, { headers }),
+        ]);
+
+        logs.push(`GET /api/user/profile → ${profileRes.status} ${profileRes.ok ? "✓" : "❌"}`);
+        logs.push(`GET /api/mypage → ${mypageRes.status} ${mypageRes.ok ? "✓" : "❌"}`);
+
+        // 프로필 데이터 처리
+        if (profileRes.ok) {
+          const profileData = await profileRes.json() as UserProfile;
+          logs.push(`profile 수신 OK: DID=${profileData.did ? "✓" : "—"}`);
+          setProfile(profileData);
         } else {
-          throw new Error("API 연동 실패");
+          const text = await profileRes.text().catch(() => "");
+          logs.push(`profile 에러: ${profileRes.status} - ${text.slice(0, 80)}`);
         }
-      } catch (error) {
-        // ✅ API 호출 실패 시 가짜 데이터를 넣지 않고 기본 상태를 유지합니다.
-        console.warn("데이터 로드 실패: 초기화된 데이터를 표시합니다.");
+
+        // 마이페이지 통합 데이터 처리
+        if (mypageRes.ok) {
+          const data = await mypageRes.json() as MyPageResponse;
+          logs.push(`mypage 수신 완료`);
+          
+          // 1. 사용자 기본 프로필 & 분산 신원인증 (DID) 
+          if (data.profile) {
+            logs.push(`  ✓ 프로필: ${data.profile.name}, DID=${data.profile.did ? "있음" : "없음"}`);
+            setProfile(data.profile);
+          }
+
+          // 2. 프라이빗 블록체인 기반의 'NoFake 포인트' 잔액
+          if (data.points !== undefined) {
+            logs.push(`  ✓ 포인트: ${data.points.toLocaleString()} P`);
+            setPoints(data.points);
+          }
+
+          // 3. 퍼블릭 블록체인 기반의 '래플 응모 및 NFT 당첨 내역'
+          if (data.raffleHistory) {
+            logs.push(`  ✓ 래플: ${data.raffleHistory.length}개`);
+            setRaffleHistory(data.raffleHistory);
+          }
+
+          // 4. 투명한 포인트 변동 이력 (포인트 내역)
+          if (data.pointHistory) {
+            logs.push(`  ✓ 포인트 이력: ${data.pointHistory.length}개`);
+            setPointHistory(data.pointHistory);
+          }
+
+          if (data.stats) {
+            logs.push(`  ✓ 통계: 총응모=${data.stats.totalApply}, 당첨=${data.stats.winCount}`);
+            setStats(data.stats);
+          }
+        } else {
+          const text = await mypageRes.text().catch(() => "");
+          logs.push(`mypage 에러: ${mypageRes.status} - ${text.slice(0, 80)}`);
+        }
+
+        // 모든 API가 정상이면 디버그 배너 숨김
+        if (profileRes.ok && mypageRes.ok) {
+          setDebugLog(null);
+        } else {
+          setDebugLog(logs.join("\n"));
+        }
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        logs.push(`네트워크 오류: ${message}`);
+        setDebugLog(logs.join("\n"));
+        console.error("📡 데이터 로드 실패:", error);
       } finally {
         setIsLoading(false);
       }
@@ -285,8 +528,17 @@ export const MyPage = () => {
     navigate("/", { replace: true });
   };
 
-  // ✅ 이름 첫 글자를 안전하게 추출
-  const avatarInitial = user.name ? user.name.charAt(0).toUpperCase() : "U";
+  // profile이 없으면 useAuthUser 기본값으로 fallback
+  const displayProfile: UserProfile = profile ?? {
+    name: user.name,
+    email: user.email ?? null,
+    walletAddress: null,
+    did: null,
+    joinedAt: null,
+    profileImage: null,
+  };
+
+  const avatarInitial = displayProfile.name ? displayProfile.name.charAt(0).toUpperCase() : "U";
 
   const TABS: { id: TabId; label: string }[] = [
     { id: "raffles",  label: "래플 내역" },
@@ -304,12 +556,14 @@ export const MyPage = () => {
               {avatarInitial}
             </div>
             <div>
-              <h1 style={{ color: "#fff", fontSize: "1.4rem", fontWeight: 900, margin: 0 }}>{user.name}</h1>
-              {user.email && <p style={{ color: "#64748b", fontSize: ".82rem", margin: "4px 0" }}>{user.email}</p>}
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", background: "rgba(96,165,250,.15)", border: "1px solid rgba(96,165,250,.25)", borderRadius: 999 }}>
-                <span style={{ fontSize: ".6rem" }}>🔐</span>
-                <span style={{ color: "#93c5fd", fontSize: ".72rem", fontFamily: "monospace" }}>did:nofake:0x3a9f…c12e</span>
-              </div>
+              <h1 style={{ color: "#fff", fontSize: "1.4rem", fontWeight: 900, margin: 0 }}>{displayProfile.name}</h1>
+              {displayProfile.email && <p style={{ color: "#64748b", fontSize: ".82rem", margin: "4px 0" }}>{displayProfile.email}</p>}
+              {displayProfile.did && (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", background: "rgba(96,165,250,.15)", border: "1px solid rgba(96,165,250,.25)", borderRadius: 999 }}>
+                  <span style={{ fontSize: ".6rem" }}>🔐</span>
+                  <span style={{ color: "#93c5fd", fontSize: ".72rem", fontFamily: "monospace" }}>{displayProfile.did}</span>
+                </div>
+              )}
             </div>
             <div style={{ marginLeft: "auto" }}>
               <div style={{ padding: "10px 20px", background: "rgba(96,165,250,.15)", border: "1px solid rgba(96,165,250,.3)", borderRadius: 10, textAlign: "center" }}>
@@ -334,7 +588,15 @@ export const MyPage = () => {
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px clamp(16px,4vw,40px)" }}>
         {activeTab === "raffles"  && <RafflesTab raffles={raffleHistory} stats={stats} />}
         {activeTab === "points"   && <PointsTab points={points} history={pointHistory} />}
-        {activeTab === "settings" && <SettingsTab user={user} onLogout={handleLogout} />}
+        {activeTab === "settings" && (
+          <SettingsTab
+            profile={displayProfile}
+            debugLog={debugLog}
+            onLogout={handleLogout}
+            onNameUpdated={(newName) => setProfile(prev => prev ? { ...prev, name: newName } : { ...displayProfile, name: newName })}
+            onEmailUpdated={(newEmail) => setProfile(prev => prev ? { ...prev, email: newEmail } : { ...displayProfile, email: newEmail })}
+          />
+        )}
       </div>
     </div>
   );

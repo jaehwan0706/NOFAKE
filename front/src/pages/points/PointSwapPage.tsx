@@ -3,8 +3,7 @@ import { useNavigate } from "react-router";
 import { useAuthUser } from "../../components/Header";
 
 const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string) ??
-  "https://outrage-overboard-unrevised.ngrok-free.dev";
+  (import.meta.env.VITE_API_BASE_URL as string) ?? "";
 const LOGIN_TOKEN_KEY = "nofakeAccessToken";
 
 const T = {
