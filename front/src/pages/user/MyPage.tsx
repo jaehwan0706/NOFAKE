@@ -490,8 +490,15 @@ export const MyPage = () => {
             setStats(data.stats);
           }
         } else {
-          const text = await mypageRes.text().catch(() => "");
-          logs.push(`mypage 에러: ${mypageRes.status} - ${text.slice(0, 80)}`);
+          const errorData = await mypageRes.json().catch(() => ({}));
+          const errorMsg = errorData.error || "알 수 없는 오류";
+          logs.push(`mypage 에러: ${mypageRes.status} - ${errorMsg}`);
+          
+          if (mypageRes.status === 403 && errorData.error === 'PHONE_NOT_VERIFIED') {
+            console.warn("📱 휴대폰 인증 필요: /verify-phone으로 리다이렉트");
+            navigate('/verify-phone');
+            return;
+          }
         }
 
         // 모든 API가 정상이면 디버그 배너 숨김

@@ -28,9 +28,9 @@ const API_BASE_URL =
 
 // ─── 전역 인증 상태 ───────────────────────────────────────────────────────────
 
-let _user: { name: string; email: string } | null = null;
+let _user: { name: string; email: string; phone_verified: boolean } | null = null;
 
-export function loginUser(user: { name: string; email: string }) {
+export function loginUser(user: { name: string; email: string; phone_verified: boolean }) {
   _user = user;
   window.dispatchEvent(new Event("auth-change"));
 }
@@ -42,7 +42,7 @@ export function logoutUser() {
 }
 
 export function useAuthUser() {
-  const [user, setUser] = useState<{ name: string; email: string } | null>(_user);
+  const [user, setUser] = useState<{ name: string; email: string; phone_verified: boolean } | null>(_user);
 
   useEffect(() => {
     const handleAuthSync = () => {
@@ -72,9 +72,13 @@ export function useAuthUser() {
       },
     });
     if (!res.ok) { logoutUser(); return; }
-    const data = (await res.json()) as { success: boolean; name?: string; email?: string };
+    const data = (await res.json()) as { success: boolean; name?: string; email?: string; phone_verified?: boolean };
     if (data.success && data.name) {
-      loginUser({ name: data.name, email: data.email ?? "" });
+      loginUser({ 
+        name: data.name, 
+        email: data.email ?? "",
+        phone_verified: data.phone_verified ?? false
+      });
     } else {
       logoutUser();
     }
