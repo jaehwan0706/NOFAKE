@@ -524,26 +524,59 @@ app.post("/api/auth/kakao", async (req, res) => {
     const kakaoId = String(userResponse.data.id || userResponse.data?.id || "");
 
     try {
-      await User.findOrCreate({
-        where: { kakaoId },
-        defaults: { 
-          name: profile.nickname, 
-          email: kakaoAccount.email,
+      // 🚀 1. 카카오 전화번호 포맷팅 (+82 10-1234-5678 -> 01012345678)
+      let formattedPhone = null;
+      if (kakaoAccount.phone_number) {
+        formattedPhone = kakaoAccount.phone_number.replace(/^\+82\s?/, '0').replace(/[^0-9]/g, '');
+      }
+
+      // 🚀 2. 기존 findOrCreate 대신 유저를 찾아서 분기 처리
+      let user = await User.findOne({ where: { kakaoId } });
+
+      if (!user) {
+        // [신규 유저] 지갑 자동 생성 후 DB 저장
+        const newWallet = ethers.Wallet.createRandom();
+        
+        user = await User.create({
+          kakaoId: kakaoId,
+          nickname: profile.nickname || "",
+          email: kakaoAccount.email || "",
+          name: profile.nickname || "",
+          phoneNumber: formattedPhone,
+          walletAddress: newWallet.address, // 🚀 지갑 주소 삽입
           phone_verified: false,
           points: 0
-        },
-      });
+        });
+        console.log(`✅ 신규 유저 지갑 자동 생성: ${newWallet.address}`);
+      } else {
+        // [기존 유저] 지갑이 비어있으면 새로 생성
+        let currentWallet = user.walletAddress;
+        if (!currentWallet) {
+          const newWallet = ethers.Wallet.createRandom();
+          currentWallet = newWallet.address;
+          console.log(`✅ 기존 유저 빈 지갑 신규 할당: ${currentWallet}`);
+        }
+
+        // 기존 정보 및 지갑 업데이트
+        await user.update({
+          nickname: profile.nickname || user.nickname,
+          email: kakaoAccount.email || user.email,
+          name: profile.nickname || user.name,
+          phoneNumber: formattedPhone || user.phoneNumber,
+          walletAddress: currentWallet // 🚀 지갑 주소 업데이트
+        });
+      }
 
       res.json({
         success: true,
         accessToken: access_token,
-        name: profile.nickname,
-        email: kakaoAccount.email,
-        phone_verified: false,
-        phone_number: null,
+        name: user.name,
+        email: user.email,
+        phone_verified: user.phone_verified,
+        phone_number: user.phoneNumber,
       });
     } catch (dbErr) {
-      console.error('❌ User upsert failed. Detail:', dbErr); // 로그 강화
+      console.error('❌ User DB 처리 실패 Detail:', dbErr);
       res.status(500).json({ success: false, error: "사용자 정보 저장 실패", details: dbErr.message });
     }
   } catch (error) {
@@ -1000,8 +1033,9 @@ app.get('/api/mypage', verifyTokenMiddleware, async (req, res) => {
       profile: {
         name: userData?.name || userData?.nickname || req.user.name || "NoFake 유저",
         email: userData?.email || req.user.email,
-        walletAddress: userData?.walletAddress || "0x398591b6257b8BA14Baf06728a706a5B73dd2795",
-        did: userData?.did || "did:nofake:0x398591b6257b8BA14Baf06728a706a5B73dd2795",
+        // 🚀 가짜 주소("0x3985...") 삭제하고 DB 값만 반환
+        walletAddress: userData?.walletAddress || null,
+        did: userData?.walletAddress ? `did:nofake:${userData.walletAddress}` : null,
         joinedAt: userData?.joinedAt || new Date().toISOString(),
         profileImage: null
       },
@@ -1392,7 +1426,6 @@ app.get('/api/admin/fees', async (req, res) => {
       const data = await queryBalancesMock(adminKey);
       return res.json({ success: true, data });
     }
-
     const data = await queryBalancesFabric(adminKey);
     return res.json({ success: true, data });
   } catch (err) {

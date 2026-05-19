@@ -971,7 +971,7 @@ function Testimonials() {
           <div className="flex flex-col gap-4">
             {testimonials.map((item, i) => (
               <button
-                key={item.handle}
+                key={`${item.handle}-${i}`}
                 onClick={() => goTo(i)}
                 className="flex items-start gap-4 rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5"
                 style={{

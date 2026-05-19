@@ -61,7 +61,7 @@ function BrandCard({ brand, selected, onSelect }: { brand: any; selected: boolea
   );
 }
 
-function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLoginRequired }: { direction: SwapDirection; fromBrand: any; toBrand: any; myBalances: PointBalances; onSuccess: (amount: number) => void; onLoginRequired: () => void }) {
+function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLoginRequired }: { direction: SwapDirection; fromBrand: any; toBrand: any; myBalances: { nofake: number; nike: number; musinsa: number }; onSuccess: (amount: number) => void; onLoginRequired: () => void }) {
   const [amount, setAmount] = useState("");
   const [done, setDone] = useState(false);
   const user = useAuthUser();
@@ -99,7 +99,7 @@ function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLog
           body: JSON.stringify({ fromBrand: fromBrandName, toBrand: toBrandName, amount: inputNum })
         });
         if (res.ok) {
-          await res.json();
+          const body = await res.json();
           onSuccess(inputNum);
         } else {
           console.error('Swap failed', await res.text());
@@ -204,7 +204,7 @@ function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLog
 export const PointSwapPage = () => {
   const [direction, setDirection] = useState<SwapDirection>("from-nofake");
   const [selectedBrand, setSelectedBrand] = useState<any>(null);
-  const [myBalances, setMyBalances] = useState<PointBalances>({ nofake: 0, nike: 0, musinsa: 0 });
+  const [myBalances, setMyBalances] = useState({ nofake: 0, nike: 0, musinsa: 0 });
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -221,10 +221,24 @@ export const PointSwapPage = () => {
     try {
       setIsLoading(true);
       const token = localStorage.getItem(LOGIN_TOKEN_KEY);
-      const fetched = await fetchPointBalances(token);
-      setMyBalances(fetched);
+      const res = await fetch(`${API_BASE_URL}/api/points/balance`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const fetched = data.data || { nofake: 0, nike: 0, musinsa: 0 };
+        setMyBalances({
+          nofake: Number(fetched.nofake ?? 0),
+          nike: Number(fetched.nike ?? 0),
+          musinsa: Number(fetched.musinsa ?? 0)
+        });
+      } else {
+        setMyBalances({ nofake: 0, nike: 0, musinsa: 0 });
+      }
     } catch (error) {
-      console.error("포인트 정보를 가져오는데 실패했습니다.", error);
+      console.error("포인트 정보를 가져오는데 실패했습니다.");
       setMyBalances({ nofake: 0, nike: 0, musinsa: 0 });
     } finally {
       setIsLoading(false);
