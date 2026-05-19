@@ -73,6 +73,7 @@ export function KakaoCallback() {
         loginUser({
           name: data.name ?? "사용자",
           email: data.email ?? "",
+          phone_verified: data.phone_verified ?? false,
         });
 
         // 휴대폰 인증 여부에 따라 분기

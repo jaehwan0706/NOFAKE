@@ -4,116 +4,157 @@ import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import axios from 'axios';
-import { Contract, JsonRpcProvider, Wallet } from 'ethers'; // Wallet 추가
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { Contract, JsonRpcProvider, Wallet } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Sequelize, DataTypes, Op } from 'sequelize';
+import { importJWK, jwtVerify } from "jose";
 
 // 환경 설정
-dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+dotenv.config();
 
 const app = express();
-// 💡 재민님 도커 포트(3001:3002)에 맞춰 내부 포트는 3002로 고정하는 것이 안전합니다.
 const port = process.env.PORT || 3002; 
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
-// 1. Web3Auth/Kakao 검증 설정
-const client = jwksClient({ jwksUri: process.env.JWKS_URI });
-function getKey(header, callback) {
-  client.getSigningKey(header.kid, (err, key) => {
-    const signingKey = key?.getPublicKey() || key?.rsaPublicKey;
-    callback(null, signingKey);
-  });
-}
+// 로깅 미들웨어 (디버깅용)
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 
-// [보안 미들웨어]
-const verifyTokenMiddleware = (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: '인증 토큰이 없습니다.' });
-    const token = authHeader.split(' ')[1];
-    
-    jwt.verify(token, getKey, { algorithms: ['RS256'], audience: process.env.TOKEN_AUDIENCE }, (err, decoded) => {
-        if (err) return res.status(403).json({ error: '유효하지 않은 토큰입니다.' });
-        req.user = {
-            walletAddress: decoded.wallets?.[0]?.address || decoded.Sub || decoded.sub,
-            email: decoded.email
-        };
-        next();
-    });
-};
+// ============================================
+// 데이터베이스 설정
+// ============================================
+const sequelize = new Sequelize({
+  dialect: 'sqlite',
+  storage: path.join(__dirname, 'database.sqlite'),
+  logging: false
+});
 
-// 2. 블록체인 설정 (이전 server.js 로직 합체)
-const RPC_URL = process.env.RPC_URL;
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const User = sequelize.define('User', {
+  kakaoId: { type: DataTypes.STRING, primaryKey: true },
+  name: { type: DataTypes.STRING },
+  email: { type: DataTypes.STRING },
+  phone_verified: { type: DataTypes.BOOLEAN, defaultValue: false },
+  phoneNumber: { type: DataTypes.STRING },
+  points: { type: DataTypes.INTEGER, defaultValue: 0 }
+});
 
-// ABI 로드 (프로젝트 루트에 abi.json이 있어야 함)
-const abiPath = path.join(__dirname, "abi.json");
-const contractABI = JSON.parse(fs.readFileSync(abiPath, "utf8"));
+const PhoneVerificationSession = sequelize.define('PhoneVerificationSession', {
+  sessionId: { type: DataTypes.STRING, primaryKey: true },
+  kakaoId: { type: DataTypes.STRING },
+  verificationCode: { type: DataTypes.STRING },
+  status: { type: DataTypes.ENUM('pending', 'verified', 'expired'), defaultValue: 'pending' },
+  expiresAt: { type: DataTypes.DATE }
+});
 
-const provider = new JsonRpcProvider(RPC_URL);
-const signer = new Wallet(PRIVATE_KEY, provider);
-const writeContract = new Contract(CONTRACT_ADDRESS, contractABI, signer);
+sequelize.sync({ alter: true });
 
-// 3. AWS S3 설정
-const s3Client = new S3Client({ region: 'ap-northeast-2' });
-const BUCKET_NAME = process.env.BUCKET_NAME;
-
-// --- API 엔드포인트 ---
-
-// 🔥 카카오 토큰 교환 (인가 코드 -> ID 토큰)
-app.post('/api/auth/kakao', async (req, res) => {
-  const { code } = req.body;
-  if (!code) return res.status(400).json({ error: "인가 코드가 없습니다." });
+// ============================================
+// 인증 미들웨어
+// ============================================
+const verifyTokenMiddleware = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: '인증 토큰이 없습니다.' });
+  const token = authHeader.split(' ')[1];
 
   try {
-    const response = await axios.post("https://kauth.kakao.com/oauth/token", new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: process.env.KAKAO_REST_API_KEY, // 하드코딩 대신 env 사용 추천
-      redirect_uri: "http://localhost:3000/auth/kakao/callback", // 카카오 설정과 반드시 일치!
-      code,
-    }), { headers: { "Content-Type": "application/x-www-form-urlencoded" } });
-
-    res.json(response.data); 
-  } catch (error) {
-    if (error.response?.data?.error_code === 'KOE320') {
-      return res.status(200).json({ message: "이미 처리된 코드입니다." });
+    // OIDC / JWT 검증 시도
+    if (process.env.JWKS_URI) {
+      try {
+        const jwksResponse = await axios.get(process.env.JWKS_URI);
+        const keys = jwksResponse.data?.keys || [];
+        const decodedHeader = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString('utf8'));
+        const jwk = keys.find((k) => k.kid === decodedHeader.kid);
+        if (jwk) {
+          const verificationKey = await importJWK(jwk, jwk.alg || 'RS256');
+          const { payload } = await jwtVerify(token, verificationKey, {
+            audience: process.env.TOKEN_AUDIENCE,
+            issuer: process.env.TOKEN_ISSUER
+          });
+          const kakaoId = String(payload.sub || payload.Sub || '');
+          const [user] = await User.findOrCreate({ where: { kakaoId }, defaults: { name: payload.name || "사용자", email: payload.email || "" } });
+          req.user = { kakaoId: user.kakaoId, name: user.name, email: user.email, phone_verified: user.phone_verified };
+          return next();
+        }
+      } catch (e) { /* skip */ }
     }
-    res.status(500).json({ error: "카카오 통신 실패" });
+
+    // Kakao Access Token 검증 폴백
+    const resp = await axios.get('https://kapi.kakao.com/v2/user/me', { headers: { Authorization: `Bearer ${token}` } });
+    const kakaoId = String(resp.data.id || '');
+    const [user] = await User.findOrCreate({ where: { kakaoId }, defaults: { name: resp.data.kakao_account?.profile?.nickname || "사용자", email: resp.data.kakao_account?.email || "" } });
+    req.user = { kakaoId: user.kakaoId, name: user.name, email: user.email, phone_verified: user.phone_verified };
+    next();
+  } catch (err) {
+    res.status(401).json({ error: '유효하지 않은 토큰입니다.' });
+  }
+};
+
+// ============================================
+// API 엔드포인트
+// ============================================
+
+app.post('/api/phone-verification/start', verifyTokenMiddleware, async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    const kakaoId = req.user.kakaoId;
+    const sessionId = `pv-${Date.now()}`;
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 300000);
+
+    await PhoneVerificationSession.create({ sessionId, kakaoId, verificationCode, status: 'pending', expiresAt });
+    const user = await User.findByPk(kakaoId);
+    if (user) await user.update({ phoneNumber });
+
+    res.status(201).json({ sessionId, receiverNumber: '1666-3538', verificationCode, expiresAt });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// 🔥 민팅 요청 (실제 블록체인 트랜잭션 수행)
-app.post('/api/mint', verifyTokenMiddleware, async (req, res) => {
-    try {
-        const { userAddress } = req.user; // 토큰에서 추출한 지갑 주소
-        const { raffleId } = req.body;
-
-        console.log(`🚀 민팅 시작: 유저(${userAddress}), 래플ID(${raffleId})`);
-
-        // 실제 컨트랙트 함수 실행 (가스비는 서버의 PRIVATE_KEY가 지불)
-        const tx = await writeContract.mintRaffleTicket(userAddress, raffleId);
-        const receipt = await tx.wait();
-
-        res.json({ 
-            success: true, 
-            message: "민팅 성공!", 
-            txHash: receipt.hash 
-        });
-    } catch (error) {
-        console.error("❌ 민팅 에러:", error);
-        res.status(500).json({ success: false, error: error.message });
+app.get('/api/phone-verification/status', async (req, res) => {
+  const { sessionId } = req.query;
+  const session = await PhoneVerificationSession.findByPk(sessionId);
+  if (!session) return res.status(404).json({ error: 'not found' });
+  
+  if (session.status === 'pending' && process.env.OCTOMO_API_KEY) {
+    const octomoResp = await axios.get(`https://api.octomo.octoverse.kr/v1/messages`, {
+      params: { content: session.verificationCode },
+      headers: { 'x-api-key': process.env.OCTOMO_API_KEY }
+    });
+    if (octomoResp.data?.data?.length > 0) {
+      await session.update({ status: 'verified' });
+      const user = await User.findByPk(session.kakaoId);
+      if (user) await user.update({ phone_verified: true });
+      return res.json({ status: 'verified' });
     }
+  }
+  res.json({ status: session.status });
+});
+
+// 기존 index.js 기능
+app.post('/api/auth/kakao', async (req, res) => {
+  const { code } = req.body;
+  const response = await axios.post("https://kauth.kakao.com/oauth/token", new URLSearchParams({
+    grant_type: "authorization_code",
+    client_id: process.env.KAKAO_REST_API_KEY,
+    redirect_uri: "http://localhost:3000/auth/kakao/callback",
+    code,
+  }), { headers: { "Content-Type": "application/x-www-form-urlencoded" } });
+  res.json(response.data); 
+});
+
+app.get("/api/auth/me", verifyTokenMiddleware, (req, res) => {
+  res.json({ success: true, ...req.user });
 });
 
 app.listen(port, () => {
-    console.log(`==========================================`);
-    console.log(`🚀 No-Fake 통합 서버 가동 (Port: ${port})`);
-    console.log(`🔗 Contract: ${CONTRACT_ADDRESS}`);
-    console.log(`==========================================`);
+  console.log(`🚀 Unified Backup Server running on Port ${port}`);
 });

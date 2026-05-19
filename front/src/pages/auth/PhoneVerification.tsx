@@ -1,13 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { apiRequest } from '../../lib/api';
+import { loginUser, useAuthUser } from '../../components/Header';
+import { MessageSquare, Phone, ShieldCheck, ArrowRight, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 const LOGIN_TOKEN_KEY = 'nofakeAccessToken';
 
 interface PhoneVerificationSession {
   sessionId: string;
   receiverNumber: string;
-  verificationCode: string; // Octomo 인증 코드 추가
+  verificationCode: string;
   expiresAt: string;
   pollIntervalSeconds?: number;
 }
@@ -18,17 +20,24 @@ interface VerificationStatusResponse {
 
 export function PhoneVerification() {
   const navigate = useNavigate();
+  const user = useAuthUser();
   const [phone, setPhone] = useState('');
   const [session, setSession] = useState<PhoneVerificationSession | null>(null);
   const [status, setStatus] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const pollingRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (user && user.phone_verified === true) {
+      navigate('/', { replace: true });
+      return;
+    }
+    
     const token = localStorage.getItem(LOGIN_TOKEN_KEY);
     if (!token) {
       navigate('/login', { replace: true });
     }
-  }, [navigate]);
+  }, [user, navigate]);
 
   useEffect(() => {
     if (!session) return;
@@ -36,17 +45,22 @@ export function PhoneVerification() {
     const poll = async () => {
       try {
         const token = localStorage.getItem(LOGIN_TOKEN_KEY) || '';
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/phone-verification/status?sessionId=${session.sessionId}`, {
-          headers: { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': '69420' },
+        const data = await apiRequest<VerificationStatusResponse>(`/api/phone-verification/status?sessionId=${session.sessionId}`, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'ngrok-skip-browser-warning': '69420'
+          },
         });
-        const data = await res.json() as VerificationStatusResponse;
         
         if (data.status === 'verified') {
-          setStatus('휴대폰 인증 성공! 로그인 처리 중...');
+          setStatus('verified');
+          if (user) {
+            loginUser({ ...user, phone_verified: true });
+          }
           if (pollingRef.current) window.clearInterval(pollingRef.current);
-          setTimeout(() => navigate('/', { replace: true }), 800);
+          setTimeout(() => navigate('/', { replace: true }), 1500);
         } else if (data.status === 'expired') {
-          setStatus('인증 시간이 만료되었습니다. 다시 시도해주세요.');
+          setStatus('expired');
           if (pollingRef.current) window.clearInterval(pollingRef.current);
         }
       } catch (err) {
@@ -57,103 +71,189 @@ export function PhoneVerification() {
     const intervalMs = session.pollIntervalSeconds ? session.pollIntervalSeconds * 1000 : 3000;
     pollingRef.current = window.setInterval(poll, intervalMs);
     return () => { if (pollingRef.current) window.clearInterval(pollingRef.current); };
-  }, [session, navigate]);
+  }, [session, navigate, user]);
 
   const startVerification = async () => {
+    if (!phone) return;
+    setIsLoading(true);
     const token = localStorage.getItem(LOGIN_TOKEN_KEY) || '';
-    if (!token) return navigate('/login');
-
+    
     try {
-      // start session (Octomo MO 인증 시작)
       const startResp = await apiRequest<PhoneVerificationSession>('/api/phone-verification/start', { 
         method: 'POST', 
-        headers: { Authorization: `Bearer ${token}` }, 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': '69420'
+        }, 
         body: { phoneNumber: phone } 
       });
       
       setSession(startResp);
-      setStatus('인증 대기 중...');
+      setStatus('pending');
     } catch (err) {
       console.error(err);
-      setStatus('인증 시작에 실패했습니다. 다시 시도해주세요.');
+      const errMsg = err instanceof Error ? err.message : '알 수 없는 오류';
+      alert(`인증 시작에 실패했습니다. (${errMsg})\n다시 시도해주세요.`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const resetSession = () => {
+    if (pollingRef.current) window.clearInterval(pollingRef.current);
+    setSession(null);
+    setStatus('');
+  };
+
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-white px-6 text-center">
-      <div className="text-3xl font-black text-gray-900">휴대폰 소유 확인</div>
-      {!session ? (
-        <div className="mt-6 w-full max-w-md">
-          <label className="block text-left text-sm font-medium text-gray-700">휴대폰 번호 (예: 01012345678)</label>
-          <input 
-            value={phone} 
-            onChange={(e) => setPhone(e.target.value)} 
-            placeholder="01012345678"
-            className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-yellow-500 focus:outline-none" 
-          />
-          <button onClick={startVerification} className="mt-4 w-full rounded bg-yellow-400 px-4 py-2 font-bold hover:bg-yellow-500 transition-colors">
-            인증 시작하기
-          </button>
-          <p className="mt-4 text-sm text-gray-500">
-            안내에 따라 본인 휴대폰에서 지정된 번호로 문자를 전송하면 인증이 완료됩니다.
-          </p>
+    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-[440px] bg-white rounded-3xl shadow-xl shadow-gray-200/50 overflow-hidden border border-gray-100">
+        {/* Header Section */}
+        <div className="bg-black p-8 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 mb-4">
+            <ShieldCheck className="w-8 h-8 text-blue-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">휴대폰 본인 확인</h1>
+          <p className="text-gray-400 text-sm">안전한 서비스 이용을 위해 인증이 필요합니다.</p>
         </div>
-      ) : (
-        <div className="mt-6 w-full max-w-md text-left">
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 mb-6">
-            <p className="text-sm font-bold text-blue-800 mb-4">아래 정보를 확인하여 문자를 보내주세요:</p>
-            
-            <div className="space-y-4">
-              <div>
-                <span className="text-xs text-blue-600 font-semibold uppercase tracking-wider">받는 사람</span>
-                <div className="text-2xl font-mono font-black text-blue-900">{session.receiverNumber}</div>
+
+        <div className="p-8">
+          {!session ? (
+            <div className="space-y-6">
+              <div className="space-y-2 text-left">
+                <label className="text-sm font-bold text-gray-700 ml-1">휴대폰 번호</label>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input 
+                    type="tel"
+                    value={phone} 
+                    onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))} 
+                    placeholder="숫자만 입력해 주세요"
+                    className="w-full h-14 pl-12 pr-4 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-black focus:ring-4 focus:ring-black/5 transition-all outline-none font-medium text-lg" 
+                  />
+                </div>
               </div>
-              
-              <div>
-                <span className="text-xs text-blue-600 font-semibold uppercase tracking-wider">문자 내용</span>
-                <div className="text-4xl font-mono font-black text-blue-900 tracking-widest">{session.verificationCode}</div>
+
+              <button 
+                onClick={startVerification} 
+                disabled={isLoading || !phone}
+                className="group w-full h-14 bg-black text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-zinc-800 active:scale-[0.98] transition-all disabled:bg-gray-200 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <RefreshCw className="w-6 h-6 animate-spin" />
+                ) : (
+                  <>
+                    인증 시작하기
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
+              </button>
+
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex gap-3 text-left">
+                  <div className="shrink-0 w-5 h-5 rounded-full bg-blue-50 flex items-center justify-center">
+                    <span className="text-[10px] font-bold text-blue-500">i</span>
+                  </div>
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    본인 명의의 휴대폰으로만 인증이 가능합니다. 별도의 발송 비용 없이 옥토모(OCTOMO) 시스템을 통해 안전하게 진행됩니다.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {/* Step 1: Send Message */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-xs font-bold">1</span>
+                  <h2 className="font-bold text-gray-900">문자 메시지 보내기</h2>
+                </div>
 
-          <div className="space-y-3">
-            <p className="text-sm text-gray-700 font-medium">
-              ✅ <span className="text-blue-600">{session.receiverNumber}</span> 번호로 <span className="text-blue-600 font-bold">{session.verificationCode}</span> 숫자를 문자(SMS)로 보내주세요.
-            </p>
-            <p className="text-sm text-gray-600">
-              ✅ 문자 전송 후 잠시 기다리시면 인증이 자동으로 완료됩니다.
-            </p>
-            <p className="text-xs text-gray-400">
-              만료 시간: {new Date(session.expiresAt).toLocaleString()}
-            </p>
-          </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">받는 사람</span>
+                    <span className="text-lg font-black text-gray-900 font-mono tracking-tighter">{session.receiverNumber}</span>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block mb-1">문자 내용</span>
+                    <span className="text-2xl font-black text-blue-600 font-mono tracking-widest">{session.verificationCode}</span>
+                  </div>
+                </div>
+              </div>
 
-          <div className="mt-8 flex items-center justify-center gap-3 py-3 px-4 bg-gray-50 rounded-lg">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-            <div className="text-sm font-bold text-gray-600">{status}</div>
-          </div>
+              {/* Status Display */}
+              <div className="relative">
+                {status === 'verified' ? (
+                  <div className="bg-emerald-50 text-emerald-600 p-6 rounded-2xl border border-emerald-100 flex flex-col items-center gap-2 animate-in zoom-in-95 duration-300">
+                    <CheckCircle2 className="w-10 h-10" />
+                    <span className="font-bold text-lg">인증이 완료되었습니다!</span>
+                  </div>
+                ) : status === 'expired' ? (
+                  <div className="bg-red-50 text-red-600 p-6 rounded-2xl border border-red-100 text-center space-y-3">
+                    <p className="font-bold">인증 시간이 만료되었습니다.</p>
+                    <button 
+                      onClick={resetSession}
+                      className="text-sm underline font-bold"
+                    >
+                      다시 시도하기
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 flex flex-col items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></div>
+                      </div>
+                      <span className="text-sm font-bold text-gray-600">인증 대기 중입니다...</span>
+                    </div>
+                    <p className="text-xs text-gray-400 text-center leading-relaxed">
+                      문자를 보내시면 자동으로 확인됩니다.<br/>잠시만 기다려 주세요.
+                    </p>
+                  </div>
+                )}
+              </div>
 
-          {/* 개발용 테스트 버튼 */}
-          <div className="mt-10 p-4 border-2 border-dashed border-yellow-200 rounded-lg bg-yellow-50">
-            <p className="text-xs font-bold text-yellow-700 mb-2">⚠️ 개발자 전용 (테스트용)</p>
-            <button
-              onClick={async () => {
-                try {
-                  await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/phone-verification/mock-verify`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId: session.sessionId })
-                  });
-                  setStatus('Mock 인증 요청 완료. 잠시만 기다려주세요...');
-                } catch (err) {
-                  console.error('Mock verify failed', err);
-                }
-              }}
-              className="w-full py-2 bg-gray-800 text-white text-xs font-bold rounded hover:bg-black transition-colors"
-            >
-              인증 강제 완료 처리 (SMS 무시)
-            </button>
-          </div>
+              {/* Instructions */}
+              <div className="space-y-3 text-left bg-zinc-50 p-4 rounded-2xl border border-zinc-100">
+                <div className="flex gap-3">
+                  <MessageSquare className="w-4 h-4 text-zinc-400 mt-0.5" />
+                  <p className="text-xs text-zinc-600 leading-normal">
+                    본인의 휴대폰에서 <span className="font-bold text-zinc-900">{session.receiverNumber}</span> 번호로 <span className="font-bold text-zinc-900">{session.verificationCode}</span> 숫자만 입력하여 전송해 주세요.
+                  </p>
+                </div>
+                <button 
+                  onClick={resetSession}
+                  className="w-full mt-2 text-[10px] text-zinc-400 hover:text-zinc-600 transition-colors"
+                >
+                  입력한 번호가 틀리셨나요? 처음으로 돌아가기
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Development/Test Section (Visible only in dev if needed) */}
+      {session && status === 'pending' && (
+        <div className="mt-8 opacity-20 hover:opacity-100 transition-opacity">
+          <button
+            onClick={async () => {
+              try {
+                await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/phone-verification/mock-verify`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sessionId: session.sessionId })
+                });
+              } catch (err) {
+                console.error('Mock verify failed', err);
+              }
+            }}
+            className="text-[10px] bg-gray-200 px-3 py-1 rounded-full font-mono"
+          >
+            DEBUG: Force Verify
+          </button>
         </div>
       )}
     </main>

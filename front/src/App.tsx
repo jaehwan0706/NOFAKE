@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { BrowserRouter, Outlet, Routes, Route, useLocation } from "react-router";
-import { Header } from "./components/Header";
+import { BrowserRouter, Outlet, Routes, Route, useLocation, useNavigate } from "react-router";
+import { Header, useAuthUser } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { Home } from "./pages/main/Home";
 import { RafflesPage } from "./pages/raffle/RafflesPage";
@@ -31,6 +31,21 @@ import { HowItWorksPage } from "./pages/about/HowItWorksPage";
 import { PartnerPage } from "./pages/partnership/PartnerPage";
 
 function Root() {
+  const user = useAuthUser();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // 💡 휴대폰 인증 가드: 로그인 상태인데 인증이 안 되어 있고, 현재 인증 페이지가 아니라면 강제 이동
+    const publicPaths = ["/login", "/auth/kakao/callback", "/verify-phone"];
+    const isPublicPath = publicPaths.some(path => location.pathname === path || location.pathname.startsWith(path + "/"));
+
+    if (user && user.phone_verified === false && !isPublicPath) {
+      console.warn("📱 휴대폰 인증 필요: /verify-phone으로 리다이렉트");
+      navigate("/verify-phone", { replace: true });
+    }
+  }, [user, location.pathname, navigate]);
+
   return (
     <>
       <Header />
@@ -69,19 +84,12 @@ export default function App() {
           <Route index element={<Home />} />
 
           {/* 2. 서비스 소개 */}
-          {/* nofake 소개 */}
           <Route path="about" element={<NOFAKEservicePage />} />
-          {/* 핵심 가치 - 공정성 */}
           <Route path="about/fairness" element={<FairnessPage />} />
-          {/* 핵심 가치 - 투명성 */}
           <Route path="about/transparency" element={<TransparencyPage />} />
-          {/* 핵심 가치 - 신뢰 */}
           <Route path="about/trust" element={<TrustPage />} />
-          {/* 회사소개 */}
           <Route path="company" element={<CompanyPage />} />
-          {/* 브랜드 소개 */}
           <Route path="brands" element={<BrandsPage />} />
-          {/* 래플 참여 방법 */}
           <Route path="how-it-works" element={<HowItWorksPage />} />
 
           {/* 3. 래플 이벤트 */}
@@ -89,41 +97,30 @@ export default function App() {
 
           {/* 4. 포인트 거래 */}
           <Route path="point-swap" element={<PointSwapPage />} />
-          {/* Admin Dashboard */}
           <Route path="admin" element={<AdminDashboardPage />} />
 
           {/* 5. 고객센터 */}
           <Route path="support" element={<Support />} />
-          {/* 공지사항 */}
           <Route path="notice" element={<Notice />} />
-          {/* FAQ */}
           <Route path="faq" element={<FAQ />} />
-          {/* 이용약관 */}
           <Route path="terms" element={<Terms />} />
-          {/* 개인정보방침 */}
           <Route path="privacy" element={<Privacy />} />
-          {/* 1:1 문의하기 */}
-          <Route path="/support/contact" element={<ContactSupport />} />
+          <Route path="support/contact" element={<ContactSupport />} />
 
           {/* 6. 파트너쉽 문의 */}
           <Route path="partnership" element={<Partnership />} />
-          {/* 파트너 혜택 - 대규모 고객 접근 */}
           <Route path="partnership/audience" element={<MassAccessPage />} />
-          {/* 파트너 혜택 - 빠른 캠페인 런칭 */}
           <Route path="partnership/launch" element={<FastLaunchPage />} />
-          {/* 파트너 혜택 - 전담 매니저 지원 */}
           <Route path="partnership/manager" element={<ManagerSupportPage />} />
-          {/* 파트너 혜택 - 파트너사 현황 */}
           <Route path="partnership/status" element={<PartnershipStatusPage />} />
-          {/* 브랜드 입점 문의 */}
           <Route path="partnership/brand" element={<PartnerPage />} />
+          
           {/* 7. 로그인  */}
           <Route path="login" element={<Login />} />
-          <Route path="/auth/kakao/callback" element={<KakaoCallback />} />
-          <Route path="/verify-phone" element={<PhoneVerification />} />
+          <Route path="auth/kakao/callback" element={<KakaoCallback />} />
+          <Route path="verify-phone" element={<PhoneVerification />} />
           
-          
-          {/* 8. 마이페이지 (로그인 후 활성화) */}
+          {/* 8. 마이페이지 */}
           <Route path="mypage" element={<MyPage />} />
 
           {/* 예외 처리 */}
