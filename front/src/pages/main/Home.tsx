@@ -174,7 +174,7 @@ const testimonials = [
   },
   {
     name: "백재민",
-    handle: "@jieun.picks",
+    handle: "@jaemin.picks",
     brand: "New Balance 990v6",
     text: "1,000명 넘는 응모에서 당첨된 게 아직도 믿기지 않아요. 당첨자 발표 때 내 이름 옆에 블록체인 해시가 붙어 있는 거 보고 소름 돋았습니다.",
     verified: true,
@@ -183,7 +183,7 @@ const testimonials = [
   },
   {
     name: "성광",
-    handle: "@jieun.picks",
+    handle: "@sungkwang.dev",
     brand: "New Balance 990v6",
     text: "1,000명 넘는 응모에서 당첨된 게 아직도 믿기지 않아요. 당첨자 발표 때 내 이름 옆에 블록체인 해시가 붙어 있는 거 보고 소름 돋았습니다.",
     verified: true,

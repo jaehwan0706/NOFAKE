@@ -1,0 +1,18 @@
+{
+  "name": "NOFAKE #20",
+  "description": "주최자도 개입할 수 없는 투명한 추첨 시스템, NOFAKE를 통한 무신사 특별 이벤트 참여 기념 티켓입니다.",
+  "image": "https://nofake.s3.ap-northeast-2.amazonaws.com/images/musinsa-event/gg.png",
+  "attributes": [
+    { "trait_type": "Event Name", "value": "무신사 특별 이벤트" },
+    { "trait_type": "Issuer", "value": "MUSINSA" },
+    { "trait_type": "Contract Address", "value": "" },
+    { 
+      "display_type": "date", 
+      "trait_type": "Minted Date", 
+      "value": 0 
+    },
+    { "trait_type": "Status", "value": "Revealed" },
+    { "trait_type": "Winning Prize", "value": "꽝: 참여 기념 티켓" },
+    { "trait_type": "Provenance Hash", "value": "" }
+  ]
+}
