@@ -362,16 +362,17 @@ export function Header() {
                 {isUserMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-xl">
                     <div className="border-b border-white/10 px-4 py-3">
-                      <p className="text-sm font-bold text-white">{user.name}</p>
+                      <p style={{ color: "#ffffff" }} className="text-sm font-bold">{user.name}</p>
                       {user.email && (
-                        <p className="mt-0.5 truncate text-xs text-gray-400">{user.email}</p>
+                        <p style={{ color: "#9ca3af" }} className="mt-0.5 truncate text-xs">{user.email}</p>
                       )}
                     </div>
                     <div className="p-1.5">
                       <Link
                         to="/mypage"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                        style={{ color: "#ffffff" }}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-white/5"
                       >
                         <User className="h-4 w-4" />
                         마이페이지
@@ -379,7 +380,8 @@ export function Header() {
                       <Link
                         to="/mypage?tab=points"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                        style={{ color: "#ffffff" }}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-white/5"
                       >
                         <Gift className="h-4 w-4" />
                         포인트
@@ -387,7 +389,8 @@ export function Header() {
                       <Link
                         to="/mypage?tab=settings"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                        style={{ color: "#ffffff" }}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-white/5"
                       >
                         <Settings className="h-4 w-4" />
                         설정
