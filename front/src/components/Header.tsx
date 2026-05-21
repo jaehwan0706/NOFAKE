@@ -126,12 +126,10 @@ const NAV_ITEMS = [
           ],
         },
         {
-          title: "카테고리",
+          title: "진행 중인 래플",
           items: [
-            { icon: <Ticket className="h-4 w-4" />, name: "스니커즈", desc: "운동화 & 라이프스타일", path: "/raffles?category=sneakers" },
-            { icon: <Ticket className="h-4 w-4" />, name: "의류", desc: "스트리트 & 하이엔드", path: "/raffles?category=clothing" },
-            { icon: <Ticket className="h-4 w-4" />, name: "액세서리", desc: "백 · 시계 · 주얼리", path: "/raffles?category=accessories" },
-            { icon: <Ticket className="h-4 w-4" />, name: "한정판", desc: "희소성 높은 컬렉터블", path: "/raffles?category=limited" },
+            { icon: <Ticket className="h-4 w-4" />, name: "Nike 래플", desc: "Jordan 1 High OG Chicago", path: "/raffles/nike" },
+            { icon: <Ticket className="h-4 w-4" />, name: "무신사 래플", desc: "Musinsa Standard Oversized Hoodie", path: "/raffles/musinsa" },
           ],
         },
       ],

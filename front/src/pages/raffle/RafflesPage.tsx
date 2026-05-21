@@ -42,11 +42,11 @@ const fallbackItems: RaffleItem[] = [
   },
   {
     id: 2,
-    brand: "Adidas",
-    title: "Yeezy Boost 350 V2 Onyx",
-    category: "스니커즈",
-    image: "https://images.unsplash.com/photo-1600185365483-26d7a4cc7519",
-    entryPeriod: "2026.05.07 - 2026.05.12",
+    brand: "Musinsa",
+    title: "무신사 스탠다드 오버사이즈 후디",
+    category: "의류",
+    image: "https://images.unsplash.com/photo-1556905055-8f358a7a47b2",
+    entryPeriod: "2026.05.15 - 2026.05.22",
     participants: 12105,
     status: "MINTING",
     hasParticipated: false,
@@ -233,8 +233,10 @@ export const RafflesPage = () => {
                 onClick={() => {
                   if (!user) {
                     navigate("/login");
-                  } else if (item.brand.toLowerCase() === "nike") {
+                  } else if (item.id === 1) {
                     navigate("/raffles/nike");
+                  } else if (item.id === 2) {
+                    navigate("/raffles/musinsa");
                   } else {
                     handleJoin(item);
                   }

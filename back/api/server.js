@@ -1435,13 +1435,17 @@ app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
   }
 });
 
-// POST 포인트 민트 (테스트 충전용) - requires authentication
+// POST 포인트 민트 (래플 보상용) - requires authentication
+// fromBrand: optional brand identifier for the rewarding raffle (e.g. 'MUSINSA', 'NIKE').
+//            Defaults to 'RAFFLE' when omitted, preserving backwards-compatibility.
 app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
   try {
-    const { walletAddress, brand, amount } = req.body || {};
+    const { walletAddress, brand, amount, fromBrand } = req.body || {};
     if (!walletAddress || !brand || !amount) return res.status(400).json({ error: 'walletAddress, brand, amount required' });
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ error: 'amount must be a positive number' });
+
+    const sourceBrand = fromBrand ? String(fromBrand).toUpperCase() : 'RAFFLE';
 
     if (useFabricMock) {
       // Update local DB
@@ -1451,7 +1455,7 @@ app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
       const current = await getOrCreatePointBalance(normalized);
       current[key] = Number(current[key]) + amt;
       await PointBalance.upsert({ walletAddress: normalized, nofake: current.nofake, nike: current.nike, musinsa: current.musinsa });
-      PointTransaction.create({ walletAddress: normalized, type: 'earn', fromBrand: 'RAFFLE', toBrand: brand.toUpperCase(), amount: amt, fee: 0 })
+      PointTransaction.create({ walletAddress: normalized, type: 'earn', fromBrand: sourceBrand, toBrand: brand.toUpperCase(), amount: amt, fee: 0 })
         .catch(e => console.warn('PointTransaction record failed:', e.message));
       return res.json({ success: true, data: current });
     }
@@ -1463,7 +1467,7 @@ app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
       const resultBytes = await tx.submit(walletAddress, brand.toUpperCase(), String(amt));
       const result = JSON.parse(resultBytes.toString());
       const normalized = normalizeWalletAddress(walletAddress) || walletAddress;
-      PointTransaction.create({ walletAddress: normalized, type: 'earn', fromBrand: 'RAFFLE', toBrand: brand.toUpperCase(), amount: amt, fee: 0, txId: tx.getTransactionId() })
+      PointTransaction.create({ walletAddress: normalized, type: 'earn', fromBrand: sourceBrand, toBrand: brand.toUpperCase(), amount: amt, fee: 0, txId: tx.getTransactionId() })
         .catch(e => console.warn('PointTransaction record failed:', e.message));
       return res.json({ success: true, data: result, txId: tx.getTransactionId() });
     } finally {
@@ -1661,19 +1665,18 @@ const ensureTestData = async () => {
 ensureSchema().then(async () => {
   await ensureTestData();
 
-  // Seed Nike raffle (id=1) if not present — required by POST /api/mint
-  try {
-    const [, created] = await Raffle.findOrCreate({
-      where: { id: 1 },
-      defaults: {
-        title: 'Jordan 1 High OG Chicago',
-        category: 'sneakers',
-        status: 'MINTING',
-      },
-    });
-    if (created) console.log('✅ Raffle id=1 seeded');
-  } catch (e) {
-    console.error('❌ Raffle seed failed:', e.message);
+  // Seed raffles if not present — required by POST /api/mint
+  const RAFFLE_SEEDS = [
+    { id: 1, title: 'Jordan 1 High OG Chicago',             category: 'sneakers', status: 'MINTING' },
+    { id: 2, title: 'Musinsa Standard Oversized Hoodie',    category: 'clothing', status: 'MINTING' },
+  ];
+  for (const seed of RAFFLE_SEEDS) {
+    try {
+      const [, created] = await Raffle.findOrCreate({ where: { id: seed.id }, defaults: seed });
+      if (created) console.log(`✅ Raffle id=${seed.id} seeded: ${seed.title}`);
+    } catch (e) {
+      console.error(`❌ Raffle id=${seed.id} seed failed:`, e.message);
+    }
   }
 
   app.listen(PORT, () => {

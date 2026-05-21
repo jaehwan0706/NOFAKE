@@ -31,6 +31,7 @@ import { BrandsPage } from "./pages/about/BrandsPage";
 import { HowItWorksPage } from "./pages/about/HowItWorksPage";
 import { PartnerPage } from "./pages/partnership/PartnerPage";
 import { NikeRafflePage } from "./pages/raffle/NikeRafflePage";
+import { MusinsaRafflePage } from "./pages/raffle/MusinsaRafflePage";
 
 function Root() {
   const user = useAuthUser();
@@ -97,6 +98,7 @@ export default function App() {
           {/* 3. 래플 이벤트 */}
           <Route path="raffles" element={<RafflesPage />} />
           <Route path="raffles/nike" element={<NikeRafflePage />} />
+          <Route path="raffles/musinsa" element={<MusinsaRafflePage />} />
 
           {/* 4. 포인트 거래 */}
           <Route path="point-swap" element={<PointSwapPage />} />
