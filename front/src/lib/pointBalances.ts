@@ -6,8 +6,6 @@ export interface PointBalances {
   musinsa: number;
 }
 
-const LOGIN_TOKEN_KEY = "nofakeAccessToken";
-
 export async function fetchPointBalances(token: string | null): Promise<PointBalances> {
   if (!token) {
     throw new Error("로그인 토큰이 없습니다.");

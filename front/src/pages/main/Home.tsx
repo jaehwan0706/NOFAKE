@@ -86,6 +86,7 @@ const pointPartners = [
   { name: "MUSINSA", className: "left-[5%] top-[36%] bg-black text-white" },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const partnershipPartners = [
   { name: "NIKE", className: "left-[12%] top-[22%] bg-black text-white" },
   { name: "MUSINSA", className: "right-[8%] top-[16%] bg-white text-black" },

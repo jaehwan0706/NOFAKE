@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router"; // 페이지 이동을 위해 추가
+import { Link } from "react-router-dom"; // 페이지 이동을 위해 추가
 import {
   Search,
   ChevronDown,

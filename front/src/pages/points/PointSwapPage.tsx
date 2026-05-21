@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
-import { useAuthUser } from "../../components/Header";
-import { fetchPointBalances } from "../../lib/pointBalances";
-import type { PointBalances } from "../../lib/pointBalances";
+import { useNavigate } from "react-router-dom";
+import { useAuthUser } from "../../lib/authUser";
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string) ?? "";
@@ -61,7 +59,7 @@ function BrandCard({ brand, selected, onSelect }: { brand: any; selected: boolea
   );
 }
 
-function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLoginRequired }: { direction: SwapDirection; fromBrand: any; toBrand: any; myBalances: { nofake: number; nike: number; musinsa: number }; onSuccess: (amount: number) => void; onLoginRequired: () => void }) {
+function SwapPanel({ fromBrand, toBrand, myBalances, onSuccess, onLoginRequired }: { direction: SwapDirection; fromBrand: any; toBrand: any; myBalances: { nofake: number; nike: number; musinsa: number }; onSuccess: (amount: number) => void; onLoginRequired: () => void }) {
   const [amount, setAmount] = useState("");
   const [done, setDone] = useState(false);
   const user = useAuthUser();
@@ -69,7 +67,6 @@ function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLog
   const inputNum = parseInt(amount.replace(/,/g, "")) || 0;
   
   // Calculate fee: apply 5% when either side is NoFake
-  const toBrandKey = toBrand === BRANDS.nofake ? "nofake" : toBrand === BRANDS.nike ? "nike" : "musinsa";
   const fee = (fromBrand === BRANDS.nofake || toBrand === BRANDS.nofake) ? Math.floor(inputNum * (NOFAKE_FEE_PERCENT / 100)) : 0;
   const receive = inputNum - fee;
   
@@ -99,7 +96,7 @@ function SwapPanel({ direction, fromBrand, toBrand, myBalances, onSuccess, onLog
           body: JSON.stringify({ fromBrand: fromBrandName, toBrand: toBrandName, amount: inputNum })
         });
         if (res.ok) {
-          const body = await res.json();
+          await res.json().catch(() => null);
           onSuccess(inputNum);
         } else {
           console.error('Swap failed', await res.text());
@@ -237,7 +234,7 @@ export const PointSwapPage = () => {
       } else {
         setMyBalances({ nofake: 0, nike: 0, musinsa: 0 });
       }
-    } catch (error) {
+    } catch {
       console.error("포인트 정보를 가져오는데 실패했습니다.");
       setMyBalances({ nofake: 0, nike: 0, musinsa: 0 });
     } finally {
@@ -268,8 +265,7 @@ export const PointSwapPage = () => {
   };
 
   // Determine from and to brands based on direction
-  let fromBrand, toBrand;
-  let availableBrands: any[] = [];
+  let fromBrand, toBrand, availableBrands;
 
   if (direction === "from-nofake") {
     fromBrand = BRANDS.nofake;

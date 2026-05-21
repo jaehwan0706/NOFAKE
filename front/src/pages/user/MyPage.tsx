@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
-import { useAuthUser, logoutUser, loginUser } from "../../components/Header"; // ✅ loginUser 추가
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuthUser, logoutUser, loginUser } from "../../lib/authUser";
 import { fetchPointBalances } from "../../lib/pointBalances";
 
 const API_BASE_URL =
@@ -481,7 +481,7 @@ export const MyPage = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [points, setPoints] = useState<number>(0);
   const [raffleHistory, setRaffleHistory] = useState<RaffleItem[]>([]);
-  const [pointHistory, setPointHistory] = useState<PointHistoryItem[]>([]);
+  const [, setPointHistory] = useState<PointHistoryItem[]>([]);
   const [stats, setStats] = useState<Stats>({ totalApply: 0, winCount: 0, winRate: "0.0", activeCount: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [debugLog, setDebugLog] = useState<string | null>(null);

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import { BrowserRouter, Outlet, Routes, Route, useLocation, useNavigate } from "react-router";
-import { Header, useAuthUser } from "./components/Header";
+import { BrowserRouter, Outlet, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { Header } from "./components/Header";
+import { useAuthUser } from "./lib/authUser";
 import { Footer } from "./components/Footer";
 import { Home } from "./pages/main/Home";
 import { RafflesPage } from "./pages/raffle/RafflesPage";
@@ -31,6 +32,7 @@ import { BrandsPage } from "./pages/about/BrandsPage";
 import { HowItWorksPage } from "./pages/about/HowItWorksPage";
 import { PartnerPage } from "./pages/partnership/PartnerPage";
 import { NikeRafflePage } from "./pages/raffle/NikeRafflePage";
+import { MusinsaRafflePage } from "./pages/raffle/MusinsaRafflePage";
 
 function Root() {
   const user = useAuthUser();
@@ -97,6 +99,7 @@ export default function App() {
           {/* 3. 래플 이벤트 */}
           <Route path="raffles" element={<RafflesPage />} />
           <Route path="raffles/nike" element={<NikeRafflePage />} />
+          <Route path="raffles/musinsa" element={<MusinsaRafflePage />} />
 
           {/* 4. 포인트 거래 */}
           <Route path="point-swap" element={<PointSwapPage />} />

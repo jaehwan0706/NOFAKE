@@ -57,6 +57,7 @@ const STATS = [
   { value: "5M+",  label: "누적 추첨 처리 건수" },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const TECH = [
   { icon: "⛓",  title: "Private Blockchain", desc: "하이퍼레저 패브릭 기반의 독자적인 원장 구조 설계" },
   { icon: "📜",  title: "Smart Contract",     desc: "조작 불가능한 온체인 추첨 로직 구현" },

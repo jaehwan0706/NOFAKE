@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 import { ChevronUp, MessageCircle, Shield, CheckCircle, Lock } from "lucide-react";
 
 function InstagramIcon({ size = 16 }: { size?: number }) {
