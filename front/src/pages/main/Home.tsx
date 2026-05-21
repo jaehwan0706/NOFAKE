@@ -57,14 +57,26 @@ const trustStats = [
 ];
 
 const raffleItems = [
-  { brand: "NIKE", title: "Air Jordan 1 Retro High OG", participants: "120,000명", days: "D-3", prize: "한정판 스니커즈 · 5명", color: "#111111", logo: "NIKE" },
-  { brand: "Supreme", title: "Box Logo Hoodie", participants: "85,000명", days: "D-3", prize: "박스로고 후드 · 3명", color: "#ED1C24", logo: "Supreme" },
-  { brand: "MUSINSA", title: "한정 컬래버 패션 세트", participants: "95,000명", days: "D-3", prize: "컬래버 패션 세트 · 10명", color: "#222222", logo: "musinsa" },
-  { brand: "Adidas", title: "Samba OG Cloud White", participants: "72,000명", days: "D-4", prize: "한정판 스니커즈 · 7명", color: "#0F172A", logo: "adidas" },
-  { brand: "New Balance", title: "Made in USA 990v6", participants: "68,000명", days: "D-5", prize: "프리미엄 스니커즈 · 4명", color: "#334155", logo: "NB" },
+  { brand: "NIKE", title: "Air Jordan 1 Retro High OG", participants: "120,000명", days: "D-3", prize: "한정판 스니커즈 · 5명", color: "#111111", logo: "/brands/nike2.png", },
+  { brand: "Supreme", title: "Box Logo Hoodie", participants: "85,000명", days: "D-3", prize: "박스로고 후드 · 3명", color: "#ED1C24", logo: "/brands/supreme2.png" },
+  { brand: "MUSINSA", title: "한정 컬래버 패션 세트", participants: "95,000명", days: "D-3", prize: "컬래버 패션 세트 · 10명", color: "#222222", logo: "/brands/musinsa2.png" },
+  { brand: "Adidas", title: "Samba OG Cloud White", participants: "72,000명", days: "D-4", prize: "한정판 스니커즈 · 7명", color: "#0F172A", logo: "/brands/adidas2.png" },
+  { brand: "New Balance", title: "Made in USA 990v6", participants: "68,000명", days: "D-5", prize: "프리미엄 스니커즈 · 4명", color: "#334155", logo: "/brands/newbalance2.png" },
 ];
+// 텍스트 브랜드 로고
+// const partnerBrands = ["NIKE", "adidas", "MUSINSA", "Supreme", "JORDAN", "New Balance", "PUMA", "CONVERSE"];
 
-const partnerBrands = ["NIKE", "adidas", "MUSINSA", "Supreme", "JORDAN", "New Balance", "PUMA", "CONVERSE"];
+// 이미지 브랜드 로고
+const partnerBrands = [
+  { name: "NIKE", logo: "/brands/nike.svg" },
+  { name: "adidas", logo: "/brands/adidas.svg" },
+  { name: "MUSINSA", logo: "/brands/musinsa.jpeg" },
+  { name: "Supreme", logo: "/brands/supreme.png" },
+  { name: "JORDAN", logo: "/brands/jordan.svg" },
+  { name: "New Balance", logo: "/brands/newbalance.svg" },
+  { name: "PUMA", logo: "/brands/puma.svg" },
+  { name: "CONVERSE", logo: "/brands/converse.svg" },
+];
 
 const pointPartners = [
   { name: "NIKE", className: "left-[47%] top-[2%] bg-black text-white" },
@@ -155,7 +167,7 @@ const testimonials = [
     brand: "Nike Air Jordan 1",
     text: "진짜로 블록체인에서 검증하니까 믿음이 가요. 다른 래플 사이트는 당첨 기준이 불투명한데 nofake는 트랜잭션까지 직접 확인할 수 있어서 납득이 됩니다.",
     verified: true,
-    productImg: "AJ1",
+    productImg: "/brands/airjordan2.png",
     color: "#111",
   },
   {
@@ -164,7 +176,7 @@ const testimonials = [
     brand: "Supreme Box Logo",
     text: "Supreme 박스로고 후드 당첨됐을 때 반신반의했는데 수령 인증까지 완벽하게 됐어요. 친구들한테 무조건 추천하고 있습니다.",
     verified: true,
-    productImg: "SUP",
+    productImg: "/brands/supreme2.png",
     color: "#ED1C24",
   },
   {
@@ -173,7 +185,7 @@ const testimonials = [
     brand: "Adidas Samba OG",
     text: "포인트 교환이 생각보다 훨씬 편리해요. Nike 포인트를 adidas 래플 응모에 바로 쓸 수 있는 게 너무 좋습니다.",
     verified: true,
-    productImg: "ADI",
+    productImg: "/brands/adidas2.png",
     color: "#0F172A",
   },
   {
@@ -191,7 +203,7 @@ const testimonials = [
     brand: "New Balance 990v6",
     text: "1,000명 넘는 응모에서 당첨된 게 아직도 믿기지 않아요. 당첨자 발표 때 내 이름 옆에 블록체인 해시가 붙어 있는 거 보고 소름 돋았습니다.",
     verified: true,
-    productImg: "NB",
+    productImg: "/brands/newbalance2.png",
     color: "#334155",
   },
 ];
@@ -661,13 +673,37 @@ function ActiveRaffles() {
                   borderColor,
                 }}
               >
-                <div
+                {/* <div
                   className="flex h-24 items-center justify-center border-b border-white/10 text-2xl font-black text-white"
                   style={{
                     background: `linear-gradient(135deg, ${item.color}, #111827)`,
                   }}
                 >
                   {item.logo}
+                </div> */}
+                <div
+                  className="flex h-24 items-center justify-center border-b border-white/10"
+                  style={{
+                    background: `linear-gradient(135deg, ${item.color}, #111827)`,
+                  }}
+                >
+                  <img
+                    src={item.logo}
+                    alt={item.brand}
+                    className={`object-contain ${
+                      item.brand === "Supreme"
+                        ? "h-40 w-64"
+                        : item.brand === "MUSINSA"
+                        ? "h-40 w-64"
+                        : item.brand === "NIKE"
+                        ? "h-26 w-44"
+                        : item.brand === "Adidas"
+                        ? "h-30 w-44"
+                        : item.brand === "New Balance"
+                        ? "h-30 w-52"
+                        : "h-16 w-44"
+                    }`}
+                  />
                 </div>
                 <div className="p-7">
                   <p className="mb-2 text-xs font-semibold tracking-[0.14em] text-neutral-400">BRAND</p>
@@ -721,9 +757,29 @@ function TrustIndicators() {
         <div className="mt-14 text-center">
           <p className="mb-6 text-xs font-black tracking-[0.3em] text-neutral-400">PARTNER BRANDS</p>
           <div className="flex flex-wrap items-center justify-center gap-6">
-            {partnerBrands.map((brand) => (
+            {/* {partnerBrands.map((brand) => (
               <span key={brand} className="rounded-2xl border border-neutral-200 bg-white px-6 py-3 text-sm font-black text-neutral-700 shadow-sm">
                 {brand}
+              </span>
+            ))} */}
+            {partnerBrands.map((brand) => (
+              <span
+                key={brand.name}
+                className="flex h-24 w-60 items-center justify-center rounded-3xl border border-neutral-200 bg-white shadow-sm"
+              >
+                <img
+                  src={brand.logo}
+                  alt={brand.name}
+                  className={`object-contain ${
+                    brand.name === "CONVERSE"
+                      ? "h-8 w-28"
+                      : brand.name === "SUPREME"
+                      ? "h-10 w-28"
+                      : brand.name === "MUSINSA"
+                      ? "h-14 w-14"
+                      : "h-12 w-20"
+                  }`}
+                />
               </span>
             ))}
           </div>
@@ -805,13 +861,26 @@ function PartnerBrands() {
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-white via-white/80 to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-32 bg-gradient-to-l from-white via-white/80 to-transparent" />
         <div className="brand-marquee flex w-max items-center gap-4">
-          {marqueeBrands.map((brand, i) => (
+          {/* {marqueeBrands.map((brand, i) => (
             <button
               key={`${brand}-${i}`}
               onClick={() => go("/brands")}
               className="flex h-24 min-w-[240px] items-center justify-center rounded-3xl border border-neutral-200 bg-white px-10 text-2xl font-black tracking-tight text-neutral-950 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-md"
             >
               {brand}
+            </button>
+          ))} */}
+          {marqueeBrands.map((brand, i) => (
+            <button
+              key={`${brand.name}-${i}`}
+              onClick={() => go("/brands")}
+              className="flex h-28 w-[260px] items-center justify-center rounded-xl border border-neutral-200 bg-white px-8 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-md"
+            >
+              <img
+                src={brand.logo}
+                alt={brand.name}
+                className="h-12 w-auto max-w-[180px] object-contain"
+              />
             </button>
           ))}
         </div>
@@ -1026,10 +1095,14 @@ function Testimonials() {
             <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div
-                  className="flex h-14 w-14 items-center justify-center rounded-full text-sm font-black text-white shadow-lg"
+                  className="flex h-14 w-14 items-center justify-center rounded-full shadow-lg"
                   style={{ backgroundColor: t.color }}
                 >
-                  {t.productImg}
+                  <img
+                    src={t.productImg}
+                    alt={t.brand}
+                    className="h-24 w-24 object-contain"
+                  />
                 </div>
                 <div>
                   <p className="text-base font-black text-neutral-950">{t.name}</p>
@@ -1079,10 +1152,14 @@ function Testimonials() {
               >
                 {/* Avatar */}
                 <div
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-xs font-black text-white shadow"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full shadow"
                   style={{ backgroundColor: item.color }}
                 >
-                  {item.productImg}
+                  <img
+                    src={item.productImg}
+                    alt={item.brand}
+                    className="h-16 w-16 object-contain"
+                  />
                 </div>
 
                 {/* Text */}
