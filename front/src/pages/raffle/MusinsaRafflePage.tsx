@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -9,7 +9,7 @@ import {
   Ticket,
   XCircle,
 } from "lucide-react";
-import { useAuthUser } from "../../components/Header";
+import { useAuthUser } from "../../lib/authUser";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

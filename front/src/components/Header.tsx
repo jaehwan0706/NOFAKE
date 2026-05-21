@@ -163,17 +163,14 @@ export function Header() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const user = useAuthUser();
-  // ✅ 수정: name이 없거나 빈 문자열이면 "U" 대신 안전하게 처리
   const avatarInitial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
 
-  // 경로 변경 시 메뉴 닫기
   useEffect(() => {
     setOpenDropdown(null);
     setIsMobileMenuOpen(false);
     setIsUserMenuOpen(false);
   }, [location.pathname]);
 
-  // 외부 클릭 시 유저 메뉴 닫기
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
@@ -284,6 +281,18 @@ export function Header() {
 
           {/* 데스크탑 우측 */}
           <div className="hidden items-center gap-3 md:flex">
+            {/* 비로그인: 유저 아이콘만 */}
+            {!user && (
+              <button
+                onClick={() => navigate("/login")}
+                className="flex items-center justify-center rounded-full p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label="로그인"
+              >
+                <User className="h-5 w-5" />
+              </button>
+            )}
+
+            {/* 로그인: 아바타 + 유저 메뉴 */}
             {user && (
               <div className="relative" ref={userMenuRef}>
                 <button
@@ -293,7 +302,6 @@ export function Header() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
                     {avatarInitial}
                   </span>
-                  {/* ✅ 수정: user.name 직접 표시 (fallback 제거) */}
                   <span className="text-sm font-semibold text-white">{user.name}</span>
                   <ChevronDown
                     className={`h-3.5 w-3.5 text-gray-400 transition-transform ${isUserMenuOpen ? "rotate-180" : ""}`}
@@ -427,7 +435,6 @@ export function Header() {
                       {avatarInitial}
                     </span>
                     <div>
-                      {/* ✅ 수정: 모바일에서도 실제 이름 표시 */}
                       <p className="text-sm font-bold text-white">{user.name}</p>
                       {user.email && <p className="text-xs text-gray-400">{user.email}</p>}
                     </div>
@@ -452,7 +459,15 @@ export function Header() {
                   </button>
                 </div>
               ) : (
-                null
+                /* 비로그인 모바일: 로그인 링크 */
+                <Link
+                  to="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white"
+                >
+                  <User className="h-4 w-4" />
+                  로그인
+                </Link>
               )}
             </div>
           </div>
