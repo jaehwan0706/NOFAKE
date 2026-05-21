@@ -1416,6 +1416,8 @@ async function queryBalancesMock(walletAddress) {
   return getOrCreatePointBalance(walletAddress);
 }
 
+const ZERO_BALANCES = { nofake: 0, nike: 0, musinsa: 0 };
+
 // GET 잔액 조회 (체인코드 조회)
 app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
   try {
@@ -1423,12 +1425,28 @@ app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
     if (!walletAddress) return res.status(400).json({ error: 'walletAddress required' });
 
     if (useFabricMock) {
-      const balances = await queryBalancesMock(walletAddress);
+      const balances = (await queryBalancesMock(walletAddress)) ?? ZERO_BALANCES;
       return res.json({ success: true, data: balances });
     }
 
-    const balances = await queryBalancesFabric(walletAddress);
-    return res.json({ success: true, data: balances });
+    let balances;
+    try {
+      balances = await queryBalancesFabric(walletAddress);
+    } catch (fabricErr) {
+      const msg = fabricErr?.message || '';
+      const isNewUser =
+        msg.includes('state not found') ||
+        msg.includes('MVCC_READ_CONFLICT') ||
+        msg.includes('does not exist');
+      if (isNewUser) {
+        console.info(`[balance] new user ${walletAddress} — returning zero balances`);
+      } else {
+        console.error('/api/points/balance Fabric error:', fabricErr);
+      }
+      balances = null;
+    }
+
+    return res.json({ success: true, data: balances ?? ZERO_BALANCES });
   } catch (err) {
     console.error('/api/points/balance error:', err);
     return res.status(500).json({ error: err.message || 'server error' });
