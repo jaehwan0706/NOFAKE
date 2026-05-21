@@ -24,11 +24,13 @@ import { FastLaunchPage } from "./pages/partnership/FastLaunchPage";
 import { ManagerSupportPage } from "./pages/partnership/ManagerSupportPage";
 import { PartnershipStatusPage } from "./pages/partnership/PartnershipStatusPage";
 import { PointSwapPage } from "./pages/points/PointSwapPage";
+import { PointHistory } from "./pages/points/PointHistory";
 import { MyPage } from "./pages/user/MyPage";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import { BrandsPage } from "./pages/about/BrandsPage";
 import { HowItWorksPage } from "./pages/about/HowItWorksPage";
 import { PartnerPage } from "./pages/partnership/PartnerPage";
+import { NikeRafflePage } from "./pages/raffle/NikeRafflePage";
 
 function Root() {
   const user = useAuthUser();
@@ -94,9 +96,11 @@ export default function App() {
 
           {/* 3. 래플 이벤트 */}
           <Route path="raffles" element={<RafflesPage />} />
+          <Route path="raffles/nike" element={<NikeRafflePage />} />
 
           {/* 4. 포인트 거래 */}
           <Route path="point-swap" element={<PointSwapPage />} />
+          <Route path="points/history" element={<PointHistory />} />
           <Route path="admin" element={<AdminDashboardPage />} />
 
           {/* 5. 고객센터 */}

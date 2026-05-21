@@ -77,6 +77,36 @@ interface PointHistoryItem {
   type: string;
 }
 
+interface PointTx {
+  id: number;
+  type: "earn" | "swap";
+  fromBrand: string | null;
+  toBrand: string;
+  amount: number;
+  fee: number;
+  txId: string | null;
+  createdAt: string;
+}
+
+const BRAND_LABEL_MAP: Record<string, string> = {
+  NOFAKE: "nofake", NIKE: "나이키", MUSINSA: "무신사", RAFFLE: "래플",
+};
+const toBrandLabel = (key: string | null) =>
+  !key ? "" : (BRAND_LABEL_MAP[key.toUpperCase()] ?? key.toLowerCase());
+
+function formatTxDate(iso: string): string {
+  const d = new Date(iso);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${yyyy}/${mm}/${dd}/${hh}:${min}`;
+}
+
+const POINT_FILTERS = ["전체", "적립", "사용"] as const;
+type PointFilter = (typeof POINT_FILTERS)[number];
+
 interface MyPageResponse {
   profile?: UserProfile;
   points?: number;
@@ -192,7 +222,28 @@ function RafflesTab({ raffles, stats }: { raffles: RaffleItem[]; stats: Stats })
   );
 }
 
-function PointsTab({ points, history }: { points: number; history: PointHistoryItem[] }) {
+function PointsTab({ points }: { points: number }) {
+  const [txs, setTxs] = useState<PointTx[]>([]);
+  const [txLoading, setTxLoading] = useState(true);
+  const [txError, setTxError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<PointFilter>("전체");
+
+  useEffect(() => {
+    const token = localStorage.getItem(LOGIN_TOKEN_KEY);
+    if (!token) { setTxLoading(false); return; }
+    setTxLoading(true);
+    setTxError(null);
+    fetch(`${API_BASE_URL}/api/points/history`, {
+      headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "69420" },
+    })
+      .then(res => res.ok ? res.json() : res.json().then((b: { error?: string }) => Promise.reject(b.error || `오류 (${res.status})`)))
+      .then((body: { success: boolean; data: PointTx[] }) => setTxs(body.data ?? []))
+      .catch(e => setTxError(typeof e === "string" ? e : "거래 내역 조회 실패"))
+      .finally(() => setTxLoading(false));
+  }, []);
+
+  const filtered = filter === "전체" ? txs : txs.filter(tx => filter === "적립" ? tx.type === "earn" : tx.type === "swap");
+
   return (
     <div>
       <div style={{ background: T.navy, borderRadius: "1.5rem", padding: "36px 32px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
@@ -202,21 +253,42 @@ function PointsTab({ points, history }: { points: number; history: PointHistoryI
         </div>
         <Link to="/point-swap" style={{ padding: "13px 28px", background: T.blue, color: "#fff", borderRadius: 10, fontWeight: 800, textDecoration: "none", fontSize: ".9rem" }}>포인트 교환하기 →</Link>
       </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        {POINT_FILTERS.map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{ padding: "7px 16px", borderRadius: 999, border: `1px solid ${filter === f ? T.blue : T.border}`, background: filter === f ? T.blue : T.white, color: filter === f ? "#fff" : T.text, fontWeight: 700, fontSize: ".82rem", cursor: "pointer", transition: "all .15s" }}>
+            {f}
+          </button>
+        ))}
+      </div>
+
       <div style={{ background: T.white, borderRadius: "1.25rem", border: `1px solid ${T.border}`, overflow: "hidden" }}>
         <div style={{ padding: "20px 24px", borderBottom: `1px solid ${T.border}`, fontWeight: 700, color: T.navy }}>포인트 내역</div>
-        {history.length > 0 ? (
-          history.map((item, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: i < history.length - 1 ? `1px solid ${T.border}` : "none" }}>
-              <div>
-                <div style={{ fontWeight: 600, color: T.text, fontSize: ".88rem" }}>{item.label}</div>
-                <div style={{ color: T.gray, fontSize: ".75rem", marginTop: 3 }}>{item.date}</div>
-              </div>
-              <div style={{ fontWeight: 800, color: item.color, fontSize: ".95rem" }}>{item.amount} P</div>
-            </div>
-          ))
-        ) : (
+
+        {txLoading && (
+          <div style={{ padding: "40px", textAlign: "center", color: T.gray, fontSize: ".88rem" }}>불러오는 중…</div>
+        )}
+
+        {!txLoading && txError && (
+          <div style={{ padding: "24px", color: T.red, fontSize: ".85rem" }}>조회 실패: {txError}</div>
+        )}
+
+        {!txLoading && !txError && filtered.length === 0 && (
           <div style={{ padding: "40px", textAlign: "center", color: T.gray }}>포인트 내역이 없습니다.</div>
         )}
+
+        {!txLoading && !txError && filtered.map((tx, i) => {
+          const from = toBrandLabel(tx.fromBrand);
+          const to = toBrandLabel(tx.toBrand);
+          const flow = from ? `${from} -> ${to}` : to;
+          const line = `${flow} ${tx.amount}포인트, 수수료${tx.fee}포인트 ${formatTxDate(tx.createdAt)}`;
+
+          return (
+            <div key={tx.id} style={{ padding: "14px 24px", borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : "none", fontWeight: 500, color: T.text, fontSize: ".88rem", fontFamily: "monospace" }}>
+              {line}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -600,7 +672,7 @@ export const MyPage = () => {
       {/* 콘텐츠 영역 */}
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px clamp(16px,4vw,40px)" }}>
         {activeTab === "raffles"  && <RafflesTab raffles={raffleHistory} stats={stats} />}
-        {activeTab === "points"   && <PointsTab points={points} history={pointHistory} />}
+        {activeTab === "points"   && <PointsTab points={points} />}
         {activeTab === "settings" && (
           <SettingsTab
             profile={displayProfile}

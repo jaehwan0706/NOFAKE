@@ -1,23 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { AlertCircle, CalendarDays, Loader2, LogIn, Search, Ticket, Users } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import { useAuthUser } from "../../components/Header"; // 기존 Header에서 export된 훅 사용
-
-interface ApiRaffle {
-  id: number;
-  title: string;
-  category?: string | null;
-  description?: string | null;
-  imageUrl?: string | null;
-  startAt?: string | null;
-  endAt?: string | null;
-  participants?: number;
-  maxParticipants?: number;
-  status?: string;
-  hasParticipated?: boolean;
-  walletAddress?: string | null; // 유저별 지갑 주소
-}
 
 interface RaffleItem {
   id: number;
@@ -101,49 +86,18 @@ const fallbackItems: RaffleItem[] = [
   },
 ];
 
-const formatDate = (value?: string | null) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-};
-
-const toRaffleItem = (raffle: ApiRaffle): RaffleItem => {
-  const [brand, ...titleParts] = raffle.title.split(" ");
-  const start = formatDate(raffle.startAt);
-  const end = formatDate(raffle.endAt);
-
-  return {
-    id: raffle.id,
-    brand: brand || "NOFAKE",
-    title: titleParts.join(" ") || raffle.title,
-    category: raffle.category || "한정판",
-    image: raffle.imageUrl || "https://images.unsplash.com/photo-1512436991641-6745cdb1723f",
-    entryPeriod: start && end ? `${start} - ${end}` : "일정 확인 중",
-    participants: Number(raffle.participants || 0),
-    status: raffle.status || "READY",
-    hasParticipated: Boolean(raffle.hasParticipated),
-  };
-};
-
 export const RafflesPage = () => {
   const { search } = useLocation();
   const navigate = useNavigate();
   const user = useAuthUser();
 
-  const [items, setItems] = useState<RaffleItem[]>(fallbackItems);
+  const userWalletAddress = (user as { walletAddress?: string } | null)?.walletAddress ?? null;
+
+  const [items] = useState<RaffleItem[]>(fallbackItems);
   const [productKeyword, setProductKeyword] = useState("");
   const [appliedKeyword, setAppliedKeyword] = useState("");
-  const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<{ type: "info" | "success" | "error"; message: string } | null>(null);
   const [joiningId, setJoiningId] = useState<number | null>(null);
-
-  // 유저 이메일을 지갑 주소로 사용 (실제 서비스에서는 별도 walletAddress 필드 사용)
-  const userWalletAddress = user?.email ?? null;
 
   const currentCategoryKey = useMemo(() => {
     const query = new URLSearchParams(search).get("category") || "all";
@@ -152,29 +106,6 @@ export const RafflesPage = () => {
 
   const selectedLabel = CATEGORY_MAP[currentCategoryKey];
 
-  const loadRaffles = async () => {
-    setLoading(true);
-    setNotice(null);
-    try {
-      const raffles = await apiRequest<ApiRaffle[]>("/api/raffles");
-      setItems(raffles.length ? raffles.map(toRaffleItem) : fallbackItems);
-      if (!raffles.length) {
-        setNotice({ type: "info", message: "백엔드에 등록된 래플이 없어 샘플 목록을 보여주고 있습니다." });
-      }
-    } catch (error) {
-      setItems(fallbackItems);
-      setNotice({
-        type: "info",
-        message: error instanceof Error ? error.message : "백엔드 연결에 실패해 샘플 목록을 보여주고 있습니다.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadRaffles();
-  }, []);
 
   const filteredItems = useMemo(() => {
     const keyword = appliedKeyword.trim().toLowerCase();
@@ -208,7 +139,6 @@ export const RafflesPage = () => {
         },
       });
       setNotice({ type: "success", message: `${raffle.brand} ${raffle.title} 응모가 완료되었습니다.` });
-      await loadRaffles();
     } catch (error) {
       setNotice({
         type: "error",
@@ -278,12 +208,7 @@ export const RafflesPage = () => {
         </div>
       )}
 
-      {loading ? (
-        <div className="flex min-h-80 items-center justify-center text-gray-500">
-          <Loader2 className="mr-2 animate-spin" size={18} />
-          래플을 불러오는 중입니다.
-        </div>
-      ) : filteredItems.length ? (
+      {filteredItems.length ? (
         <section className="mx-auto grid max-w-7xl grid-cols-1 gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
           {filteredItems.map((item) => (
             <article key={item.id} className="flex flex-col">
@@ -308,6 +233,8 @@ export const RafflesPage = () => {
                 onClick={() => {
                   if (!user) {
                     navigate("/login");
+                  } else if (item.brand.toLowerCase() === "nike") {
+                    navigate("/raffles/nike");
                   } else {
                     handleJoin(item);
                   }

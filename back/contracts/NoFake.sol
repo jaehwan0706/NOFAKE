@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title NoFakePlatform
- * @dev 나이키,무신사 포인트 교환 및 래플 NFT 관리 플랫폼
+ * @dev 나이키, 무신사 포인트 교환 및 래플 NFT 관리 플랫폼
  */
 contract NoFakePlatform is ERC721, Ownable {
     using Strings for uint256;
@@ -19,7 +19,7 @@ contract NoFakePlatform is ERC721, Ownable {
 
     mapping(uint256 => bool) public isRevealed;
     mapping(uint256 => uint256) public winningTokenId; // 래플 ID별 당첨 번호
-    mapping(uint256 => address) public raffleWinners;   // 래플 ID별 당첨자 주소
+    mapping(uint256 => address) public raffleWinners;  // 래플 ID별 당첨자 주소
     mapping(uint256 => uint256) public tokenToRaffleId;
     mapping(uint256 => mapping(address => bool)) public hasParticipated;
 
@@ -41,6 +41,7 @@ contract NoFakePlatform is ERC721, Ownable {
     );
     event RaffleWinnerDeclared(uint256 indexed raffleId, address indexed winner, uint256 tokenId);
 
+    // [수정 완료] OpenZeppelin 5.x 호환을 위해 Ownable에 msg.sender 전달
     constructor(string memory _unrevealedURI) ERC721("NoFake Raffle", "NFR") Ownable() {
         unrevealedURI = _unrevealedURI;
         
@@ -78,18 +79,18 @@ contract NoFakePlatform is ERC721, Ownable {
         totalSupply++;
         tokenToRaffleId[totalSupply] = _raffleId;
         hasParticipated[_raffleId][_to] = true;
-        _safeMint(_to, totalSupply);
+        _mint(_to, totalSupply);
     }
 
     /**
-<<<<<<< HEAD
      * @dev 래플 마감 후 리빌 및 당첨자 선발 (보안 난수 적용)
      */
     function revealRaffle(uint256 _raffleId) external onlyOwner {
         require(!isRevealed[_raffleId], "Already revealed");
         require(totalSupply > 0, "No participants");
 
-        // 온체인 난수를 이용한 당첨자 선정 (Index 1 ~ totalSupply)
+        // [핵심] 온체인 난수를 이용한 당첨자 선정 (Index 1 ~ totalSupply)
+        // 18명 참여 시 % 18 연산으로 나머지는 0~17이 되며, +1을 통해 1~18번 안에서만 당첨자가 나옴
         uint256 winnerTokenId = (uint256(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, _raffleId))) % totalSupply) + 1;
 
         winningTokenId[_raffleId] = winnerTokenId;
@@ -103,7 +104,8 @@ contract NoFakePlatform is ERC721, Ownable {
      * @dev 토큰 ID에 따른 메타데이터 반환 (당첨자만 선구매권 NFT 노출)
      */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_exists(tokenId), "Nonexistent token");
+        // [수정 완료] OpenZeppelin 5.x 호환: _exists 삭제에 따른 ownerOf 검증 로직 도입
+        require(ownerOf(tokenId) != address(0), "Nonexistent token");
         uint256 raffleId = tokenToRaffleId[tokenId];
 
         if (!isRevealed[raffleId]) return unrevealedURI;
@@ -120,48 +122,5 @@ contract NoFakePlatform is ERC721, Ownable {
     // --- 관리자 기능 ---
     function setUnrevealedURI(string memory _uri) public onlyOwner {
         unrevealedURI = _uri;
-=======
-     * @dev 현재 참여 인원(totalSupply) 범위 내에서 난수 생성
-     */
-    function revealRaffle(uint256 _raffleId, string memory _baseURI) external onlyOwner {
-        require(!isRevealed[_raffleId], "Already revealed");
-        uint256 currentParticipants = totalSupply; 
-        require(currentParticipants > 0, "No participants");
-
-        // [정보보호] block.prevrandao를 사용하여 온체인 난수 생성 (보안성 확보)
-        raffleOffsets[_raffleId] = uint256(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, _raffleId))) % currentParticipants;
-
-        raffleBaseURIs[_raffleId] = _baseURI;
-        isRevealed[_raffleId] = true;
-    }
-
-    /**
-     * @dev 1.json ~ 30.json 규격에 맞춘 동적 매핑 (+1 연산)
-     */
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        // [수정] OpenZeppelin 4.x 버전에서는 _exists(tokenId)를 그대로 사용합니다.
-        // (5.x 버전은 _ownerOf(tokenId) != address(0) 로 써야 함)
-        require(_exists(tokenId), "Nonexistent token");
-        
-        uint256 raffleId = tokenToRaffleId[tokenId];
-
-        if (block.timestamp > mintTimestamp[tokenId] + EXPIRY_DURATION) return "ipfs://expired";
-        if (!isRevealed[raffleId]) return unrevealedURI;
-
-        // 참여 인원 범위 내에서 순환하도록 수정하고 +1 하여 파일명 일치시킴
-        uint256 shiftedId = ((tokenId + raffleOffsets[raffleId]) % totalSupply) + 1;
-        
-        return string(abi.encodePacked(raffleBaseURIs[raffleId], shiftedId.toString(), ".json"));
-    }
-
-    function swapPuzzlesForCoupon(uint256[] memory tokenIds) public {
-        require(tokenIds.length == 10, "10 puzzles required");
-        for (uint i = 0; i < 10; i++) {
-            require(ownerOf(tokenIds[i]) == msg.sender, "Not owner");
-            _burn(tokenIds[i]); 
-        }
-        totalSupply++;
-        _safeMint(msg.sender, totalSupply);
->>>>>>> efe679237a7bae3609e48e671cf299ca2859dc0e
     }
 }

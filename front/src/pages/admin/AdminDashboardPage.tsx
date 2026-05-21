@@ -1,69 +1,109 @@
 import React, { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 const API = (import.meta.env.VITE_API_BASE_URL as string) || '';
 const ADMIN_WALLET = (import.meta.env.VITE_ROOT_ADMIN_WALLET as string) || '';
 
+const adminHeaders: HeadersInit = ADMIN_WALLET ? { 'X-Admin-Wallet': ADMIN_WALLET } : {};
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { headers: adminHeaders });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error || `서버 오류 (${res.status})`);
+  }
+  const body = await res.json();
+  return (body?.data ?? body) as T;
+}
+
+// ─── Metric card ──────────────────────────────────────────────────────────────
+
+interface MetricCardProps {
+  label: string;
+  sublabel: string;
+  value: number | null;
+  suffix?: string;
+  loading: boolean;
+  error: string | null;
+}
+
+function MetricCard({ label, sublabel, value, suffix = 'P', loading, error }: MetricCardProps) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">{label}</p>
+      <p className="text-xs text-gray-400 mb-4">{sublabel}</p>
+
+      {loading && (
+        <div className="flex items-center gap-2 text-gray-400 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          불러오는 중...
+        </div>
+      )}
+
+      {!loading && error && (
+        <p className="text-sm text-red-500">오류: {error}</p>
+      )}
+
+      {!loading && !error && value !== null && (
+        <p className="text-3xl font-bold text-gray-900">
+          {value.toLocaleString()}
+          <span className="ml-1 text-base font-medium text-gray-400">{suffix}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+interface TreasuryData { nofake: number }
+interface StatsData { totalDistributed: number; participantCount: number }
+
 export default function AdminDashboardPage() {
-  const [loading, setLoading] = useState(true);
-  const [nofake, setNofake] = useState<number>(0);
-  const [error, setError] = useState<string | null>(null);
+  const [treasury, setTreasury] = useState<number | null>(null);
+  const [treasuryLoading, setTreasuryLoading] = useState(true);
+  const [treasuryError, setTreasuryError] = useState<string | null>(null);
+
+  const [distributed, setDistributed] = useState<number | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetch(`${API}/api/admin/fees`, {
-          headers: ADMIN_WALLET ? { 'X-Admin-Wallet': ADMIN_WALLET } : undefined,
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error((body as any).error || `서버 오류 (${res.status})`);
-        }
-        const body = await res.json();
-        const balance = body?.data ?? body;
-        setNofake(Number(balance?.nofake ?? 0));
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : '알 수 없는 오류');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchJson<TreasuryData>(`${API}/api/admin/fees`)
+      .then(d => setTreasury(Number(d?.nofake ?? 0)))
+      .catch(e => setTreasuryError(e instanceof Error ? e.message : '알 수 없는 오류'))
+      .finally(() => setTreasuryLoading(false));
+
+    fetchJson<StatsData>(`${API}/api/admin/stats/points`)
+      .then(d => setDistributed(Number(d?.totalDistributed ?? 0)))
+      .catch(e => setStatsError(e instanceof Error ? e.message : '알 수 없는 오류'))
+      .finally(() => setStatsLoading(false));
   }, []);
 
   return (
-    <main className="min-h-screen px-6 pt-32">
+    <main className="min-h-screen px-6 pt-32 pb-24">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2">Platform Treasury</h1>
-        <p className="mb-8 text-sm text-gray-500">
-          Hyperledger Fabric 원장에서 조회한 누적 NOFAKE 플랫폼 수수료
+        <h1 className="text-2xl font-bold mb-1">Admin Dashboard</h1>
+        <p className="mb-10 text-sm text-gray-500">
+          Hyperledger Fabric 원장 및 데이터베이스에서 집계한 플랫폼 지표
         </p>
 
-        {loading && (
-          <div className="flex items-center gap-3 text-gray-500 text-sm">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700 inline-block" />
-            블록체인에서 데이터를 불러오는 중...
-          </div>
-        )}
-
-        {!loading && error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-            조회 실패: {error}
-          </div>
-        )}
-
-        {!loading && !error && (
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm w-full max-w-sm">
-            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">NOFAKE</p>
-            <p className="text-3xl font-bold text-gray-900">
-              {nofake.toLocaleString()}
-              <span className="ml-1 text-base font-medium text-gray-400">P</span>
-            </p>
-            <p className="mt-2 text-xs text-gray-400">
-              키: NOFAKE_PLATFORM_TREASURY
-            </p>
-          </div>
-        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <MetricCard
+            label="Platform Treasury"
+            sublabel="누적 스왑 수수료 (NOFAKE_PLATFORM_TREASURY)"
+            value={treasury}
+            loading={treasuryLoading}
+            error={treasuryError}
+          />
+          <MetricCard
+            label="총 지급된 포인트"
+            sublabel={`래플 참여 보상 누계 (참여 1건당 500 P)`}
+            value={distributed}
+            loading={statsLoading}
+            error={statsError}
+          />
+        </div>
       </div>
     </main>
   );
