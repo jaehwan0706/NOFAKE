@@ -1,52 +1,108 @@
 import React, { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 const API = (import.meta.env.VITE_API_BASE_URL as string) || '';
 const ADMIN_WALLET = (import.meta.env.VITE_ROOT_ADMIN_WALLET as string) || '';
 
+const adminHeaders: HeadersInit = ADMIN_WALLET ? { 'X-Admin-Wallet': ADMIN_WALLET } : {};
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { headers: adminHeaders });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error || `서버 오류 (${res.status})`);
+  }
+  const body = await res.json();
+  return (body?.data ?? body) as T;
+}
+
+// ─── Metric card ──────────────────────────────────────────────────────────────
+
+interface MetricCardProps {
+  label: string;
+  sublabel: string;
+  value: number | null;
+  suffix?: string;
+  loading: boolean;
+  error: string | null;
+}
+
+function MetricCard({ label, sublabel, value, suffix = 'P', loading, error }: MetricCardProps) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">{label}</p>
+      <p className="text-xs text-gray-400 mb-4">{sublabel}</p>
+
+      {loading && (
+        <div className="flex items-center gap-2 text-gray-400 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          불러오는 중...
+        </div>
+      )}
+
+      {!loading && error && (
+        <p className="text-sm text-red-500">오류: {error}</p>
+      )}
+
+      {!loading && !error && value !== null && (
+        <p className="text-3xl font-bold text-gray-900">
+          {value.toLocaleString()}
+          <span className="ml-1 text-base font-medium text-gray-400">{suffix}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+interface TreasuryData { nofake: number }
+interface StatsData { totalDistributed: number; participantCount: number }
+
 export default function AdminDashboardPage() {
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [treasury, setTreasury] = useState<number | null>(null);
+  const [treasuryLoading, setTreasuryLoading] = useState(true);
+  const [treasuryError, setTreasuryError] = useState<string | null>(null);
+
+  const [distributed, setDistributed] = useState<number | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(`${API}/api/admin/fees`, {
-          headers: ADMIN_WALLET ? { 'X-Admin-Wallet': ADMIN_WALLET } : undefined,
-        });
-        if (!res.ok) throw new Error('Failed to fetch');
-        const body = await res.json();
-        setData(body.data || body);
-      } catch (err: any) {
-        setError(err.message || 'error');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchJson<TreasuryData>(`${API}/api/admin/fees`)
+      .then(d => setTreasury(Number(d?.nofake ?? 0)))
+      .catch(e => setTreasuryError(e instanceof Error ? e.message : '알 수 없는 오류'))
+      .finally(() => setTreasuryLoading(false));
+
+    fetchJson<StatsData>(`${API}/api/admin/stats/points`)
+      .then(d => setDistributed(Number(d?.totalDistributed ?? 0)))
+      .catch(e => setStatsError(e instanceof Error ? e.message : '알 수 없는 오류'))
+      .finally(() => setStatsLoading(false));
   }, []);
 
-  if (loading) return <main className="min-h-screen px-6 pt-32">Loading...</main>;
-  if (error) return <main className="min-h-screen px-6 pt-32">Error: {error}</main>;
-
   return (
-    <main className="min-h-screen px-6 pt-32">
+    <main className="min-h-screen px-6 pt-32 pb-24">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
-        <p className="mb-6 text-sm text-gray-600">NOFAKE_ADMIN accumulated fees</p>
-        <div className="grid grid-cols-1 gap-4">
-          <div className="rounded-lg border p-4">
-            <h3 className="font-semibold">NOFAKE</h3>
-            <div className="mt-2 text-xl font-bold">{Number(data.nofake || 0).toLocaleString()} P</div>
-          </div>
-          <div className="rounded-lg border p-4">
-            <h3 className="font-semibold">NIKE</h3>
-            <div className="mt-2 text-xl font-bold">{Number(data.nike || 0).toLocaleString()} P</div>
-          </div>
-          <div className="rounded-lg border p-4">
-            <h3 className="font-semibold">MUSINSA</h3>
-            <div className="mt-2 text-xl font-bold">{Number(data.musinsa || 0).toLocaleString()} P</div>
-          </div>
+        <h1 className="text-2xl font-bold mb-1">Admin Dashboard</h1>
+        <p className="mb-10 text-sm text-gray-500">
+          Hyperledger Fabric 원장 및 데이터베이스에서 집계한 플랫폼 지표
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <MetricCard
+            label="Platform Treasury"
+            sublabel="누적 스왑 수수료 (NOFAKE_PLATFORM_TREASURY)"
+            value={treasury}
+            loading={treasuryLoading}
+            error={treasuryError}
+          />
+          <MetricCard
+            label="총 지급된 포인트"
+            sublabel={`래플 참여 보상 누계 (참여 1건당 500 P)`}
+            value={distributed}
+            loading={statsLoading}
+            error={statsError}
+          />
         </div>
       </div>
     </main>
