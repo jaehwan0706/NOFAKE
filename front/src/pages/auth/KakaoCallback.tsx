@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
-import { loginUser } from "../../components/Header";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { loginUser } from "../../lib/authUser";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const REDIRECT_URI =

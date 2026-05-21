@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+﻿import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { logoutUser, useAuthUser } from "../lib/authUser";
 import {
   ArrowLeftRight,
   Building,
@@ -22,71 +23,7 @@ import {
   X,
 } from "lucide-react";
 
-const LOGIN_TOKEN_KEY = "nofakeAccessToken";
-const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string) ?? "";
 const ADMIN_WALLET = (import.meta.env.VITE_ROOT_ADMIN_WALLET as string) || "";
-
-// ─── 전역 인증 상태 ───────────────────────────────────────────────────────────
-
-let _user: { name: string; email: string; phone_verified: boolean } | null = null;
-
-export function loginUser(user: { name: string; email: string; phone_verified: boolean }) {
-  _user = user;
-  window.dispatchEvent(new Event("auth-change"));
-}
-
-export function logoutUser() {
-  _user = null;
-  localStorage.removeItem(LOGIN_TOKEN_KEY);
-  window.dispatchEvent(new Event("auth-change"));
-}
-
-export function useAuthUser() {
-  const [user, setUser] = useState<{ name: string; email: string; phone_verified: boolean } | null>(_user);
-
-  useEffect(() => {
-    const handleAuthSync = () => {
-      setUser(_user ? { ..._user } : null);
-    };
-    handleAuthSync();
-    window.addEventListener("auth-change", handleAuthSync);
-    return () => window.removeEventListener("auth-change", handleAuthSync);
-  }, []);
-
-  return user;
-}
-
-// ─── 앱 시작 시 토큰으로 유저 정보 복원 ──────────────────────────────────────
-
-(async () => {
-  const token = localStorage.getItem(LOGIN_TOKEN_KEY);
-  if (!token) {
-    if (_user !== null) logoutUser();
-    return;
-  }
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "ngrok-skip-browser-warning": "69420",
-      },
-    });
-    if (!res.ok) { logoutUser(); return; }
-    const data = (await res.json()) as { success: boolean; name?: string; email?: string; phone_verified?: boolean };
-    if (data.success && data.name) {
-      loginUser({ 
-        name: data.name, 
-        email: data.email ?? "",
-        phone_verified: data.phone_verified ?? false
-      });
-    } else {
-      logoutUser();
-    }
-  } catch {
-    // 네트워크 오류 시 무시
-  }
-})();
 
 // ─── 네비게이션 데이터 ────────────────────────────────────────────────────────
 
@@ -226,7 +163,8 @@ export function Header() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const user = useAuthUser();
-  const avatarInitial = user?.name ? user.name[0] : "U";
+  // ✅ 수정: name이 없거나 빈 문자열이면 "U" 대신 안전하게 처리
+  const avatarInitial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
 
   // 경로 변경 시 메뉴 닫기
   useEffect(() => {
@@ -355,6 +293,7 @@ export function Header() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
                     {avatarInitial}
                   </span>
+                  {/* ✅ 수정: user.name 직접 표시 (fallback 제거) */}
                   <span className="text-sm font-semibold text-white">{user.name}</span>
                   <ChevronDown
                     className={`h-3.5 w-3.5 text-gray-400 transition-transform ${isUserMenuOpen ? "rotate-180" : ""}`}
@@ -364,16 +303,17 @@ export function Header() {
                 {isUserMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-xl">
                     <div className="border-b border-white/10 px-4 py-3">
-                      <p className="text-sm font-bold text-white">{user.name}</p>
+                      <p style={{ color: "#ffffff" }} className="text-sm font-bold">{user.name}</p>
                       {user.email && (
-                        <p className="mt-0.5 truncate text-xs text-gray-400">{user.email}</p>
+                        <p style={{ color: "#9ca3af" }} className="mt-0.5 truncate text-xs">{user.email}</p>
                       )}
                     </div>
                     <div className="p-1.5">
                       <Link
                         to="/mypage"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                        style={{ color: "#ffffff" }}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-white/5"
                       >
                         <User className="h-4 w-4" />
                         마이페이지
@@ -381,7 +321,8 @@ export function Header() {
                       <Link
                         to="/mypage?tab=points"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                        style={{ color: "#ffffff" }}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-white/5"
                       >
                         <Gift className="h-4 w-4" />
                         포인트
@@ -389,7 +330,8 @@ export function Header() {
                       <Link
                         to="/mypage?tab=settings"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                        style={{ color: "#ffffff" }}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-white/5"
                       >
                         <Settings className="h-4 w-4" />
                         설정
@@ -485,6 +427,7 @@ export function Header() {
                       {avatarInitial}
                     </span>
                     <div>
+                      {/* ✅ 수정: 모바일에서도 실제 이름 표시 */}
                       <p className="text-sm font-bold text-white">{user.name}</p>
                       {user.email && <p className="text-xs text-gray-400">{user.email}</p>}
                     </div>

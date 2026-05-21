@@ -1,4 +1,7 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> d9c1ac901667ee688df49dc96eba19e2899684b6
 /*
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -525,6 +528,7 @@ public final class ERC20TokenContract implements ContractInterface {
     }
   }
 }
+<<<<<<< HEAD
 =======
 /*
  * SPDX-License-Identifier: Apache-2.0
@@ -1053,3 +1057,5 @@ public final class ERC20TokenContract implements ContractInterface {
   }
 }
 >>>>>>> d00e0fd0602b50ff668739c7df29b95450bbacd5
+=======
+>>>>>>> d9c1ac901667ee688df49dc96eba19e2899684b6

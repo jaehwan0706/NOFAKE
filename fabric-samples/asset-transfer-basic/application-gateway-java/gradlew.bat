@@ -92,6 +92,7 @@ exit /b %EXIT_CODE%
 if "%OS%"=="Windows_NT" endlocal
 
 :omega
+<<<<<<< HEAD
 
 @rem
 @rem Copyright 2015 the original author or authors.
@@ -187,3 +188,5 @@ exit /b %EXIT_CODE%
 if "%OS%"=="Windows_NT" endlocal
 
 :omega
+=======
+>>>>>>> d9c1ac901667ee688df49dc96eba19e2899684b6

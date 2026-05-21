@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import { BrowserRouter, Outlet, Routes, Route, useLocation, useNavigate } from "react-router";
-import { Header, useAuthUser } from "./components/Header";
+import { BrowserRouter, Outlet, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { Header } from "./components/Header";
+import { useAuthUser } from "./lib/authUser";
 import { Footer } from "./components/Footer";
 import { Home } from "./pages/main/Home";
 import { RafflesPage } from "./pages/raffle/RafflesPage";

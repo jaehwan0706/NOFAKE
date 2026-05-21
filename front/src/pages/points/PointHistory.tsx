@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { ArrowRight, Loader2, RotateCcw } from "lucide-react";
-import { useAuthUser } from "../../components/Header";
+import { useAuthUser } from "../../lib/authUser";
 
 const API = (import.meta.env.VITE_API_BASE_URL as string) || "";
 const LOGIN_TOKEN_KEY = "nofakeAccessToken";

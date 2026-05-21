@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 
 const T = {
   blue: "#2563eb",

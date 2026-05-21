@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, CalendarDays, Loader2, LogIn, Search, Ticket, Users } from "lucide-react";
 import { apiRequest } from "../../lib/api";
-import { useAuthUser } from "../../components/Header"; // 기존 Header에서 export된 훅 사용
+import { useAuthUser } from "../../lib/authUser";
 
 interface RaffleItem {
   id: number;
