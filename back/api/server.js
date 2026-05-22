@@ -200,8 +200,12 @@ const verifyTokenMiddleware = async (req, res, next) => {
 
   const token = authHeader.split(' ')[1];
 
-  // 1. 먼저 JWT 검증 시도 (ID Token 등)
-  if (process.env.JWKS_URI) {
+  // 1. JWT 검증 시도 — only if token looks structurally like a JWT (3 dot-separated segments).
+  // Kakao access tokens are opaque strings, not JWTs, so skipping them here avoids
+  // noisy JSON-parse errors in the logs.
+  const isJwtShaped = token.split('.').length === 3;
+
+  if (process.env.JWKS_URI && isJwtShaped) {
     try {
       const jwksUri = process.env.JWKS_URI;
       const jwksResponse = await axios.get(jwksUri);
@@ -232,22 +236,32 @@ const verifyTokenMiddleware = async (req, res, next) => {
     }
   }
 
-  // 2. JWT 검증에 실패하거나 JWKS_URI가 없으면 카카오 액세스 토큰으로 간주
+  // 2. JWT가 아니거나 JWKS_URI가 없으면 카카오 액세스 토큰으로 처리
   try {
     const resp = await axios.get('https://kapi.kakao.com/v2/user/me', {
       headers: { Authorization: `Bearer ${token}` }
     });
     const kakaoId = String(resp.data.id || resp.data?.id || '');
     console.log("✅ 카카오 토큰 검증 성공:", kakaoId);
-    
+
     const user = await User.findOne({ where: { kakaoId } });
-    
+
     if (user) {
+      // If this Kakao account's email is in the comma-separated ROOT_ADMIN_EMAIL list,
+      // override walletAddress with ROOT_ADMIN_WALLET so the frontend isAdmin check succeeds.
+      const adminEmails = (process.env.ROOT_ADMIN_EMAIL || "")
+        .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+      const isAdminEmail = adminEmails.length > 0 && !!user.email &&
+        adminEmails.includes(user.email.toLowerCase());
+      const resolvedWallet = isAdminEmail && ROOT_ADMIN_WALLET
+        ? ROOT_ADMIN_WALLET
+        : user.walletAddress;
+
       req.user = {
         kakaoId: user.kakaoId,
         email: user.email,
         name: user.name || user.nickname,
-        walletAddress: user.walletAddress
+        walletAddress: resolvedWallet
       };
     } else {
       console.log("ℹ️ DB에 유저 정보 없음, 카카오 정보만 사용:", kakaoId);
@@ -591,6 +605,14 @@ app.post("/api/auth/kakao", async (req, res) => {
         });
       }
 
+      const loginAdminEmails = (process.env.ROOT_ADMIN_EMAIL || "")
+        .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+      const loginIsAdmin = loginAdminEmails.length > 0 && !!user.email &&
+        loginAdminEmails.includes(user.email.toLowerCase());
+      const loginWallet = loginIsAdmin && ROOT_ADMIN_WALLET
+        ? ROOT_ADMIN_WALLET
+        : user.walletAddress;
+
       res.json({
         success: true,
         accessToken: access_token,
@@ -598,6 +620,7 @@ app.post("/api/auth/kakao", async (req, res) => {
         email: user.email,
         phone_verified: user.phone_verified,
         phone_number: user.phoneNumber,
+        walletAddress: loginWallet || null,
       });
     } catch (dbErr) {
       console.error('❌ User DB 처리 실패 Detail:', dbErr);
@@ -700,17 +723,13 @@ app.post('/api/user/phone', async (req, res) => {
 // 전화 인증 API
 // ============================================
 
-app.post('/api/phone-verification/start', async (req, res) => {
-  const authHeader = req.headers.authorization ?? '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-  if (!token) return res.status(401).json({ success: false, error: '카카오 토큰이 필요합니다.' });
+app.post('/api/phone-verification/start', verifyTokenMiddleware, async (req, res) => {
+  // Use the kakaoId (or any user identifier) already resolved by verifyTokenMiddleware.
+  // This accepts Kakao access tokens AND Web3Auth JWTs without a second Kakao round-trip.
+  const kakaoId = String(req.user?.kakaoId || '');
+  if (!kakaoId) return res.status(400).json({ success: false, error: '사용자 정보를 확인할 수 없습니다.' });
 
   try {
-    const userResp = await axios.get('https://kapi.kakao.com/v2/user/me', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const kakaoId = String(userResp.data.id || userResp.data?.id || '');
-    if (!kakaoId) return res.status(400).json({ success: false, error: '카카오 사용자 정보를 확인할 수 없습니다.' });
 
     const phoneNumber = String(req.body.phoneNumber || '').trim() || null;
     let sessionId = `pv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1222,6 +1241,7 @@ const normalizeBrandKey = (brand = '') => {
 function normalizeConnectionProfile(profile) {
   if (!profile || typeof profile !== 'object') return profile;
   const patched = JSON.parse(JSON.stringify(profile));
+  const isDocker = process.env.FABRIC_DOCKER === 'true';
   const fixPath = (value) => {
     if (typeof value !== 'string') return value;
     if (value.startsWith('..') || value.startsWith('./')) {
@@ -1233,11 +1253,29 @@ function normalizeConnectionProfile(profile) {
   if (patched.peers) {
     for (const peer of Object.values(patched.peers)) {
       if (peer.tlsCACerts?.path) peer.tlsCACerts.path = fixPath(peer.tlsCACerts.path);
+      if (isDocker && peer.url) {
+        peer.url = peer.url
+          .replace('localhost:7051', 'peer0.org1.example.com:7051')
+          .replace('localhost:9051', 'peer0.org2.example.com:9051');
+      }
+    }
+  }
+  if (patched.orderers) {
+    for (const orderer of Object.values(patched.orderers)) {
+      if (orderer.tlsCACerts?.path) orderer.tlsCACerts.path = fixPath(orderer.tlsCACerts.path);
+      if (isDocker && orderer.url) {
+        orderer.url = orderer.url.replace('localhost:7050', 'orderer.example.com:7050');
+      }
     }
   }
   if (patched.certificateAuthorities) {
     for (const ca of Object.values(patched.certificateAuthorities)) {
       if (ca.tlsCACerts?.path) ca.tlsCACerts.path = fixPath(ca.tlsCACerts.path);
+      if (isDocker && ca.url) {
+        ca.url = ca.url
+          .replace('localhost:7054', 'ca.org1.example.com:7054')
+          .replace('localhost:8054', 'ca.org2.example.com:8054');
+      }
     }
   }
   return patched;
@@ -1287,11 +1325,10 @@ async function connectFabricContract() {
   await gateway.connect(ccp, {
     wallet,
     identity: FABRIC_IDENTITY_LABEL,
-    discovery: { enabled: true, asLocalhost: true },
+    discovery: { enabled: true, asLocalhost: process.env.FABRIC_DOCKER !== 'true' },
   });
 
   const network = await gateway.getNetwork(FABRIC_CHANNEL);
-  console.log('Fabric network object type:', network?.constructor?.name, 'getContract:', typeof network?.getContract);
   if (typeof network?.getContract !== 'function') {
     console.error('Fabric network object does not expose getContract()', network);
     gateway.disconnect();
@@ -1313,12 +1350,9 @@ async function queryBalancesFabric(walletAddress) {
 
 function isAdminWalletRequest(req) {
   if (!ROOT_ADMIN_WALLET) return true;
-  const authHeader = String(req.headers.authorization || "").trim();
-  const authToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
-  const candidate = String(req.headers["x-admin-wallet"] || req.query.adminWallet || authToken || "").trim();
-  const expected = normalizeWalletAddress(ROOT_ADMIN_WALLET) || ROOT_ADMIN_WALLET.toLowerCase();
-  const actual = normalizeWalletAddress(candidate) || candidate.toLowerCase();
-  return actual.toLowerCase() === expected.toLowerCase();
+  const walletAddress = req.user?.walletAddress || "";
+  if (!walletAddress) return false;
+  return walletAddress.toLowerCase() === ROOT_ADMIN_WALLET.toLowerCase();
 }
 
 async function submitSwapTransactionFabric(walletAddress, fromBrand, toBrand, amount) {
@@ -1429,24 +1463,8 @@ app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
       return res.json({ success: true, data: balances });
     }
 
-    let balances;
-    try {
-      balances = await queryBalancesFabric(walletAddress);
-    } catch (fabricErr) {
-      const msg = fabricErr?.message || '';
-      const isNewUser =
-        msg.includes('state not found') ||
-        msg.includes('MVCC_READ_CONFLICT') ||
-        msg.includes('does not exist');
-      if (isNewUser) {
-        console.info(`[balance] new user ${walletAddress} — returning zero balances`);
-      } else {
-        console.error('/api/points/balance Fabric error:', fabricErr);
-      }
-      balances = null;
-    }
-
-    return res.json({ success: true, data: balances ?? ZERO_BALANCES });
+    const balances = await queryBalancesFabric(walletAddress);
+    return res.json({ success: true, data: balances });
   } catch (err) {
     console.error('/api/points/balance error:', err);
     return res.status(500).json({ error: err.message || 'server error' });
@@ -1500,7 +1518,7 @@ app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
 // Admin: get accumulated platform treasury fees from Fabric ledger key NOFAKE_PLATFORM_TREASURY
 const PLATFORM_TREASURY_KEY = 'NOFAKE_PLATFORM_TREASURY';
 
-app.get('/api/admin/fees', async (req, res) => {
+app.get('/api/admin/fees', verifyTokenMiddleware, async (req, res) => {
   try {
     if (!isAdminWalletRequest(req)) {
       return res.status(403).json({ success: false, error: 'admin wallet authentication failed' });
@@ -1574,24 +1592,30 @@ app.get('/api/points/history', verifyTokenMiddleware, async (req, res) => {
 });
 
 // GET 어드민: 총 지급 포인트 통계 (Hyperledger 원장 기반 — PointTransaction 집계)
-app.get('/api/admin/stats/points', async (req, res) => {
+app.get('/api/admin/stats/points', verifyTokenMiddleware, async (req, res) => {
   try {
     if (!isAdminWalletRequest(req)) {
       return res.status(403).json({ success: false, error: 'admin wallet authentication failed' });
     }
 
-    // Aggregate from PointTransaction ledger: every raffle reward is recorded here,
-    // whether via Fabric MintPoints or mock DB — this is the authoritative distributed total.
-    const [result] = await sequelize.query(
-      `SELECT COALESCE(SUM(amount), 0) AS totalDistributed, COUNT(*) AS participantCount
-       FROM PointTransactions
-       WHERE type = 'earn' AND fromBrand = 'RAFFLE'`,
-      { type: sequelize.QueryTypes.SELECT }
-    );
+    if (useFabricMock) {
+      const [result] = await sequelize.query(
+        `SELECT COALESCE(SUM(amount), 0) AS totalDistributed, COUNT(*) AS participantCount
+         FROM PointTransactions WHERE type = 'earn' AND fromBrand = 'RAFFLE'`,
+        { type: sequelize.QueryTypes.SELECT }
+      );
+      const totalDistributed = Number(result?.totalDistributed ?? 0);
+      const participantCount = Number(result?.participantCount ?? 0);
+      return res.json({ success: true, data: { totalDistributed, participantCount, rewardPerParticipant: 500 } });
+    }
 
-    const totalDistributed = Number(result?.totalDistributed ?? 0);
-    const participantCount = Number(result?.participantCount ?? 0);
+    // Read NOFAKE_TOTAL_DISTRIBUTED counter written by MintPoints chaincode
+    const counter = await queryBalancesFabric('NOFAKE_TOTAL_DISTRIBUTED');
+    const totalDistributed = Number(counter?.nofake ?? 0);
     const RAFFLE_REWARD_PER_PARTICIPANT = 500;
+    const participantCount = totalDistributed > 0
+      ? Math.floor(totalDistributed / RAFFLE_REWARD_PER_PARTICIPANT)
+      : 0;
 
     return res.json({
       success: true,
@@ -1653,22 +1677,21 @@ const ensureTestData = async () => {
     // ── 4. Hyperledger Fabric CouchDB sync (only when FABRIC_MOCK=false) ──
     if (!useFabricMock) {
       try {
-        // Query existing Fabric balance first to avoid double-minting
+        // Only prime the ledger on a brand-new (strictly zero) balance to avoid double-minting on restart
         const existing = await queryBalancesFabric(TEST_WALLET_ADDRESS).catch(() => null);
         const currentNofake = Number(existing?.nofake ?? existing?.NOFAKE ?? 0);
 
-        if (currentNofake < 100000) {
-          const toMint = 100000 - currentNofake;
+        if (currentNofake === 0) {
           const { gateway, contract } = await connectFabricContract();
           try {
             const tx = contract.createTransaction('MintPoints');
-            await tx.submit(TEST_WALLET_ADDRESS, 'NOFAKE', String(toMint));
-            console.log(`✅ Fabric CouchDB synced: MintPoints(${TEST_WALLET_ADDRESS}, NOFAKE, ${toMint}) — txId: ${tx.getTransactionId()}`);
+            await tx.submit(TEST_WALLET_ADDRESS, 'NOFAKE', '100000');
+            console.log(`✅ Fabric: initial MintPoints(${TEST_WALLET_ADDRESS}, NOFAKE, 100000) — txId: ${tx.getTransactionId()}`);
           } finally {
             gateway.disconnect();
           }
         } else {
-          console.log(`✅ Fabric balance already sufficient: ${currentNofake} NOFAKE — no mint needed`);
+          console.log(`✅ Fabric: ledger already funded (${currentNofake} NOFAKE) — skipping mint`);
         }
       } catch (fabricErr) {
         // Non-fatal: Fabric may not be running in dev — DB remains authoritative

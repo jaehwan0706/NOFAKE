@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 
-const ADMIN_WALLET = (import.meta.env.VITE_ROOT_ADMIN_WALLET as string) || "";
+const ADMIN_WALLET = "0x70997970c51812dc3a010c7d01b50e0d17dc79c8";
 
 // ─── 네비게이션 데이터 ────────────────────────────────────────────────────────
 
@@ -164,6 +164,7 @@ export function Header() {
 
   const user = useAuthUser();
   const avatarInitial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
+  const isRootAdmin = user?.walletAddress?.toLowerCase() === ADMIN_WALLET;
 
   useEffect(() => {
     setOpenDropdown(null);
@@ -344,14 +345,14 @@ export function Header() {
                         <Settings className="h-4 w-4" />
                         설정
                       </Link>
-                      {ADMIN_WALLET && (
+                      {isRootAdmin && (
                         <Link
                           to="/admin"
                           onClick={() => setIsUserMenuOpen(false)}
-                          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-amber-400 transition-colors hover:bg-amber-500/10"
                         >
-                          <Building className="h-4 w-4" />
-                          Admin
+                          <ShieldCheck className="h-4 w-4" />
+                          관리자
                         </Link>
                       )}
                     </div>
@@ -450,6 +451,16 @@ export function Header() {
                       {item.name}
                     </Link>
                   ))}
+                  {isRootAdmin && (
+                    <Link
+                      to="/admin"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/10"
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      관리자
+                    </Link>
+                  )}
                   <button
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10"

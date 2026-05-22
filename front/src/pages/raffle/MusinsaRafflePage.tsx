@@ -53,10 +53,21 @@ export function MusinsaRafflePage() {
 
   useEffect(() => {
     if (!user) return;
+    // Use wallet already enriched in auth context (populated at startup).
+    if (user.walletAddress) {
+      setWalletAddress(user.walletAddress);
+      return;
+    }
+    // Fallback: explicit profile fetch (covers first-login edge cases).
     const token = localStorage.getItem(LOGIN_TOKEN_KEY);
     if (!token) return;
     setPhase("fetching-wallet");
-    fetch(`${API}/api/user/profile`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API}/api/user/profile`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "ngrok-skip-browser-warning": "69420",
+      },
+    })
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data: { walletAddress?: string | null }) => setWalletAddress(data.walletAddress ?? null))
       .catch(() => {})
@@ -99,7 +110,15 @@ export function MusinsaRafflePage() {
     } catch (err) {
       setPhase("error");
       const raw = err instanceof Error ? err.message : "";
-      showToast({ type: "error", message: raw === "PHONE_NOT_VERIFIED" ? "휴대폰을 인증해야 래플에 참여할 수 있습니다." : raw || "참여 처리 중 오류가 발생했습니다." });
+      let userMessage: string;
+      if (raw === "PHONE_NOT_VERIFIED") {
+        userMessage = "휴대폰을 인증해야 래플에 참여할 수 있습니다.";
+      } else if (raw.includes("Already participated")) {
+        userMessage = "이미 참여한 래플입니다!";
+      } else {
+        userMessage = raw || "래플 참여 중 오류가 발생했습니다. 다시 시도해 주세요.";
+      }
+      showToast({ type: "error", message: userMessage });
     }
   };
 

@@ -13,12 +13,13 @@ type KakaoLoginResponse = {
   success?: boolean;
   accessToken?: string;
   token?: string;
-  access_token?: string; // 🚀 카카오가 주는 진짜 이름 추가
+  access_token?: string;
   name?: string;
   email?: string;
   message?: string;
   error?: string;
-  phone_verified?: boolean; // 🚀 휴대폰 인증 여부 추가
+  phone_verified?: boolean;
+  walletAddress?: string | null;
 };
 
 export function KakaoCallback() {
@@ -69,11 +70,11 @@ export function KakaoCallback() {
           localStorage.setItem(LOGIN_TOKEN_KEY, token);
         }
 
-        // ✅ 전역 상태 업데이트
         loginUser({
           name: data.name ?? "사용자",
           email: data.email ?? "",
           phone_verified: data.phone_verified ?? false,
+          walletAddress: data.walletAddress ?? null,
         });
 
         // 휴대폰 인증 여부에 따라 분기
