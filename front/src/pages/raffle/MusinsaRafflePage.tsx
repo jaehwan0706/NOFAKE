@@ -324,14 +324,17 @@ export function MusinsaRafflePage() {
                       <p className="mb-2 flex items-center gap-2 text-sm font-bold text-green-400">
                         <CheckCircle2 className="h-4 w-4" /> 응모가 완료되었습니다
                       </p>
+                      <p className="mb-3 font-mono text-xs text-green-400/50 break-all">
+                        TX: {txHash.slice(0, 18)}...{txHash.slice(-6)}
+                      </p>
                       <a
                         href={`https://sepolia.etherscan.io/tx/${txHash}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 font-mono text-xs text-green-400/60 hover:text-green-400 transition-colors"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-2.5 text-sm font-bold text-green-400 transition-colors hover:bg-green-500/20"
                       >
-                        <ExternalLink className="h-3 w-3" />
-                        {txHash.slice(0, 18)}...{txHash.slice(-6)}
+                        <ExternalLink className="h-4 w-4" />
+                        블록체인 결과 확인 (Etherscan)
                       </a>
                     </div>
                   )}

@@ -1643,6 +1643,21 @@ async function submitSwapTransactionMock(walletAddress, fromBrand, toBrand, amou
     nike: updated.nike
   });
 
+  // Credit fee to treasury — use raw upsert because PLATFORM_TREASURY_KEY is not an ETH address
+  if (fee > 0) {
+    const [treasuryRow] = await PointBalance.findOrCreate({
+      where: { walletAddress: PLATFORM_TREASURY_KEY },
+      defaults: { walletAddress: PLATFORM_TREASURY_KEY, nofake: 0, musinsa: 0, nike: 0 }
+    });
+    const updatedTreasury = {
+      nofake: Number(treasuryRow.nofake || 0),
+      musinsa: Number(treasuryRow.musinsa || 0),
+      nike: Number(treasuryRow.nike || 0),
+    };
+    updatedTreasury[fromKey] += fee;
+    await PointBalance.upsert({ walletAddress: PLATFORM_TREASURY_KEY, ...updatedTreasury });
+  }
+
   return {
     txId: `MOCK_TX_${Date.now()}`,
     result: {
@@ -1658,7 +1673,15 @@ async function submitSwapTransactionMock(walletAddress, fromBrand, toBrand, amou
 }
 
 async function queryBalancesMock(walletAddress) {
-  return getOrCreatePointBalance(walletAddress);
+  // getOrCreatePointBalance normalizes ETH addresses; for system keys (e.g. PLATFORM_TREASURY_KEY)
+  // that aren't valid ETH addresses we must go directly to the DB.
+  const normalized = normalizeWalletAddress(walletAddress);
+  if (normalized) return getOrCreatePointBalance(normalized);
+  const [row] = await PointBalance.findOrCreate({
+    where: { walletAddress },
+    defaults: { walletAddress, nofake: 0, musinsa: 0, nike: 0 }
+  });
+  return { walletAddress: row.walletAddress, nofake: Number(row.nofake || 0), musinsa: Number(row.musinsa || 0), nike: Number(row.nike || 0) };
 }
 
 const ZERO_BALANCES = { nofake: 0, nike: 0, musinsa: 0 };
@@ -1735,12 +1758,23 @@ app.get('/api/admin/fees', verifyTokenMiddleware, async (req, res) => {
       return res.status(403).json({ success: false, error: 'admin wallet authentication failed' });
     }
 
-    if (useFabricMock) {
-      const data = await queryBalancesMock(PLATFORM_TREASURY_KEY);
-      return res.json({ success: true, data });
-    }
-    const data = await queryBalancesFabric(PLATFORM_TREASURY_KEY);
-    return res.json({ success: true, data });
+    const raw = useFabricMock
+      ? await queryBalancesMock(PLATFORM_TREASURY_KEY)
+      : await queryBalancesFabric(PLATFORM_TREASURY_KEY);
+
+    // Chaincode accumulates fees in the fromBrand field of the treasury:
+    //   NOFAKE → Brand  : fee lands in raw.nofake
+    //   Brand  → NOFAKE : fee lands in raw.musinsa / raw.nike
+    // total aggregates both directions so the dashboard always shows the full picture.
+    const nofakeFees   = Number(raw?.nofake   ?? 0);
+    const musinsaFees  = Number(raw?.musinsa  ?? 0);
+    const nikeFees     = Number(raw?.nike     ?? 0);
+    const total        = nofakeFees + musinsaFees + nikeFees;
+
+    return res.json({
+      success: true,
+      data: { ...raw, nofakeFees, musinsaFees, nikeFees, total }
+    });
   } catch (err) {
     console.error('/api/admin/fees error:', err);
     res.status(500).json({ success: false, error: err.message || 'server error' });

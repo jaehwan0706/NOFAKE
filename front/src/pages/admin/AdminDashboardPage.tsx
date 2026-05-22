@@ -66,7 +66,7 @@ function MetricCard({ label, sublabel, value, suffix = 'P', loading, error }: Me
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-interface TreasuryData { nofake: number }
+interface TreasuryData { nofake: number; musinsa?: number; nike?: number; nofakeFees?: number; musinsaFees?: number; nikeFees?: number; total?: number }
 interface StatsData { totalDistributed: number; participantCount: number }
 
 type RaffleType = 'nike' | 'musinsa';
@@ -74,6 +74,7 @@ type RaffleType = 'nike' | 'musinsa';
 export default function AdminDashboardPage() {
   const user = useAuthUser();
   const [treasury, setTreasury] = useState<number | null>(null);
+  const [treasuryBreakdown, setTreasuryBreakdown] = useState<{ nofake: number; musinsa: number; nike: number } | null>(null);
   const [treasuryLoading, setTreasuryLoading] = useState(true);
   const [treasuryError, setTreasuryError] = useState<string | null>(null);
   const [distributed, setDistributed] = useState<number | null>(null);
@@ -93,7 +94,16 @@ export default function AdminDashboardPage() {
     if (!isRootAdmin) return;
 
     fetchJson<TreasuryData>(`${API}/api/admin/fees`)
-      .then(d => setTreasury(Number(d?.nofake ?? 0)))
+      .then(d => {
+        // Use pre-computed total when available; fall back to summing fields
+        const total = d?.total ?? ((d?.nofakeFees ?? Number(d?.nofake ?? 0)) + (d?.musinsaFees ?? Number(d?.musinsa ?? 0)) + (d?.nikeFees ?? Number(d?.nike ?? 0)));
+        setTreasury(total);
+        setTreasuryBreakdown({
+          nofake: d?.nofakeFees ?? Number(d?.nofake ?? 0),
+          musinsa: d?.musinsaFees ?? Number(d?.musinsa ?? 0),
+          nike: d?.nikeFees ?? Number(d?.nike ?? 0),
+        });
+      })
       .catch(e => setTreasuryError(e instanceof Error ? e.message : '알 수 없는 오류'))
       .finally(() => setTreasuryLoading(false));
 
@@ -168,13 +178,30 @@ export default function AdminDashboardPage() {
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <MetricCard
-            label="Platform Treasury"
-            sublabel="누적 스왑 수수료 (NOFAKE_PLATFORM_TREASURY)"
-            value={treasury}
-            loading={treasuryLoading}
-            error={treasuryError}
-          />
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">Platform Treasury</p>
+            <p className="text-xs text-gray-400 mb-4">누적 스왑 수수료 전체 (양방향 합산)</p>
+            {treasuryLoading && (
+              <div className="flex items-center gap-2 text-gray-400 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />불러오는 중...
+              </div>
+            )}
+            {!treasuryLoading && treasuryError && <p className="text-sm text-red-500">오류: {treasuryError}</p>}
+            {!treasuryLoading && !treasuryError && treasury !== null && (
+              <>
+                <p className="text-3xl font-bold text-gray-900">
+                  {treasury.toLocaleString()}<span className="ml-1 text-base font-medium text-gray-400">P</span>
+                </p>
+                {treasuryBreakdown && (
+                  <div className="mt-3 flex flex-col gap-1 text-xs text-gray-400">
+                    <span>NOFAKE→Brand: <span className="font-semibold text-gray-600">{treasuryBreakdown.nofake.toLocaleString()} P</span></span>
+                    <span>MUSINSA→NOFAKE: <span className="font-semibold text-gray-600">{treasuryBreakdown.musinsa.toLocaleString()} P</span></span>
+                    <span>NIKE→NOFAKE: <span className="font-semibold text-gray-600">{treasuryBreakdown.nike.toLocaleString()} P</span></span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
           <MetricCard
             label="총 지급된 포인트"
             sublabel={`래플 참여 보상 누계 (참여 1건당 500 P)`}
