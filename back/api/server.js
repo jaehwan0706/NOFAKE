@@ -774,28 +774,31 @@ app.get('/api/phone-verification/status', async (req, res) => {
 
     // [Octomo Polling Fallback]
     // 아직 대기 중이라면 Octomo API를 직접 조회하여 확인 시도
-    if (session.status === 'pending' && process.env.OCTOMO_API_KEY && session.verificationCode) {
+    if (session.status === 'pending' && process.env.OCTOMO_API_KEY && session.verificationCode && session.phoneNumber) {
       try {
-        const octomoResp = await axios.get(`https://api.octomo.octoverse.kr/v1/messages`, {
-          params: { content: session.verificationCode },
-          headers: { 'x-api-key': process.env.OCTOMO_API_KEY }
+        const octomoResp = await axios.post(`https://api.octoverse.kr/octomo/v1/public/message/exists`, {
+          mobileNum: session.phoneNumber,
+          text: session.verificationCode
+        }, {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Octomo ${process.env.OCTOMO_API_KEY}`
+          }
         });
 
-        const messages = octomoResp.data?.data || [];
-        // 해당 코드로 수신된 메시지가 있다면 인증 성공 처리
-        if (messages.length > 0) {
-          const msg = messages[0];
+        // Response Body: { "verified": true/false }
+        if (octomoResp.data?.verified === true) {
           await session.update({
             status: 'verified',
-            verifiedAt: new Date(),
-            phoneNumber: msg.sender // 실제 발신 번호로 업데이트
+            verifiedAt: new Date()
           });
 
           // 유저 정보 업데이트
           const user = await User.findOne({ where: { kakaoId: session.kakaoId } });
           if (user) {
             await user.update({
-              phoneNumber: msg.sender,
+              phoneNumber: session.phoneNumber,
               phone_verified: true,
               phone_verified_at: new Date()
             });
@@ -804,7 +807,7 @@ app.get('/api/phone-verification/status', async (req, res) => {
           return res.json({ sessionId: session.sessionId, status: 'verified', verifiedAt: session.verifiedAt });
         }
       } catch (pollErr) {
-        console.error('Octomo polling failed:', pollErr.message);
+        console.error('Octomo polling failed:', pollErr.response?.data || pollErr.message);
       }
     }
 
