@@ -53,13 +53,8 @@ function checkCommitReadiness() {
   # continue to poll
   # we either get a successful response, or reach MAX RETRY
   while [ $rc -ne 0 -a $COUNTER -lt $MAX_RETRY ]; do
-<<<<<<< HEAD
     sleep ${DELAY:-3}
     infoln "Attempting to check the commit readiness of the chaincode definition on peer0.org${ORG}, Retry after ${DELAY:-3} seconds."
-=======
-    sleep $DELAY
-    infoln "Attempting to check the commit readiness of the chaincode definition on peer0.org${ORG}, Retry after $DELAY seconds."
->>>>>>> d00e0fd0602b50ff668739c7df29b95450bbacd5
     set -x
     peer lifecycle chaincode checkcommitreadiness --channelID $CHANNEL_NAME --name ${CC_NAME} --version ${CC_VERSION} --sequence ${CC_SEQUENCE} ${INIT_REQUIRED} ${CC_END_POLICY} ${CC_COLL_CONFIG} --output json >&log.txt
     res=$?
@@ -107,13 +102,8 @@ function queryCommitted() {
   # continue to poll
   # we either get a successful response, or reach MAX RETRY
   while [ $rc -ne 0 -a $COUNTER -lt $MAX_RETRY ]; do
-<<<<<<< HEAD
     sleep ${DELAY:-3}
     infoln "Attempting to Query committed status on peer0.org${ORG}, Retry after ${DELAY:-3} seconds."
-=======
-    sleep $DELAY
-    infoln "Attempting to Query committed status on peer0.org${ORG}, Retry after $DELAY seconds."
->>>>>>> d00e0fd0602b50ff668739c7df29b95450bbacd5
     set -x
     peer lifecycle chaincode querycommitted --channelID $CHANNEL_NAME --name ${CC_NAME} >&log.txt
     res=$?
@@ -141,11 +131,7 @@ function chaincodeInvokeInit() {
   # continue to poll
   # we either get a successful response, or reach MAX RETRY
   while [ $rc -ne 0 -a $COUNTER -lt $MAX_RETRY ]; do
-<<<<<<< HEAD
     sleep ${DELAY:-3}
-=======
-    sleep $DELAY
->>>>>>> d00e0fd0602b50ff668739c7df29b95450bbacd5
     # while 'peer chaincode' command can get the orderer endpoint from the
     # peer (if join was successful), let's supply it directly as we know
     # it using the "-o" option
@@ -171,13 +157,8 @@ function chaincodeQuery() {
   # continue to poll
   # we either get a successful response, or reach MAX RETRY
   while [ $rc -ne 0 -a $COUNTER -lt $MAX_RETRY ]; do
-<<<<<<< HEAD
     sleep ${DELAY:-3}
     infoln "Attempting to Query peer0.org${ORG}, Retry after ${DELAY:-3} seconds."
-=======
-    sleep $DELAY
-    infoln "Attempting to Query peer0.org${ORG}, Retry after $DELAY seconds."
->>>>>>> d00e0fd0602b50ff668739c7df29b95450bbacd5
     set -x
     peer chaincode query -C $CHANNEL_NAME -n ${CC_NAME} -c '{"Args":["org.hyperledger.fabric:GetMetadata"]}' >&log.txt
     res=$?
@@ -318,13 +299,8 @@ chaincodeInvoke() {
   # continue to poll
   # we either get a successful response, or reach MAX RETRY
   while [ $rc -ne 0 -a $COUNTER -lt $MAX_RETRY ]; do
-<<<<<<< HEAD
     sleep ${DELAY:-3}
     infoln "Attempting to Invoke on peer0.org${ORG}, Retry after ${DELAY:-3} seconds."
-=======
-    sleep $DELAY
-    infoln "Attempting to Invoke on peer0.org${ORG}, Retry after $DELAY seconds."
->>>>>>> d00e0fd0602b50ff668739c7df29b95450bbacd5
     set -x
     peer chaincode invoke -o localhost:7050 -C $CHANNEL_NAME -n ${CC_NAME} -c ${CC_INVOKE_CONSTRUCTOR} --tls --cafile $ORDERER_CA  --peerAddresses localhost:7051 --tlsRootCertFiles $PEER0_ORG1_CA --peerAddresses localhost:9051 --tlsRootCertFiles $PEER0_ORG2_CA  >&log.txt
     res=$?
@@ -352,13 +328,8 @@ chaincodeQuery() {
   # continue to poll
   # we either get a successful response, or reach MAX RETRY
   while [ $rc -ne 0 -a $COUNTER -lt $MAX_RETRY ]; do
-<<<<<<< HEAD
     sleep ${DELAY:-3}
     infoln "Attempting to Query peer0.org${ORG}, Retry after ${DELAY:-3} seconds."
-=======
-    sleep $DELAY
-    infoln "Attempting to Query peer0.org${ORG}, Retry after $DELAY seconds."
->>>>>>> d00e0fd0602b50ff668739c7df29b95450bbacd5
     set -x
     peer chaincode query -C $CHANNEL_NAME -n ${CC_NAME} -c ${CC_QUERY_CONSTRUCTOR} >&log.txt
     res=$?

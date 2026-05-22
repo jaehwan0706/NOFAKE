@@ -1,13 +1,23 @@
 import React, { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { useAuthUser } from '../../lib/authUser';
+
+const ADMIN_WALLET = "0x70997970c51812dc3a010c7d01b50e0d17dc79c8";
 
 const API = (import.meta.env.VITE_API_BASE_URL as string) || '';
-const ADMIN_WALLET = (import.meta.env.VITE_ROOT_ADMIN_WALLET as string) || '';
+const LOGIN_TOKEN_KEY = 'nofakeAccessToken';
 
-const adminHeaders: HeadersInit = ADMIN_WALLET ? { 'X-Admin-Wallet': ADMIN_WALLET } : {};
+function buildAdminHeaders(): HeadersInit {
+  const token = localStorage.getItem(LOGIN_TOKEN_KEY);
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    'ngrok-skip-browser-warning': '69420',
+  };
+}
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: adminHeaders });
+  const res = await fetch(url, { headers: buildAdminHeaders() });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error || `서버 오류 (${res.status})`);
@@ -60,15 +70,19 @@ interface TreasuryData { nofake: number }
 interface StatsData { totalDistributed: number; participantCount: number }
 
 export default function AdminDashboardPage() {
+  const user = useAuthUser();
   const [treasury, setTreasury] = useState<number | null>(null);
   const [treasuryLoading, setTreasuryLoading] = useState(true);
   const [treasuryError, setTreasuryError] = useState<string | null>(null);
-
   const [distributed, setDistributed] = useState<number | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
 
+  const isRootAdmin = user?.walletAddress?.toLowerCase() === ADMIN_WALLET;
+
   useEffect(() => {
+    if (!isRootAdmin) return;
+
     fetchJson<TreasuryData>(`${API}/api/admin/fees`)
       .then(d => setTreasury(Number(d?.nofake ?? 0)))
       .catch(e => setTreasuryError(e instanceof Error ? e.message : '알 수 없는 오류'))
@@ -78,7 +92,11 @@ export default function AdminDashboardPage() {
       .then(d => setDistributed(Number(d?.totalDistributed ?? 0)))
       .catch(e => setStatsError(e instanceof Error ? e.message : '알 수 없는 오류'))
       .finally(() => setStatsLoading(false));
-  }, []);
+  }, [isRootAdmin]);
+
+  if (!isRootAdmin) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <main className="min-h-screen px-6 pt-32 pb-24">

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../lib/api';
 import { loginUser, useAuthUser } from '../../lib/authUser';
 import { MessageSquare, Phone, ShieldCheck, ArrowRight, RefreshCw, CheckCircle2 } from 'lucide-react';

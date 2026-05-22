@@ -525,15 +525,6 @@ export const MyPage = () => {
             logs.push(`profile 수신 OK: DID=${profileData.did ? "✓" : "—"}`);
             setProfile(profileData);
             profileOk = true;
-
-            // ✅ 추가: 실제 이름을 받아서 헤더 전역 상태 즉시 갱신
-            if (profileData.name) {
-              loginUser({
-                name: profileData.name,
-                email: profileData.email ?? "",
-                phone_verified: true,
-              });
-            }
           } else {
             const text = await profileRes.text().catch(() => "");
             logs.push(`profile 에러: ${profileRes.status} - ${text.slice(0, 80)}`);
@@ -551,16 +542,6 @@ export const MyPage = () => {
             if (data.profile) {
               logs.push(`  ✓ 프로필: ${data.profile.name}, DID=${data.profile.did ? "있음" : "없음"}`);
               setProfile(data.profile);
-
-              // ✅ 추가: /api/mypage에서 받은 프로필로도 헤더 전역 상태 갱신
-              // (profile API가 실패했을 경우의 fallback)
-              if (data.profile.name && !profileOk) {
-                loginUser({
-                  name: data.profile.name,
-                  email: data.profile.email ?? "",
-                  phone_verified: true,
-                });
-              }
             }
             if (data.raffleHistory) {
               logs.push(`  ✓ 래플: ${data.raffleHistory.length}개`);
@@ -691,20 +672,20 @@ export const MyPage = () => {
             onLogout={handleLogout}
             onNameUpdated={(newName) => {
               setProfile(prev => prev ? { ...prev, name: newName } : { ...displayProfile, name: newName });
-              // ✅ 추가: 이름 변경 저장 시 헤더도 즉시 갱신
               loginUser({
                 name: newName,
                 email: displayProfile.email ?? "",
                 phone_verified: true,
+                walletAddress: user?.walletAddress ?? null,
               });
             }}
             onEmailUpdated={(newEmail) => {
               setProfile(prev => prev ? { ...prev, email: newEmail } : { ...displayProfile, email: newEmail });
-              // ✅ 추가: 이메일 변경 저장 시 헤더도 즉시 갱신
               loginUser({
                 name: displayProfile.name,
                 email: newEmail,
                 phone_verified: true,
+                walletAddress: user?.walletAddress ?? null,
               });
             }}
           />
