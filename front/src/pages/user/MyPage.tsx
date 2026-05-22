@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
-import { useAuthUser, logoutUser } from "../../components/Header";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuthUser, logoutUser, loginUser } from "../../lib/authUser";
 import { fetchPointBalances } from "../../lib/pointBalances";
 
 const API_BASE_URL =
@@ -55,9 +55,9 @@ interface RaffleItem {
 interface UserProfile {
   name: string;
   email: string | null;
-  walletAddress: string | null;   // 지갑 주소 (예: 0x3a9f…c12e)
-  did: string | null;             // DID (예: did:nofake:0x3a9f…c12e)
-  joinedAt: string | null;        // Web3 최초 로그인 시각 (ISO8601)
+  walletAddress: string | null;
+  did: string | null;
+  joinedAt: string | null;
   profileImage: string | null;
 }
 
@@ -76,6 +76,36 @@ interface PointHistoryItem {
   color: string;
   type: string;
 }
+
+interface PointTx {
+  id: number;
+  type: "earn" | "swap";
+  fromBrand: string | null;
+  toBrand: string;
+  amount: number;
+  fee: number;
+  txId: string | null;
+  createdAt: string;
+}
+
+const BRAND_LABEL_MAP: Record<string, string> = {
+  NOFAKE: "nofake", NIKE: "나이키", MUSINSA: "무신사", RAFFLE: "래플",
+};
+const toBrandLabel = (key: string | null) =>
+  !key ? "" : (BRAND_LABEL_MAP[key.toUpperCase()] ?? key.toLowerCase());
+
+function formatTxDate(iso: string): string {
+  const d = new Date(iso);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${yyyy}/${mm}/${dd}/${hh}:${min}`;
+}
+
+const POINT_FILTERS = ["전체", "적립", "사용"] as const;
+type PointFilter = (typeof POINT_FILTERS)[number];
 
 interface MyPageResponse {
   profile?: UserProfile;
@@ -102,10 +132,11 @@ function StatCard({ num, label, sub, color = T.navy }: { num: string | number; l
 
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? { color: T.gray, bg: "#f1f5f9", dot: false };
+  const label = status === '당첨' ? '당첨 🎉' : status;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, backgroundColor: cfg.bg, color: cfg.color, fontWeight: 700, fontSize: ".75rem", whiteSpace: "nowrap" }}>
       {cfg.dot && <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.color, display: "inline-block", boxShadow: `0 0 0 2px ${cfg.color}44` }} />}
-      {status}
+      {label}
     </span>
   );
 }
@@ -192,7 +223,28 @@ function RafflesTab({ raffles, stats }: { raffles: RaffleItem[]; stats: Stats })
   );
 }
 
-function PointsTab({ points, history }: { points: number; history: PointHistoryItem[] }) {
+function PointsTab({ points }: { points: number }) {
+  const [txs, setTxs] = useState<PointTx[]>([]);
+  const [txLoading, setTxLoading] = useState(true);
+  const [txError, setTxError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<PointFilter>("전체");
+
+  useEffect(() => {
+    const token = localStorage.getItem(LOGIN_TOKEN_KEY);
+    if (!token) { setTxLoading(false); return; }
+    setTxLoading(true);
+    setTxError(null);
+    fetch(`${API_BASE_URL}/api/points/history`, {
+      headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "69420" },
+    })
+      .then(res => res.ok ? res.json() : res.json().then((b: { error?: string }) => Promise.reject(b.error || `오류 (${res.status})`)))
+      .then((body: { success: boolean; data: PointTx[] }) => setTxs(body.data ?? []))
+      .catch(e => setTxError(typeof e === "string" ? e : "거래 내역 조회 실패"))
+      .finally(() => setTxLoading(false));
+  }, []);
+
+  const filtered = filter === "전체" ? txs : txs.filter(tx => filter === "적립" ? tx.type === "earn" : tx.type === "swap");
+
   return (
     <div>
       <div style={{ background: T.navy, borderRadius: "1.5rem", padding: "36px 32px", marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
@@ -202,21 +254,42 @@ function PointsTab({ points, history }: { points: number; history: PointHistoryI
         </div>
         <Link to="/point-swap" style={{ padding: "13px 28px", background: T.blue, color: "#fff", borderRadius: 10, fontWeight: 800, textDecoration: "none", fontSize: ".9rem" }}>포인트 교환하기 →</Link>
       </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        {POINT_FILTERS.map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{ padding: "7px 16px", borderRadius: 999, border: `1px solid ${filter === f ? T.blue : T.border}`, background: filter === f ? T.blue : T.white, color: filter === f ? "#fff" : T.text, fontWeight: 700, fontSize: ".82rem", cursor: "pointer", transition: "all .15s" }}>
+            {f}
+          </button>
+        ))}
+      </div>
+
       <div style={{ background: T.white, borderRadius: "1.25rem", border: `1px solid ${T.border}`, overflow: "hidden" }}>
         <div style={{ padding: "20px 24px", borderBottom: `1px solid ${T.border}`, fontWeight: 700, color: T.navy }}>포인트 내역</div>
-        {history.length > 0 ? (
-          history.map((item, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: i < history.length - 1 ? `1px solid ${T.border}` : "none" }}>
-              <div>
-                <div style={{ fontWeight: 600, color: T.text, fontSize: ".88rem" }}>{item.label}</div>
-                <div style={{ color: T.gray, fontSize: ".75rem", marginTop: 3 }}>{item.date}</div>
-              </div>
-              <div style={{ fontWeight: 800, color: item.color, fontSize: ".95rem" }}>{item.amount} P</div>
-            </div>
-          ))
-        ) : (
+
+        {txLoading && (
+          <div style={{ padding: "40px", textAlign: "center", color: T.gray, fontSize: ".88rem" }}>불러오는 중…</div>
+        )}
+
+        {!txLoading && txError && (
+          <div style={{ padding: "24px", color: T.red, fontSize: ".85rem" }}>조회 실패: {txError}</div>
+        )}
+
+        {!txLoading && !txError && filtered.length === 0 && (
           <div style={{ padding: "40px", textAlign: "center", color: T.gray }}>포인트 내역이 없습니다.</div>
         )}
+
+        {!txLoading && !txError && filtered.map((tx, i) => {
+          const from = toBrandLabel(tx.fromBrand);
+          const to = toBrandLabel(tx.toBrand);
+          const flow = from ? `${from} -> ${to}` : to;
+          const line = `${flow} ${tx.amount}포인트, 수수료${tx.fee}포인트 ${formatTxDate(tx.createdAt)}`;
+
+          return (
+            <div key={tx.id} style={{ padding: "14px 24px", borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : "none", fontWeight: 500, color: T.text, fontSize: ".88rem", fontFamily: "monospace" }}>
+              {line}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -335,7 +408,6 @@ function SettingsTab({
 
   return (
     <div>
-      {/* ── DB 디버그 배너: API가 정상이면 자동으로 숨겨짐 ── */}
       {debugLog && (
         <div style={{ marginBottom: 16, padding: "14px 18px", background: "#fffbeb", border: `1px solid ${T.amber}44`, borderRadius: 12 }}>
           <div style={{ fontWeight: 700, color: T.amber, fontSize: ".8rem", marginBottom: 6 }}>⚠ API 연결 상태</div>
@@ -345,7 +417,6 @@ function SettingsTab({
 
       <div style={{ background: T.white, borderRadius: "1.25rem", border: `1px solid ${T.border}`, overflow: "hidden" }}>
 
-        {/* 이름 — 인라인 편집 */}
         <EditableRow
           icon="👤" label="이름" value={profile.name}
           apiEndpoint={`${API_BASE_URL}/api/user/name`} fieldKey="name"
@@ -353,7 +424,6 @@ function SettingsTab({
           onSaved={onNameUpdated}
         />
 
-        {/* 이메일 — 인라인 편집 */}
         <EditableRow
           icon="📧" label="이메일" value={profile.email}
           apiEndpoint={`${API_BASE_URL}/api/user/email`} fieldKey="email"
@@ -362,7 +432,6 @@ function SettingsTab({
           onSaved={onEmailUpdated}
         />
 
-        {/* 지갑 주소 (읽기 전용) */}
         <div style={{ display: "flex", alignItems: "center", padding: "20px 24px", borderBottom: `1px solid ${T.border}`, gap: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>💎</span>
           <div style={{ minWidth: 0 }}>
@@ -373,7 +442,6 @@ function SettingsTab({
           </div>
         </div>
 
-        {/* DID (읽기 전용) */}
         <div style={{ display: "flex", alignItems: "center", padding: "20px 24px", borderBottom: `1px solid ${T.border}`, gap: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>🔐</span>
           <div style={{ minWidth: 0 }}>
@@ -384,7 +452,6 @@ function SettingsTab({
           </div>
         </div>
 
-        {/* 가입일 (Web3 최초 로그인 기준, 읽기 전용) */}
         <div style={{ display: "flex", alignItems: "center", padding: "20px 24px", borderBottom: `1px solid ${T.border}`, gap: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>📅</span>
           <div>
@@ -395,7 +462,6 @@ function SettingsTab({
           </div>
         </div>
 
-        {/* 로그아웃 */}
         <div style={{ padding: "20px 24px", background: "#fff5f5" }}>
           <button onClick={onLogout} style={{ padding: "10px 20px", borderRadius: 8, border: `1px solid ${T.red}33`, background: "#fff", color: T.red, fontWeight: 700, fontSize: ".85rem", cursor: "pointer" }}>
             로그아웃
@@ -416,7 +482,7 @@ export const MyPage = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [points, setPoints] = useState<number>(0);
   const [raffleHistory, setRaffleHistory] = useState<RaffleItem[]>([]);
-  const [pointHistory, setPointHistory] = useState<PointHistoryItem[]>([]);
+  const [, setPointHistory] = useState<PointHistoryItem[]>([]);
   const [stats, setStats] = useState<Stats>({ totalApply: 0, winCount: 0, winRate: "0.0", activeCount: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [debugLog, setDebugLog] = useState<string | null>(null);
@@ -481,14 +547,17 @@ export const MyPage = () => {
             if (data.raffleHistory) {
               logs.push(`  ✓ 래플: ${data.raffleHistory.length}개`);
               setRaffleHistory(data.raffleHistory);
+              // Compute stats from real raffle data
+              const history = data.raffleHistory;
+              const winCount = history.filter(r => r.status === '당첨').length;
+              const activeCount = history.filter(r => r.status === '진행중').length;
+              const winRate = history.length > 0 ? ((winCount / history.length) * 100).toFixed(1) : '0.0';
+              setStats({ totalApply: history.length, winCount, winRate, activeCount });
+              logs.push(`  ✓ 통계 계산: 총응모=${history.length}, 당첨=${winCount}`);
             }
             if (data.pointHistory) {
               logs.push(`  ✓ 포인트 이력: ${data.pointHistory.length}개`);
               setPointHistory(data.pointHistory);
-            }
-            if (data.stats) {
-              logs.push(`  ✓ 통계: 총응모=${data.stats.totalApply}, 당첨=${data.stats.winCount}`);
-              setStats(data.stats);
             }
             mypageOk = true;
           } else {
@@ -541,7 +610,6 @@ export const MyPage = () => {
     navigate("/", { replace: true });
   };
 
-  // profile이 없으면 useAuthUser 기본값으로 fallback
   const displayProfile: UserProfile = profile ?? {
     name: user.name,
     email: user.email ?? null,
@@ -600,14 +668,30 @@ export const MyPage = () => {
       {/* 콘텐츠 영역 */}
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px clamp(16px,4vw,40px)" }}>
         {activeTab === "raffles"  && <RafflesTab raffles={raffleHistory} stats={stats} />}
-        {activeTab === "points"   && <PointsTab points={points} history={pointHistory} />}
+        {activeTab === "points"   && <PointsTab points={points} />}
         {activeTab === "settings" && (
           <SettingsTab
             profile={displayProfile}
             debugLog={debugLog}
             onLogout={handleLogout}
-            onNameUpdated={(newName) => setProfile(prev => prev ? { ...prev, name: newName } : { ...displayProfile, name: newName })}
-            onEmailUpdated={(newEmail) => setProfile(prev => prev ? { ...prev, email: newEmail } : { ...displayProfile, email: newEmail })}
+            onNameUpdated={(newName) => {
+              setProfile(prev => prev ? { ...prev, name: newName } : { ...displayProfile, name: newName });
+              loginUser({
+                name: newName,
+                email: displayProfile.email ?? "",
+                phone_verified: true,
+                walletAddress: user?.walletAddress ?? null,
+              });
+            }}
+            onEmailUpdated={(newEmail) => {
+              setProfile(prev => prev ? { ...prev, email: newEmail } : { ...displayProfile, email: newEmail });
+              loginUser({
+                name: displayProfile.name,
+                email: newEmail,
+                phone_verified: true,
+                walletAddress: user?.walletAddress ?? null,
+              });
+            }}
           />
         )}
       </div>

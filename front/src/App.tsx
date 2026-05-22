@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import { BrowserRouter, Outlet, Routes, Route, useLocation, useNavigate } from "react-router";
-import { Header, useAuthUser } from "./components/Header";
+import { BrowserRouter, Navigate, Outlet, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { Header } from "./components/Header";
+import { useAuthUser, useAuthReady } from "./lib/authUser";
 import { Footer } from "./components/Footer";
 import { Home } from "./pages/main/Home";
 import { RafflesPage } from "./pages/raffle/RafflesPage";
@@ -24,11 +25,14 @@ import { FastLaunchPage } from "./pages/partnership/FastLaunchPage";
 import { ManagerSupportPage } from "./pages/partnership/ManagerSupportPage";
 import { PartnershipStatusPage } from "./pages/partnership/PartnershipStatusPage";
 import { PointSwapPage } from "./pages/points/PointSwapPage";
+import { PointHistory } from "./pages/points/PointHistory";
 import { MyPage } from "./pages/user/MyPage";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import { BrandsPage } from "./pages/about/BrandsPage";
 import { HowItWorksPage } from "./pages/about/HowItWorksPage";
 import { PartnerPage } from "./pages/partnership/PartnerPage";
+import { NikeRafflePage } from "./pages/raffle/NikeRafflePage";
+import { MusinsaRafflePage } from "./pages/raffle/MusinsaRafflePage";
 
 function Root() {
   const user = useAuthUser();
@@ -74,6 +78,30 @@ function NotFound() {
   );
 }
 
+const ADMIN_WALLET = ((import.meta.env.VITE_ROOT_ADMIN_WALLET as string) || "").toLowerCase();
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const authReady = useAuthReady();
+  const user = useAuthUser();
+
+  // Wait for the initial token validation to finish before making any routing
+  // decision — avoids redirecting the admin away before walletAddress is loaded.
+  if (!authReady) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50">
+        <p className="text-sm font-semibold text-gray-400">관리자 세션 확인 중...</p>
+      </main>
+    );
+  }
+
+  const isAdmin = !!ADMIN_WALLET && !!user?.walletAddress &&
+    user.walletAddress.toLowerCase() === ADMIN_WALLET;
+
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -94,10 +122,13 @@ export default function App() {
 
           {/* 3. 래플 이벤트 */}
           <Route path="raffles" element={<RafflesPage />} />
+          <Route path="raffles/nike" element={<NikeRafflePage />} />
+          <Route path="raffles/musinsa" element={<MusinsaRafflePage />} />
 
           {/* 4. 포인트 거래 */}
           <Route path="point-swap" element={<PointSwapPage />} />
-          <Route path="admin" element={<AdminDashboardPage />} />
+          <Route path="points/history" element={<PointHistory />} />
+          <Route path="admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
 
           {/* 5. 고객센터 */}
           <Route path="support" element={<Support />} />

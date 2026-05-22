@@ -1,4 +1,7 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> d9c1ac901667ee688df49dc96eba19e2899684b6
 # Benchmarking the performance using Hyperledger Caliper
 
 This document introduces how to use [Hyperledger Caliper](https://hyperledger.github.io/caliper/) to benchmark the performance of the Hyperledger Fabric environment created with test-network-k8s.
@@ -204,6 +207,7 @@ After creating the above files, you can run a performance benchmark with the fol
 
 npx caliper launch manager --caliper-workspace . --caliper-benchconfig benchmarks/myAssetBenchmark.yaml --caliper-networkconfig networks/fabric/test-network.yaml
 ```
+<<<<<<< HEAD
 =======
 # Benchmarking the performance using Hyperledger Caliper
 
@@ -411,3 +415,5 @@ After creating the above files, you can run a performance benchmark with the fol
 npx caliper launch manager --caliper-workspace . --caliper-benchconfig benchmarks/myAssetBenchmark.yaml --caliper-networkconfig networks/fabric/test-network.yaml
 ```
 >>>>>>> d00e0fd0602b50ff668739c7df29b95450bbacd5
+=======
+>>>>>>> d9c1ac901667ee688df49dc96eba19e2899684b6

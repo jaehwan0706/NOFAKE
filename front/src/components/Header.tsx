@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+﻿import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { logoutUser, useAuthUser } from "../lib/authUser";
 import {
   ArrowLeftRight,
   Building,
@@ -22,71 +23,7 @@ import {
   X,
 } from "lucide-react";
 
-const LOGIN_TOKEN_KEY = "nofakeAccessToken";
-const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string) ?? "";
-const ADMIN_WALLET = (import.meta.env.VITE_ROOT_ADMIN_WALLET as string) || "";
-
-// ─── 전역 인증 상태 ───────────────────────────────────────────────────────────
-
-let _user: { name: string; email: string; phone_verified: boolean } | null = null;
-
-export function loginUser(user: { name: string; email: string; phone_verified: boolean }) {
-  _user = user;
-  window.dispatchEvent(new Event("auth-change"));
-}
-
-export function logoutUser() {
-  _user = null;
-  localStorage.removeItem(LOGIN_TOKEN_KEY);
-  window.dispatchEvent(new Event("auth-change"));
-}
-
-export function useAuthUser() {
-  const [user, setUser] = useState<{ name: string; email: string; phone_verified: boolean } | null>(_user);
-
-  useEffect(() => {
-    const handleAuthSync = () => {
-      setUser(_user ? { ..._user } : null);
-    };
-    handleAuthSync();
-    window.addEventListener("auth-change", handleAuthSync);
-    return () => window.removeEventListener("auth-change", handleAuthSync);
-  }, []);
-
-  return user;
-}
-
-// ─── 앱 시작 시 토큰으로 유저 정보 복원 ──────────────────────────────────────
-
-(async () => {
-  const token = localStorage.getItem(LOGIN_TOKEN_KEY);
-  if (!token) {
-    if (_user !== null) logoutUser();
-    return;
-  }
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "ngrok-skip-browser-warning": "69420",
-      },
-    });
-    if (!res.ok) { logoutUser(); return; }
-    const data = (await res.json()) as { success: boolean; name?: string; email?: string; phone_verified?: boolean };
-    if (data.success && data.name) {
-      loginUser({ 
-        name: data.name, 
-        email: data.email ?? "",
-        phone_verified: data.phone_verified ?? false
-      });
-    } else {
-      logoutUser();
-    }
-  } catch {
-    // 네트워크 오류 시 무시
-  }
-})();
+const ADMIN_WALLET = "0x70997970c51812dc3a010c7d01b50e0d17dc79c8";
 
 // ─── 네비게이션 데이터 ────────────────────────────────────────────────────────
 
@@ -126,12 +63,10 @@ const NAV_ITEMS = [
           ],
         },
         {
-          title: "카테고리",
+          title: "진행 중인 래플",
           items: [
-            { icon: <Ticket className="h-4 w-4" />, name: "스니커즈", desc: "운동화 & 라이프스타일", path: "/raffles?category=sneakers" },
-            { icon: <Ticket className="h-4 w-4" />, name: "의류", desc: "스트리트 & 하이엔드", path: "/raffles?category=clothing" },
-            { icon: <Ticket className="h-4 w-4" />, name: "액세서리", desc: "백 · 시계 · 주얼리", path: "/raffles?category=accessories" },
-            { icon: <Ticket className="h-4 w-4" />, name: "한정판", desc: "희소성 높은 컬렉터블", path: "/raffles?category=limited" },
+            { icon: <Ticket className="h-4 w-4" />, name: "Nike 래플", desc: "Jordan 1 High OG Chicago", path: "/raffles/nike" },
+            { icon: <Ticket className="h-4 w-4" />, name: "무신사 래플", desc: "Musinsa Standard Oversized Hoodie", path: "/raffles/musinsa" },
           ],
         },
       ],
@@ -228,16 +163,15 @@ export function Header() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const user = useAuthUser();
-  const avatarInitial = user?.name ? user.name[0] : "U";
+  const avatarInitial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
+  const isRootAdmin = user?.walletAddress?.toLowerCase() === ADMIN_WALLET;
 
-  // 경로 변경 시 메뉴 닫기
   useEffect(() => {
     setOpenDropdown(null);
     setIsMobileMenuOpen(false);
     setIsUserMenuOpen(false);
   }, [location.pathname]);
 
-  // 외부 클릭 시 유저 메뉴 닫기
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
@@ -348,6 +282,18 @@ export function Header() {
 
           {/* 데스크탑 우측 */}
           <div className="hidden items-center gap-3 md:flex">
+            {/* 비로그인: 유저 아이콘만 */}
+            {!user && (
+              <button
+                onClick={() => navigate("/login")}
+                className="flex items-center justify-center rounded-full p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label="로그인"
+              >
+                <User className="h-5 w-5" />
+              </button>
+            )}
+
+            {/* 로그인: 아바타 + 유저 메뉴 */}
             {user && (
               <div className="relative" ref={userMenuRef}>
                 <button
@@ -366,16 +312,17 @@ export function Header() {
                 {isUserMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-xl">
                     <div className="border-b border-white/10 px-4 py-3">
-                      <p className="text-sm font-bold text-white">{user.name}</p>
+                      <p style={{ color: "#ffffff" }} className="text-sm font-bold">{user.name}</p>
                       {user.email && (
-                        <p className="mt-0.5 truncate text-xs text-gray-400">{user.email}</p>
+                        <p style={{ color: "#9ca3af" }} className="mt-0.5 truncate text-xs">{user.email}</p>
                       )}
                     </div>
                     <div className="p-1.5">
                       <Link
                         to="/mypage"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                        style={{ color: "#ffffff" }}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-white/5"
                       >
                         <User className="h-4 w-4" />
                         마이페이지
@@ -383,7 +330,8 @@ export function Header() {
                       <Link
                         to="/mypage?tab=points"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                        style={{ color: "#ffffff" }}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-white/5"
                       >
                         <Gift className="h-4 w-4" />
                         포인트
@@ -391,19 +339,21 @@ export function Header() {
                       <Link
                         to="/mypage?tab=settings"
                         onClick={() => setIsUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                        style={{ color: "#ffffff" }}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-white/5"
                       >
                         <Settings className="h-4 w-4" />
                         설정
                       </Link>
-                      {ADMIN_WALLET && (
+                      {isRootAdmin && (
                         <Link
                           to="/admin"
                           onClick={() => setIsUserMenuOpen(false)}
-                          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5 hover:text-white"
+                          style={{ color: "#ffffff" }}
+                          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-amber-400 transition-colors hover:bg-amber-500/10"
                         >
-                          <Building className="h-4 w-4" />
-                          Admin
+                          <ShieldCheck className="h-4 w-4" />
+                          관리자
                         </Link>
                       )}
                     </div>
@@ -502,6 +452,16 @@ export function Header() {
                       {item.name}
                     </Link>
                   ))}
+                  {isRootAdmin && (
+                    <Link
+                      to="/admin"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/10"
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      관리자
+                    </Link>
+                  )}
                   <button
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10"
@@ -511,7 +471,15 @@ export function Header() {
                   </button>
                 </div>
               ) : (
-                null
+                /* 비로그인 모바일: 로그인 링크 */
+                <Link
+                  to="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white"
+                >
+                  <User className="h-4 w-4" />
+                  로그인
+                </Link>
               )}
             </div>
           </div>

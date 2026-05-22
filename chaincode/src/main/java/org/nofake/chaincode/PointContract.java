@@ -22,8 +22,10 @@ public class PointContract implements ContractInterface {
 
     private final Genson genson = new Genson();
 
-    // 체인코드 내 고정 수수료 규칙 (NoFake -> partner : 5%)
-    private static final int NOFAKE_OUT_FEE_PERCENT = 5;
+    // 플랫폼 수수료: 모든 스왑에 5% 적용
+    private static final int FEE_PERCENT = 5;
+    private static final String PLATFORM_TREASURY_KEY = "NOFAKE_PLATFORM_TREASURY";
+    private static final String TOTAL_DISTRIBUTED_KEY  = "NOFAKE_TOTAL_DISTRIBUTED";
 
     // 지원 브랜드 목록 (대소문자 무시)
     private static final Map<String, String> VALID_BRANDS = new HashMap<>();
@@ -82,17 +84,11 @@ public class PointContract implements ContractInterface {
             throw new ChaincodeException("INSUFFICIENT_BALANCE: not enough balance");
         }
 
-        long fee = 0L;
-        long finalAmount = amount;
+        // 10% fee on every swap; deducted from fromBrand, credited to NOFAKE_PLATFORM_TREASURY
+        long fee = (amount * FEE_PERCENT) / 100;
+        long finalAmount = amount - fee;
 
-        // Apply 5% fee for swaps involving NOFAKE in either direction
-        // (NoFake -> Partner) or (Partner -> NoFake)
-        if (fromBrand.equals("NOFAKE") || toBrand.equals("NOFAKE")) {
-            fee = (amount * NOFAKE_OUT_FEE_PERCENT) / 100;
-            finalAmount = amount - fee;
-        }
-
-        // Atomic update in-memory
+        // Atomic balance update
         long newFrom = fromBalance - amount;
         long toBalance = ((Number) (doc.getOrDefault(toKey, 0L))).longValue();
         long newTo = toBalance + finalAmount;
@@ -100,30 +96,11 @@ public class PointContract implements ContractInterface {
         doc.put(fromKey, newFrom);
         doc.put(toKey, newTo);
 
-        // Accumulate fee into platform admin doc (walletAddress: "NOFAKE_ADMIN")
-        // Store fee under the same currency key as the deducted amount (nofake/nike/musinsa)
-        if (fee > 0) {
-            String adminKey = "NOFAKE_ADMIN";
-            byte[] adminData = ctx.getStub().getState(adminKey);
-            Map<String, Object> adminDoc;
-            if (adminData == null || adminData.length == 0) {
-                adminDoc = new HashMap<>();
-                adminDoc.put("docType", "point");
-                adminDoc.put("walletAddress", adminKey);
-                adminDoc.put("nofake", 0L);
-                adminDoc.put("musinsa", 0L);
-                adminDoc.put("nike", 0L);
-            } else {
-                adminDoc = genson.deserialize(new String(adminData), Map.class);
-            }
-
-            // Determine which admin currency to increment (the currency of 'fromBrand')
-            String feeCurrencyKey = fromKey; // fee is deducted from the fromBrand's balance
-            long curFeeBalance = ((Number) (adminDoc.getOrDefault(feeCurrencyKey, 0L))).longValue();
-            adminDoc.put(feeCurrencyKey, curFeeBalance + fee);
-
-            ctx.getStub().putState(adminKey, genson.serialize(adminDoc).getBytes());
-        }
+        // Accumulate fee into NOFAKE_PLATFORM_TREASURY (same currency as fromBrand)
+        Map<String, Object> treasuryDoc = loadPointDocument(ctx, PLATFORM_TREASURY_KEY);
+        long curTreasury = ((Number) (treasuryDoc.getOrDefault(fromKey, 0L))).longValue();
+        treasuryDoc.put(fromKey, curTreasury + fee);
+        ctx.getStub().putState(PLATFORM_TREASURY_KEY, genson.serialize(treasuryDoc).getBytes());
 
         // Persist user doc
         ctx.getStub().putState(key, genson.serialize(doc).getBytes());
@@ -182,6 +159,13 @@ public class PointContract implements ContractInterface {
         long currentBalance = ((Number) (doc.getOrDefault(brandKey, 0L))).longValue();
         doc.put(brandKey, currentBalance + amount);
         ctx.getStub().putState(key, genson.serialize(doc).getBytes());
+
+        // Increment global NOFAKE_TOTAL_DISTRIBUTED counter for admin stats
+        Map<String, Object> counter = loadPointDocument(ctx, TOTAL_DISTRIBUTED_KEY);
+        long currentTotal = ((Number) (counter.getOrDefault(brandKey, 0L))).longValue();
+        counter.put(brandKey, currentTotal + amount);
+        ctx.getStub().putState(TOTAL_DISTRIBUTED_KEY, genson.serialize(counter).getBytes());
+
         return genson.serialize(doc);
     }
 
@@ -200,6 +184,47 @@ public class PointContract implements ContractInterface {
             doc.put("musinsa", 0L);
             doc.put("nike", 0L);
             return genson.serialize(doc);
+        }
+        return new String(data);
+    }
+
+    // 래플 당첨자를 원장에 커밋 (백엔드가 winner를 결정하고 on-chain 불변 레코드로 기록)
+    @Transaction
+    public String RevealWinner(Context ctx, String raffleId, String winnerWallet) {
+        if (raffleId == null || raffleId.trim().isEmpty()) {
+            throw new ChaincodeException("INVALID_RAFFLE_ID: raffleId is required");
+        }
+        if (winnerWallet == null || winnerWallet.trim().isEmpty()) {
+            throw new ChaincodeException("INVALID_WALLET: winnerWallet is required");
+        }
+
+        String key = "RAFFLE_WINNER:" + raffleId;
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("raffleId", raffleId);
+        doc.put("winnerWallet", winnerWallet.toLowerCase());
+        doc.put("timestamp", System.currentTimeMillis());
+
+        byte[] serialized = genson.serialize(doc).getBytes();
+        ctx.getStub().putState(key, serialized);
+        ctx.getStub().setEvent("RaffleRevealed", serialized);
+
+        return genson.serialize(doc);
+    }
+
+    // 래플 당첨자 조회
+    @Transaction
+    public String GetRaffleWinner(Context ctx, String raffleId) {
+        if (raffleId == null || raffleId.trim().isEmpty()) {
+            throw new ChaincodeException("INVALID_RAFFLE_ID: raffleId is required");
+        }
+
+        String key = "RAFFLE_WINNER:" + raffleId;
+        byte[] data = ctx.getStub().getState(key);
+        if (data == null || data.length == 0) {
+            Map<String, Object> empty = new HashMap<>();
+            empty.put("raffleId", raffleId);
+            empty.put("winnerWallet", "");
+            return genson.serialize(empty);
         }
         return new String(data);
     }
