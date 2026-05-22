@@ -22,8 +22,8 @@ public class PointContract implements ContractInterface {
 
     private final Genson genson = new Genson();
 
-    // 플랫폼 수수료: 모든 스왑에 10% 적용
-    private static final int FEE_PERCENT = 10;
+    // 플랫폼 수수료: 모든 스왑에 5% 적용
+    private static final int FEE_PERCENT = 5;
     private static final String PLATFORM_TREASURY_KEY = "NOFAKE_PLATFORM_TREASURY";
     private static final String TOTAL_DISTRIBUTED_KEY  = "NOFAKE_TOTAL_DISTRIBUTED";
 
@@ -184,6 +184,47 @@ public class PointContract implements ContractInterface {
             doc.put("musinsa", 0L);
             doc.put("nike", 0L);
             return genson.serialize(doc);
+        }
+        return new String(data);
+    }
+
+    // 래플 당첨자를 원장에 커밋 (백엔드가 winner를 결정하고 on-chain 불변 레코드로 기록)
+    @Transaction
+    public String RevealWinner(Context ctx, String raffleId, String winnerWallet) {
+        if (raffleId == null || raffleId.trim().isEmpty()) {
+            throw new ChaincodeException("INVALID_RAFFLE_ID: raffleId is required");
+        }
+        if (winnerWallet == null || winnerWallet.trim().isEmpty()) {
+            throw new ChaincodeException("INVALID_WALLET: winnerWallet is required");
+        }
+
+        String key = "RAFFLE_WINNER:" + raffleId;
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("raffleId", raffleId);
+        doc.put("winnerWallet", winnerWallet.toLowerCase());
+        doc.put("timestamp", System.currentTimeMillis());
+
+        byte[] serialized = genson.serialize(doc).getBytes();
+        ctx.getStub().putState(key, serialized);
+        ctx.getStub().setEvent("RaffleRevealed", serialized);
+
+        return genson.serialize(doc);
+    }
+
+    // 래플 당첨자 조회
+    @Transaction
+    public String GetRaffleWinner(Context ctx, String raffleId) {
+        if (raffleId == null || raffleId.trim().isEmpty()) {
+            throw new ChaincodeException("INVALID_RAFFLE_ID: raffleId is required");
+        }
+
+        String key = "RAFFLE_WINNER:" + raffleId;
+        byte[] data = ctx.getStub().getState(key);
+        if (data == null || data.length == 0) {
+            Map<String, Object> empty = new HashMap<>();
+            empty.put("raffleId", raffleId);
+            empty.put("winnerWallet", "");
+            return genson.serialize(empty);
         }
         return new String(data);
     }

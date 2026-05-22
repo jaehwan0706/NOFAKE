@@ -78,6 +78,7 @@ const Raffle = sequelize.define("Raffle", {
   },
   contractAddress: { type: DataTypes.STRING },
   provenanceHash: { type: DataTypes.STRING },
+  winnerWallet: { type: DataTypes.STRING, allowNull: true },
 });
 
 const RaffleSession = sequelize.define("RaffleSession", {
@@ -962,6 +963,138 @@ app.post("/api/admin/raffles/:id/reveal", async (req, res) => {
   }
 });
 
+// Raffle type → seeded DB id mapping
+const RAFFLE_TYPE_MAP = { nike: 1, musinsa: 2 };
+
+// POST /api/admin/raffle/reveal — instant blockchain-backed reveal
+app.post('/api/admin/raffle/reveal', verifyTokenMiddleware, async (req, res) => {
+  try {
+    if (!isAdminWalletRequest(req)) {
+      return res.status(403).json({ success: false, error: 'admin wallet authentication failed' });
+    }
+
+    const { raffleType } = req.body;
+    const raffleId = RAFFLE_TYPE_MAP[String(raffleType || '').toLowerCase()];
+    if (!raffleId) return res.status(400).json({ success: false, error: 'raffleType must be nike or musinsa' });
+
+    const result = await executeRaffleReveal(raffleId);
+    return res.json({
+      success: true,
+      message: 'Raffle result revealed on blockchain.',
+      data: result.raffle,
+      winnerWallet: result.winnerWallet,
+      onChainResult: result.onChainResult,
+      summary: result.summary,
+    });
+  } catch (err) {
+    console.error('/api/admin/raffle/reveal error:', err);
+    return res.status(400).json({ success: false, error: err.message || 'reveal failed' });
+  }
+});
+
+// POST /api/admin/raffle/reveal-schedule — schedule a reveal at a future datetime
+app.post('/api/admin/raffle/reveal-schedule', verifyTokenMiddleware, async (req, res) => {
+  try {
+    if (!isAdminWalletRequest(req)) {
+      return res.status(403).json({ success: false, error: 'admin wallet authentication failed' });
+    }
+
+    const { raffleType, scheduledAt } = req.body;
+    const raffleId = RAFFLE_TYPE_MAP[String(raffleType || '').toLowerCase()];
+    if (!raffleId) return res.status(400).json({ success: false, error: 'raffleType must be nike or musinsa' });
+    if (!scheduledAt) return res.status(400).json({ success: false, error: 'scheduledAt is required' });
+
+    const scheduledTime = new Date(scheduledAt);
+    if (isNaN(scheduledTime.getTime())) return res.status(400).json({ success: false, error: 'scheduledAt must be a valid ISO datetime' });
+
+    const delayMs = scheduledTime.getTime() - Date.now();
+    if (delayMs < 0) return res.status(400).json({ success: false, error: 'scheduledAt must be in the future' });
+
+    setTimeout(async () => {
+      try {
+        const result = await executeRaffleReveal(raffleId);
+        console.log(`✅ Scheduled reveal executed: raffleId=${raffleId} winner=${result.winnerWallet}`);
+      } catch (err) {
+        console.error(`❌ Scheduled reveal failed: raffleId=${raffleId}`, err.message);
+      }
+    }, delayMs);
+
+    return res.json({
+      success: true,
+      message: `Raffle reveal scheduled for ${scheduledTime.toISOString()}`,
+      raffleId,
+      scheduledAt: scheduledTime.toISOString(),
+      delayMs,
+    });
+  } catch (err) {
+    console.error('/api/admin/raffle/reveal-schedule error:', err);
+    return res.status(400).json({ success: false, error: err.message || 'schedule failed' });
+  }
+});
+
+// GET /api/user/raffles/my-entries — user's raffle participation history
+app.get('/api/user/raffles/my-entries', verifyTokenMiddleware, async (req, res) => {
+  try {
+    const walletAddress = req.user?.walletAddress;
+    if (!walletAddress) return res.status(400).json({ error: 'walletAddress not found in session' });
+
+    const participants = await RaffleParticipant.findAll({
+      where: { walletAddress },
+      order: [['joinedAt', 'DESC']],
+    });
+
+    const raffleIds = [...new Set(participants.map((p) => p.raffleId))];
+    const raffles = await Raffle.findAll({ where: { id: { [Op.in]: raffleIds } } });
+    const raffleMap = Object.fromEntries(raffles.map((r) => [r.id, r.toJSON ? r.toJSON() : r]));
+
+    const entries = await Promise.all(
+      participants.map(async (p) => {
+        const plain = p.toJSON ? p.toJSON() : p;
+        const raffle = raffleMap[plain.raffleId] || {};
+        const isRevealed = raffle.status === 'REVEALED';
+        const won = isRevealed && plain.result === 'first';
+
+        // Check on-chain winner if Fabric available
+        let onChainWinner = null;
+        if (!useFabricMock && isRevealed) {
+          try {
+            const { gateway, contract } = await connectFabricContract();
+            try {
+              const bytes = await contract.evaluateTransaction('GetRaffleWinner', String(plain.raffleId));
+              const parsed = JSON.parse(bytes.toString());
+              onChainWinner = parsed.winnerWallet || null;
+            } finally {
+              gateway.disconnect();
+            }
+          } catch (_) { /* non-fatal */ }
+        }
+
+        const statusLabel = !isRevealed ? '진행중'
+          : (won || (onChainWinner && onChainWinner.toLowerCase() === walletAddress.toLowerCase())) ? '당첨'
+          : '미당첨';
+
+        return {
+          id: plain.raffleId,
+          name: raffle.title || '',
+          category: raffle.category || '',
+          imageUrl: raffle.imageUrl || '',
+          status: statusLabel,
+          raffleStatus: raffle.status,
+          result: plain.result,
+          joinedAt: plain.joinedAt,
+          revealedAt: plain.revealedAt,
+          winnerWallet: onChainWinner || raffle.winnerWallet || null,
+        };
+      })
+    );
+
+    return res.json({ success: true, data: entries });
+  } catch (err) {
+    console.error('/api/user/raffles/my-entries error:', err);
+    return res.status(500).json({ error: err.message || 'server error' });
+  }
+});
+
 // ============================================
 // 민팅 API
 // ============================================
@@ -1122,32 +1255,46 @@ app.get('/api/mypage', verifyTokenMiddleware, async (req, res) => {
         chain: "Private Blockchain"
       },
 
-      // 3. 래플 응모 내역 (샘플 데이터 + 실제 연동 가능 구조)
-      raffleHistory: [
-        {
-          id: "raffle-01",
-          brand: "NIKE",
-          brandColor: "#ff0000",
-          name: "나이키 에어포스 1 '07 로우 사카이 하이브리드",
-          image: "👟",
-          applyDate: "2026.05.10",
-          deadline: "2026.05.20",
-          resultDate: "2026.05.22",
-          participants: "1,245",
-          winners: "1",
-          myNumber: "N-4029",
-          status: "진행중",
-          txHash: "0x7a5b3c2d1e6f4a8b9c0d1e2f3a4b5c6d7e8f9a0b",
-          size: "270",
-          price: "159,000원",
-          purchaseDeadline: null,
-          nftMetadata: {
-            tokenId: "1001",
-            contractAddress: CONTRACT_ADDRESS,
-            chain: "Ethereum Sepolia"
-          }
-        }
-      ],
+      // 3. 래플 응모 내역 (실제 DB 데이터)
+      raffleHistory: await (async () => {
+        const walletAddr = userData?.walletAddress || req.user?.walletAddress;
+        if (!walletAddr) return [];
+        const participants = await RaffleParticipant.findAll({
+          where: { walletAddress: walletAddr },
+          order: [['joinedAt', 'DESC']],
+        });
+        const rIds = [...new Set(participants.map((p) => p.raffleId))];
+        if (!rIds.length) return [];
+        const raffles = await Raffle.findAll({ where: { id: { [Op.in]: rIds } } });
+        const raffleMap = Object.fromEntries(raffles.map((r) => [r.id, r.toJSON ? r.toJSON() : r]));
+        const BRAND_COLOR = { nike: '#ff0000', sneakers: '#ff0000', musinsa: '#0a0a0a', clothing: '#0a0a0a' };
+        return participants.map((p) => {
+          const plain = p.toJSON ? p.toJSON() : p;
+          const raffle = raffleMap[plain.raffleId] || {};
+          const isRevealed = raffle.status === 'REVEALED';
+          const won = isRevealed && plain.result === 'first';
+          const statusLabel = !isRevealed ? '진행중' : won ? '당첨' : '미당첨';
+          const cat = (raffle.category || '').toLowerCase();
+          return {
+            id: String(plain.raffleId),
+            brand: (raffle.category || 'NOFAKE').toUpperCase(),
+            brandColor: BRAND_COLOR[cat] || '#000000',
+            name: raffle.title || '',
+            image: cat === 'sneakers' ? '👟' : '👕',
+            applyDate: plain.joinedAt ? new Date(plain.joinedAt).toLocaleDateString('ko-KR').replace(/\. /g, '.').replace(/\.$/, '') : '',
+            deadline: raffle.endAt ? new Date(raffle.endAt).toLocaleDateString('ko-KR').replace(/\. /g, '.').replace(/\.$/, '') : '',
+            resultDate: plain.revealedAt ? new Date(plain.revealedAt).toLocaleDateString('ko-KR').replace(/\. /g, '.').replace(/\.$/, '') : '',
+            participants: '-',
+            winners: String(raffle.firstPrizeCount || 1),
+            myNumber: `#${plain.id}`,
+            status: statusLabel,
+            txHash: null,
+            size: null,
+            price: null,
+            purchaseDeadline: null,
+          };
+        });
+      })(),
 
       // 4. 포인트 변동 이력
       pointHistory: [
@@ -1365,6 +1512,70 @@ async function submitSwapTransactionFabric(walletAddress, fromBrand, toBrand, am
   } finally {
     gateway.disconnect();
   }
+}
+
+async function revealRaffleWinnerOnChain(raffleId, winnerWallet) {
+  const { gateway, contract } = await connectFabricContract();
+  try {
+    const resultBytes = await contract.submitTransaction('RevealWinner', String(raffleId), winnerWallet);
+    return JSON.parse(resultBytes.toString());
+  } finally {
+    gateway.disconnect();
+  }
+}
+
+async function executeRaffleReveal(raffleId) {
+  const raffle = await Raffle.findByPk(raffleId);
+  if (!raffle) throw new Error(`Raffle ${raffleId} not found`);
+
+  const participants = await RaffleParticipant.findAll({
+    where: { raffleId: Number(raffleId) },
+    order: [['joinedAt', 'ASC'], ['id', 'ASC']],
+  });
+
+  if (!participants.length) throw new Error('No participants to reveal');
+
+  const revealAssignments = buildRevealAssignments(participants, raffle);
+  const revealedAt = new Date();
+
+  const firstWinner = participants.find((p) => {
+    const assignment = revealAssignments.find((a) => a.id === p.id);
+    return assignment?.result === 'first';
+  });
+
+  const winnerWallet = firstWinner?.walletAddress || '';
+
+  // Commit winner on-chain if Fabric is available
+  let onChainResult = null;
+  if (!useFabricMock && winnerWallet) {
+    try {
+      onChainResult = await revealRaffleWinnerOnChain(raffleId, winnerWallet);
+      console.log(`✅ Fabric RevealWinner committed: raffleId=${raffleId} winner=${winnerWallet}`);
+    } catch (fabricErr) {
+      console.warn(`⚠️ Fabric RevealWinner failed (non-fatal): ${fabricErr.message}`);
+    }
+  }
+
+  // Update participant results in DB
+  await Promise.all(
+    revealAssignments.map((a) =>
+      RaffleParticipant.update({ result: a.result, revealedAt }, { where: { id: a.id } })
+    )
+  );
+
+  await raffle.update({ status: 'REVEALED', winnerWallet: winnerWallet || null });
+
+  return {
+    raffle,
+    winnerWallet,
+    onChainResult,
+    summary: {
+      participants: participants.length,
+      firstWinners: revealAssignments.filter((a) => a.result === 'first').length,
+      secondWinners: revealAssignments.filter((a) => a.result === 'second').length,
+      loseCount: revealAssignments.filter((a) => a.result === 'lose').length,
+    },
+  };
 }
 
 async function getOrCreatePointBalance(walletAddress) {
@@ -1707,14 +1918,21 @@ ensureSchema().then(async () => {
   await ensureTestData();
 
   // Seed raffles if not present — required by POST /api/mint
+  // firstPrizeCount/secondPrizeCount must be > 0 for buildRevealAssignments to select winners
   const RAFFLE_SEEDS = [
-    { id: 1, title: 'Jordan 1 High OG Chicago',             category: 'sneakers', status: 'MINTING' },
-    { id: 2, title: 'Musinsa Standard Oversized Hoodie',    category: 'clothing', status: 'MINTING' },
+    { id: 1, title: 'Jordan 1 High OG Chicago',             category: 'sneakers', status: 'MINTING', firstPrizeCount: 1, secondPrizeCount: 5 },
+    { id: 2, title: 'Musinsa Standard Oversized Hoodie',    category: 'clothing', status: 'MINTING', firstPrizeCount: 1, secondPrizeCount: 5 },
   ];
   for (const seed of RAFFLE_SEEDS) {
     try {
-      const [, created] = await Raffle.findOrCreate({ where: { id: seed.id }, defaults: seed });
-      if (created) console.log(`✅ Raffle id=${seed.id} seeded: ${seed.title}`);
+      const [raffle, created] = await Raffle.findOrCreate({ where: { id: seed.id }, defaults: seed });
+      if (created) {
+        console.log(`✅ Raffle id=${seed.id} seeded: ${seed.title}`);
+      } else if (Number(raffle.firstPrizeCount) === 0) {
+        // Ensure existing raffles have a valid prize count so reveals work
+        await raffle.update({ firstPrizeCount: seed.firstPrizeCount, secondPrizeCount: seed.secondPrizeCount });
+        console.log(`✅ Raffle id=${seed.id} prize counts updated: firstPrizeCount=${seed.firstPrizeCount}`);
+      }
     } catch (e) {
       console.error(`❌ Raffle id=${seed.id} seed failed:`, e.message);
     }

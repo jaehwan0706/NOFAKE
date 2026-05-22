@@ -69,6 +69,8 @@ function MetricCard({ label, sublabel, value, suffix = 'P', loading, error }: Me
 interface TreasuryData { nofake: number }
 interface StatsData { totalDistributed: number; participantCount: number }
 
+type RaffleType = 'nike' | 'musinsa';
+
 export default function AdminDashboardPage() {
   const user = useAuthUser();
   const [treasury, setTreasury] = useState<number | null>(null);
@@ -77,6 +79,13 @@ export default function AdminDashboardPage() {
   const [distributed, setDistributed] = useState<number | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
+
+  // Raffle reveal state
+  const [raffleType, setRaffleType] = useState<RaffleType>('nike');
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [revealLoading, setRevealLoading] = useState(false);
+  const [revealMessage, setRevealMessage] = useState<string | null>(null);
+  const [revealError, setRevealError] = useState<string | null>(null);
 
   const isRootAdmin = user?.walletAddress?.toLowerCase() === ADMIN_WALLET;
 
@@ -96,6 +105,58 @@ export default function AdminDashboardPage() {
 
   if (!isRootAdmin) {
     return <Navigate to="/" replace />;
+  }
+
+  async function handleInstantReveal() {
+    setRevealLoading(true);
+    setRevealMessage(null);
+    setRevealError(null);
+    try {
+      const token = localStorage.getItem('nofakeAccessToken');
+      const res = await fetch(`${API}/api/admin/raffle/reveal`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'ngrok-skip-browser-warning': '69420',
+        },
+        body: JSON.stringify({ raffleType }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || `서버 오류 (${res.status})`);
+      const winner = body.winnerWallet || '없음';
+      setRevealMessage(`당첨자 공개 완료! 당첨 지갑: ${winner} (참가자 ${body.summary?.participants ?? '-'}명)`);
+    } catch (e) {
+      setRevealError(e instanceof Error ? e.message : '오류 발생');
+    } finally {
+      setRevealLoading(false);
+    }
+  }
+
+  async function handleScheduledReveal() {
+    if (!scheduledAt) { setRevealError('공개 일시를 선택해주세요.'); return; }
+    setRevealLoading(true);
+    setRevealMessage(null);
+    setRevealError(null);
+    try {
+      const token = localStorage.getItem('nofakeAccessToken');
+      const res = await fetch(`${API}/api/admin/raffle/reveal-schedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'ngrok-skip-browser-warning': '69420',
+        },
+        body: JSON.stringify({ raffleType, scheduledAt: new Date(scheduledAt).toISOString() }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || `서버 오류 (${res.status})`);
+      setRevealMessage(`예약 완료! ${body.scheduledAt} 에 공개됩니다.`);
+    } catch (e) {
+      setRevealError(e instanceof Error ? e.message : '오류 발생');
+    } finally {
+      setRevealLoading(false);
+    }
   }
 
   return (
@@ -121,6 +182,66 @@ export default function AdminDashboardPage() {
             loading={statsLoading}
             error={statsError}
           />
+        </div>
+
+        {/* Raffle Reveal Section */}
+        <div className="mt-10 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">래플 결과 공개</p>
+          <p className="text-xs text-gray-400 mb-6">Hyperledger Fabric 체인코드 RevealWinner 호출</p>
+
+          {/* Raffle type selector */}
+          <div className="flex items-center gap-3 mb-6">
+            <label className="text-sm font-semibold text-gray-700">래플 선택</label>
+            <select
+              value={raffleType}
+              onChange={(e) => setRaffleType(e.target.value as RaffleType)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            >
+              <option value="nike">Nike (Jordan 1 High OG Chicago)</option>
+              <option value="musinsa">Musinsa (Standard Oversized Hoodie)</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {/* Instant reveal */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleInstantReveal}
+                disabled={revealLoading}
+                className="rounded-lg bg-black px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
+              >
+                {revealLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                즉시 공개
+              </button>
+            </div>
+
+            {/* Scheduled reveal */}
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              />
+              <button
+                type="button"
+                onClick={handleScheduledReveal}
+                disabled={revealLoading}
+                className="rounded-lg border border-black px-5 py-2.5 text-sm font-semibold text-black hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
+              >
+                {revealLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                예약 공개
+              </button>
+            </div>
+          </div>
+
+          {revealMessage && (
+            <p className="mt-4 text-sm font-semibold text-green-600">{revealMessage}</p>
+          )}
+          {revealError && (
+            <p className="mt-4 text-sm font-semibold text-red-500">오류: {revealError}</p>
+          )}
         </div>
       </div>
     </main>

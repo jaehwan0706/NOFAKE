@@ -132,10 +132,11 @@ function StatCard({ num, label, sub, color = T.navy }: { num: string | number; l
 
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? { color: T.gray, bg: "#f1f5f9", dot: false };
+  const label = status === '당첨' ? '당첨 🎉' : status;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, backgroundColor: cfg.bg, color: cfg.color, fontWeight: 700, fontSize: ".75rem", whiteSpace: "nowrap" }}>
       {cfg.dot && <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.color, display: "inline-block", boxShadow: `0 0 0 2px ${cfg.color}44` }} />}
-      {status}
+      {label}
     </span>
   );
 }
@@ -546,14 +547,17 @@ export const MyPage = () => {
             if (data.raffleHistory) {
               logs.push(`  ✓ 래플: ${data.raffleHistory.length}개`);
               setRaffleHistory(data.raffleHistory);
+              // Compute stats from real raffle data
+              const history = data.raffleHistory;
+              const winCount = history.filter(r => r.status === '당첨').length;
+              const activeCount = history.filter(r => r.status === '진행중').length;
+              const winRate = history.length > 0 ? ((winCount / history.length) * 100).toFixed(1) : '0.0';
+              setStats({ totalApply: history.length, winCount, winRate, activeCount });
+              logs.push(`  ✓ 통계 계산: 총응모=${history.length}, 당첨=${winCount}`);
             }
             if (data.pointHistory) {
               logs.push(`  ✓ 포인트 이력: ${data.pointHistory.length}개`);
               setPointHistory(data.pointHistory);
-            }
-            if (data.stats) {
-              logs.push(`  ✓ 통계: 총응모=${data.stats.totalApply}, 당첨=${data.stats.winCount}`);
-              setStats(data.stats);
             }
             mypageOk = true;
           } else {
