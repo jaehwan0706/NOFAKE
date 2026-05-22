@@ -349,6 +349,7 @@ export function Header() {
                         <Link
                           to="/admin"
                           onClick={() => setIsUserMenuOpen(false)}
+                          style={{ color: "#ffffff" }}
                           className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-amber-400 transition-colors hover:bg-amber-500/10"
                         >
                           <ShieldCheck className="h-4 w-4" />

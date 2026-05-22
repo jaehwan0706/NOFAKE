@@ -238,7 +238,7 @@ export function MusinsaRafflePage() {
                     <Clock className="h-4 w-4 text-white/30" />
                     <span className="text-xs font-bold uppercase tracking-wider text-white/30">응모 기간</span>
                   </div>
-                  <p className="text-sm font-bold text-white leading-snug">2026.05.15<br />~ 05.22</p>
+                  <p className="text-sm font-bold text-white leading-snug">2026.05.15<br />~ 05.23</p>
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-white/[0.04] p-5">
                   <div className="flex items-center gap-2 mb-3">
