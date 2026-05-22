@@ -1367,7 +1367,11 @@ app.post('/api/phone-verification/mock-verify', async (req, res) => {
 
 // 간단한 Fabric 클라이언트 모듈 (mock 또는 실제 연결 확장 가능)
 const useFabricMock = (process.env.FABRIC_MOCK || 'true') === 'true';
-const FABRIC_CONFIG_PATH = process.env.FABRIC_CONFIG_PATH || path.resolve(__dirname, '..', '..', 'fabric-samples', 'test-network', 'organizations', 'peerOrganizations', 'org1.example.com');
+
+// Fabric 설정 경로 (기본값: 프로젝트 루트 기준 상대 경로)
+const DEFAULT_FABRIC_CONFIG_PATH = path.resolve(__dirname, '..', '..', 'fabric-samples', 'test-network', 'organizations', 'peerOrganizations', 'org1.example.com');
+const FABRIC_CONFIG_PATH = process.env.FABRIC_CONFIG_PATH || DEFAULT_FABRIC_CONFIG_PATH;
+
 const FABRIC_USER_ID = process.env.FABRIC_USER_ID || 'User1@org1.example.com';
 const FABRIC_IDENTITY_LABEL = process.env.FABRIC_IDENTITY_LABEL || 'appUser';
 const FABRIC_CHANNEL = process.env.FABRIC_CHANNEL || 'nofake-channel';
