@@ -886,37 +886,6 @@ function TrustIndicators() {
             </div>
           ))}
         </div>
-        {/* Partner brand logos row */}
-        <div className="mt-14 text-center">
-          <p className="mb-6 text-xs font-black tracking-[0.3em] text-neutral-400">PARTNER BRANDS</p>
-          <div className="flex flex-wrap items-center justify-center gap-6">
-            {/* {partnerBrands.map((brand) => (
-              <span key={brand} className="rounded-2xl border border-neutral-200 bg-white px-6 py-3 text-sm font-black text-neutral-700 shadow-sm">
-                {brand}
-              </span>
-            ))} */}
-            {partnerBrands.map((brand) => (
-              <span
-                key={brand.name}
-                className="flex h-24 w-60 items-center justify-center rounded-3xl border border-neutral-200 bg-white shadow-sm"
-              >
-                <img
-                  src={brand.logo}
-                  alt={brand.name}
-                  className={`object-contain ${
-                    brand.name === "CONVERSE"
-                      ? "h-8 w-28"
-                      : brand.name === "SUPREME"
-                      ? "h-10 w-28"
-                      : brand.name === "MUSINSA"
-                      ? "h-14 w-14"
-                      : "h-12 w-20"
-                  }`}
-                />
-              </span>
-            ))}
-          </div>
-        </div>
       </div>
     </section>
   );
@@ -960,7 +929,7 @@ function HowItWorks() {
           ))}
         </div>
 
-        <div className="mt-14 text-center">
+        {/* <div className="mt-14 text-center">
           <button
             onClick={() => go("/raffles")}
             className="group inline-flex items-center gap-2 rounded-md bg-blue-600 px-8 py-4 text-sm font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,0.24)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-500 active:scale-[0.98]"
@@ -968,7 +937,7 @@ function HowItWorks() {
             지금 래플 참여하기
             <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
           </button>
-        </div>
+        </div> */}
       </div>
     </section>
   );
@@ -1153,7 +1122,7 @@ function TechnologyStack() {
             onClick={() => go("/about/fairness")}
             className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-7 py-4 text-sm font-bold text-neutral-900 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
           >
-            공정성 더 알아보기
+            서비스 더 알아보기
             <Icon name="arrow" className="h-4 w-4" />
           </button>
         </div>
@@ -1335,12 +1304,12 @@ function PartnershipCTA() {
           nofake는 투명한 검증 시스템과 브랜드 캠페인 운영 경험을 바탕으로 신뢰할 수 있는 래플 생태계를 지향합니다.
         </p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <button
+          {/* <button
             onClick={() => go("/raffles")}
             className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-8 py-4 text-sm font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,0.35)] transition hover:-translate-y-0.5 hover:bg-blue-500"
           >
             추첨 참여하기 <Icon name="arrow" className="h-4 w-4" />
-          </button>
+          </button> */}
           <button
             onClick={() => go("/partnership")}
             className="inline-flex items-center gap-2 rounded-full border border-white/20 px-8 py-4 text-sm font-bold text-white transition hover:bg-white/5"
