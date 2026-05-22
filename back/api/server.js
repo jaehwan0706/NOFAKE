@@ -20,6 +20,13 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 const app = express();
+
+// 요청 로깅 미들웨어 (디버깅용)
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
@@ -168,11 +175,15 @@ const writeContract = signer && CONTRACT_ADDRESS ? new ethers.Contract(CONTRACT_
 // ============================================
 const verifyTokenMiddleware = async (req, res, next) => {
   if (process.env.USE_MOCK_AUTH === 'true') {
+    const kakaoId = 'test_kakao_1234';
+    let user = await User.findOne({ where: { kakaoId } });
+    
     req.user = {
-      kakaoId: 'test_kakao_1234',
-      walletAddress: '0x398591b6257b8BA14Baf06728a706a5B73dd2795',
-      email: 'mock@example.com',
-      name: 'Mock User'
+      kakaoId: kakaoId,
+      walletAddress: user?.walletAddress || '0x398591b6257b8BA14Baf06728a706a5B73dd2795',
+      email: user?.email || 'mock@example.com',
+      name: user?.name || user?.nickname || 'Mock User',
+      phone_verified: user?.phone_verified ?? false
     };
     return next();
   }
@@ -587,10 +598,14 @@ app.post("/api/auth/kakao", async (req, res) => {
 
 app.get("/api/auth/me", async (req, res) => {
   if (process.env.USE_MOCK_AUTH === 'true') {
+    const kakaoId = 'test_kakao_1234';
+    let user = await User.findOne({ where: { kakaoId } });
+    
     return res.json({
       success: true,
-      name: 'Mock User',
-      email: 'mock@example.com'
+      name: user?.name || user?.nickname || 'Mock User',
+      email: user?.email || 'mock@example.com',
+      phone_verified: user?.phone_verified ?? false
     });
   }
 
@@ -608,11 +623,15 @@ app.get("/api/auth/me", async (req, res) => {
 
     const kakaoAccount = userResponse.data.kakao_account ?? {};
     const profile = kakaoAccount.profile ?? {};
+    const kakaoId = String(userResponse.data.id || userResponse.data?.id || "");
+
+    const user = await User.findOne({ where: { kakaoId } });
 
     res.json({
       success: true,
-      name: profile.nickname ?? "사용자",
-      email: kakaoAccount.email ?? "",
+      name: user?.name || profile.nickname || "사용자",
+      email: user?.email || kakaoAccount.email || "",
+      phone_verified: user?.phone_verified ?? false
     });
   } catch (error) {
     console.error("/api/auth/me 실패:", error.response?.data || error.message);
@@ -676,17 +695,10 @@ app.post('/api/user/phone', async (req, res) => {
 // 전화 인증 API
 // ============================================
 
-app.post('/api/phone-verification/start', async (req, res) => {
-  const authHeader = req.headers.authorization ?? '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-  if (!token) return res.status(401).json({ success: false, error: '카카오 토큰이 필요합니다.' });
-
+app.post('/api/phone-verification/start', verifyTokenMiddleware, async (req, res) => {
   try {
-    const userResp = await axios.get('https://kapi.kakao.com/v2/user/me', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const kakaoId = String(userResp.data.id || userResp.data?.id || '');
-    if (!kakaoId) return res.status(400).json({ success: false, error: '카카오 사용자 정보를 확인할 수 없습니다.' });
+    const kakaoId = req.user.kakaoId;
+    if (!kakaoId) return res.status(400).json({ success: false, error: '사용자 정보를 확인할 수 없습니다.' });
 
     const phoneNumber = String(req.body.phoneNumber || '').trim() || null;
     let sessionId = `pv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -709,7 +721,7 @@ app.post('/api/phone-verification/start', async (req, res) => {
   }
 });
 
-app.get('/api/phone-verification/status', async (req, res) => {
+app.get('/api/phone-verification/status', verifyTokenMiddleware, async (req, res) => {
   const sessionId = String(req.query.sessionId || '').trim();
   if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
 
@@ -732,35 +744,66 @@ app.get('/api/phone-verification/status', async (req, res) => {
     // 아직 대기 중이라면 Octomo API를 직접 조회하여 확인 시도
     if (session.status === 'pending' && process.env.OCTOMO_API_KEY && session.verificationCode) {
       try {
+        console.log(`[Octomo] Polling for code: ${session.verificationCode}, sessionId: ${session.sessionId}`);
+        
+        // 도메인 해석 이슈 대응을 위해 타임아웃 및 재시도 로직 고려 가능
         const octomoResp = await axios.get(`https://api.octomo.octoverse.kr/v1/messages`, {
           params: { content: session.verificationCode },
-          headers: { 'x-api-key': process.env.OCTOMO_API_KEY }
+          headers: { 'x-api-key': process.env.OCTOMO_API_KEY },
+          timeout: 8000 // 타임아웃을 조금 더 늘림
         });
 
+        console.log(`[Octomo] Response Status: ${octomoResp.status}`);
+        console.log(`[Octomo] Response Data:`, JSON.stringify(octomoResp.data));
+        
         const messages = octomoResp.data?.data || [];
-        // 해당 코드로 수신된 메시지가 있다면 인증 성공 처리
-        if (messages.length > 0) {
-          const msg = messages[0];
+        
+        // 옥토모 API는 해당 content(code)가 포함된 메시지 리스트를 반환함
+        // 정확히 일치하는 메시지가 있는지 확인
+        const validMsg = messages.find(m => {
+          const content = String(m.content || '').trim();
+          return content === session.verificationCode;
+        });
+
+        if (validMsg) {
+          const sender = validMsg.sender.replace(/[^0-9+]/g, ''); // 번호 정규화
+          console.log(`[Octomo] Match found! Sender: ${sender}`);
+          
           await session.update({
             status: 'verified',
             verifiedAt: new Date(),
-            phoneNumber: msg.sender // 실제 발신 번호로 업데이트
+            phoneNumber: sender
           });
 
           // 유저 정보 업데이트
           const user = await User.findOne({ where: { kakaoId: session.kakaoId } });
           if (user) {
             await user.update({
-              phoneNumber: msg.sender,
+              phoneNumber: sender,
               phone_verified: true,
               phone_verified_at: new Date()
             });
+            console.log(`[Octomo] User ${session.kakaoId} successfully verified with ${sender}`);
           }
           
-          return res.json({ sessionId: session.sessionId, status: 'verified', verifiedAt: session.verifiedAt });
+          return res.json({ 
+            sessionId: session.sessionId, 
+            status: 'verified', 
+            verifiedAt: session.verifiedAt,
+            phoneNumber: sender 
+          });
+        } else {
+          console.log(`[Octomo] No matching message in ${messages.length} results.`);
         }
       } catch (pollErr) {
-        console.error('Octomo polling failed:', pollErr.message);
+        // 상세 에러 로깅
+        if (pollErr.code === 'ENOTFOUND') {
+          console.error('[Octomo] Domain resolution failed. Check your network or API endpoint.');
+        } else if (pollErr.response) {
+          console.error(`[Octomo] API Error (${pollErr.response.status}):`, pollErr.response.data);
+        } else {
+          console.error('[Octomo] Polling unexpected error:', pollErr.message);
+        }
       }
     }
 
@@ -1135,6 +1178,17 @@ app.post('/api/phone-verification/mock-verify', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// 🌟 [디버깅] 404 핸들러
+app.use((req, res) => {
+  console.log(`[404 NOT FOUND] ${req.method} ${req.url}`);
+  res.status(404).json({ 
+    success: false, 
+    error: 'Route not found', 
+    method: req.method,
+    url: req.url 
+  });
 });
 
 // ============================================
