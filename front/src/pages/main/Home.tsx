@@ -110,6 +110,39 @@ const techStack = [
   { icon: "code", title: "React 기반 프론트엔드", desc: "래플 참여와 포인트 환전을 직관적으로 사용할 수 있는 UI를 제공합니다." },
 ];
 
+//a 종료된 래플 확인
+const completedRaffleItems = [
+  {
+    brand: "NIKE",
+    logo: "/brands/nike2.png",
+    title: "Air Jordan 1 Retro High OG",
+    participants: "132,480명",
+    endedAt: "2026.05.12 마감",
+    prize: "한정판 스니커즈 · 5명",
+    color: "#111111",
+  },
+  {
+    brand: "Supreme",
+    logo: "/brands/supreme2.png",
+    title: "Box Logo Hoodie",
+    participants: "98,210명",
+    endedAt: "2026.05.10 마감",
+    prize: "박스로고 후드 · 3명",
+    color: "#ED1C24",
+  },
+  {
+    brand: "Adidas",
+    logo: "/brands/adidas2.png",
+    title: "Samba OG Cloud White",
+    participants: "76,900명",
+    endedAt: "2026.05.08 마감",
+    prize: "한정판 스니커즈 · 7명",
+    color: "#0F172A",
+  },
+];
+
+//a
+
 
 /* ─── NEW: How it works steps ─── */
 const howItWorksSteps = [
@@ -195,7 +228,7 @@ const testimonials = [
     brand: "New Balance 990v6",
     text: "1,000명 넘는 응모에서 당첨된 게 아직도 믿기지 않아요. 당첨자 발표 때 내 이름 옆에 블록체인 해시가 붙어 있는 거 보고 소름 돋았습니다.",
     verified: true,
-    productImg: "NB",
+    productImg: "/brands/newbalance2.png",
     color: "#334155",
   },
   {
@@ -733,6 +766,115 @@ function ActiveRaffles() {
   );
 }
 
+//a 종료된 래플 확인
+function CompletedRaffles() {
+  const go = useNav();
+
+  return (
+    <section className="bg-neutral-50 py-20">
+      <div className="mx-auto max-w-7xl px-6 lg:px-8">
+        <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <p className="mb-3 text-xs font-black tracking-[0.3em] text-blue-600">
+              RAFFLE RESULTS
+            </p>
+            <h2 className="text-4xl font-black tracking-tight text-neutral-950">
+              종료된 래플 결과 확인
+            </h2>
+            <p className="mt-3 text-neutral-500">
+              마감된 래플의 참여 규모와 당첨 결과를 확인할 수 있습니다.
+            </p>
+          </div>
+
+          <button
+            onClick={() => go("/raffles/results")}
+            className="w-fit rounded-md border border-neutral-300 bg-white px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:border-neutral-400 hover:bg-neutral-50"
+          >
+            전체 결과 보기
+          </button>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-3">
+          {completedRaffleItems.map((item) => (
+            <article
+              key={item.title}
+              className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+            >
+              <div
+                className="flex h-28 items-center justify-center"
+                style={{
+                  background: `linear-gradient(135deg, ${item.color}, #111827)`,
+                }}
+              >
+                <img
+                  src={item.logo}
+                  alt={item.brand}
+                  className={`object-contain ${
+                    item.brand === "Supreme"
+                      ? "h-45 w-69"
+                      : item.brand === "MUSINSA"
+                      ? "h-45 w-69"
+                      : item.brand === "NIKE"
+                      ? "h-31 w-49"
+                      : item.brand === "Adidas"
+                      ? "h-35 w-49"
+                      : item.brand === "New Balance"
+                      ? "h-35 w-57"
+                      : "h-26 w-49"
+                  }`}
+                />
+              </div>
+
+             <div className="p-6">
+
+              <div className="flex justify-end">
+                <span className="rounded-md bg-black px-4 py-1.5 text-xs font-bold text-white">
+                  마감
+                </span>
+              </div>
+
+              <p className="mt-5 text-xs font-semibold tracking-[0.16em] text-neutral-400">
+                {item.brand}
+              </p>
+
+              <h3 className="mt-2 min-h-[56px] text-xl font-black leading-snug text-neutral-950">
+                {item.title}
+              </h3>
+
+                <div className="my-5 h-px bg-neutral-200" />
+
+                <div className="space-y-3 text-sm font-medium text-neutral-600">
+                  <div className="flex items-center gap-3">
+                    <Icon name="users" className="h-4 w-4 text-neutral-950" />
+                    총 참여자 {item.participants}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Icon name="calendar" className="h-4 w-4 text-neutral-950" />
+                    {item.endedAt}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Icon name="gift" className="h-4 w-4 text-neutral-950" />
+                    {item.prize}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => go("/raffles/results")}
+                  className="mt-7 flex w-full items-center justify-center gap-2 rounded-md bg-neutral-950 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-neutral-800 active:scale-[0.98]"
+                >
+                  결과 확인하기
+                  <Icon name="arrow" className="h-4 w-4" />
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+//a
+
 
 
 
@@ -753,37 +895,6 @@ function TrustIndicators() {
               <div className="mt-2 text-sm font-semibold text-neutral-500">{label}</div>
             </div>
           ))}
-        </div>
-        {/* Partner brand logos row */}
-        <div className="mt-14 text-center">
-          <p className="mb-6 text-xs font-black tracking-[0.3em] text-neutral-400">PARTNER BRANDS</p>
-          <div className="flex flex-wrap items-center justify-center gap-6">
-            {/* {partnerBrands.map((brand) => (
-              <span key={brand} className="rounded-2xl border border-neutral-200 bg-white px-6 py-3 text-sm font-black text-neutral-700 shadow-sm">
-                {brand}
-              </span>
-            ))} */}
-            {partnerBrands.map((brand) => (
-              <span
-                key={brand.name}
-                className="flex h-24 w-60 items-center justify-center rounded-3xl border border-neutral-200 bg-white shadow-sm"
-              >
-                <img
-                  src={brand.logo}
-                  alt={brand.name}
-                  className={`object-contain ${
-                    brand.name === "CONVERSE"
-                      ? "h-8 w-28"
-                      : brand.name === "SUPREME"
-                      ? "h-10 w-28"
-                      : brand.name === "MUSINSA"
-                      ? "h-14 w-14"
-                      : "h-12 w-20"
-                  }`}
-                />
-              </span>
-            ))}
-          </div>
         </div>
       </div>
     </section>
@@ -828,7 +939,7 @@ function HowItWorks() {
           ))}
         </div>
 
-        <div className="mt-14 text-center">
+        {/* <div className="mt-14 text-center">
           <button
             onClick={() => go("/raffles")}
             className="group inline-flex items-center gap-2 rounded-md bg-blue-600 px-8 py-4 text-sm font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,0.24)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-500 active:scale-[0.98]"
@@ -836,7 +947,7 @@ function HowItWorks() {
             지금 래플 참여하기
             <Icon name="arrow" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
           </button>
-        </div>
+        </div> */}
       </div>
     </section>
   );
@@ -1021,7 +1132,7 @@ function TechnologyStack() {
             onClick={() => go("/about/fairness")}
             className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-7 py-4 text-sm font-bold text-neutral-900 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
           >
-            공정성 더 알아보기
+            서비스 더 알아보기
             <Icon name="arrow" className="h-4 w-4" />
           </button>
         </div>
@@ -1203,12 +1314,12 @@ function PartnershipCTA() {
           nofake는 투명한 검증 시스템과 브랜드 캠페인 운영 경험을 바탕으로 신뢰할 수 있는 래플 생태계를 지향합니다.
         </p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <button
+          {/* <button
             onClick={() => go("/raffles")}
             className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-8 py-4 text-sm font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,0.35)] transition hover:-translate-y-0.5 hover:bg-blue-500"
           >
             추첨 참여하기 <Icon name="arrow" className="h-4 w-4" />
-          </button>
+          </button> */}
           <button
             onClick={() => go("/partnership")}
             className="inline-flex items-center gap-2 rounded-full border border-white/20 px-8 py-4 text-sm font-bold text-white transition hover:bg-white/5"
@@ -1284,6 +1395,8 @@ export function Home() {
       <HowItWorks />
       {/* 5. 실제 콘텐츠 — 현재 진행중인 래플 카드 */}
       <ActiveRaffles />
+      {/* 5.5a. 완료된 래플 — 과거 진행된 래플 카드 */}
+      <CompletedRaffles />
       {/* Partner brand marquee */}
       <PartnerBrands />
       {/* 6. Why us — 블록체인 기반 공정성 (경쟁사와 차별점) */}
