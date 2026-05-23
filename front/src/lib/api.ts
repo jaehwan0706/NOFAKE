@@ -6,6 +6,10 @@ type RequestOptions = Omit<RequestInit, "body"> & {
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
+  
+  // ngrok 브라우저 경고 페이지 우회
+  headers.set("ngrok-skip-browser-warning", "69420");
+  
   let body = options.body;
 
   if (body && typeof body === "object" && !(body instanceof FormData) && !(body instanceof Blob)) {

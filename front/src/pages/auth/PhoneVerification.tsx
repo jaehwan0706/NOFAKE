@@ -105,50 +105,6 @@ export function PhoneVerification() {
     setStatus('');
   };
 
-  const handleDevBypass = async () => {
-    let currentSessionId = session?.sessionId;
-    
-    // 세션이 없으면 먼저 시작
-    if (!currentSessionId) {
-      try {
-        const token = localStorage.getItem(LOGIN_TOKEN_KEY) || '';
-        const startResp = await apiRequest<PhoneVerificationSession>('/api/phone-verification/start', { 
-          method: 'POST', 
-          headers: { Authorization: `Bearer ${token}` }, 
-          body: { phoneNumber: '01000000000' } 
-        });
-        currentSessionId = startResp.sessionId;
-        setSession(startResp);
-      } catch (err) {
-        console.error('Failed to start session for bypass', err);
-        return;
-      }
-    }
-
-    // 강제 인증 호출
-    try {
-      const token = localStorage.getItem(LOGIN_TOKEN_KEY) || '';
-      await apiRequest('/api/phone-verification/mock-verify', {
-        method: 'POST',
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'ngrok-skip-browser-warning': '69420'
-        },
-        body: { sessionId: currentSessionId }
-      });
-      
-      setStatus('verified');
-      if (user) {
-        loginUser({ ...user, phone_verified: true });
-      }
-      if (pollingRef.current) window.clearInterval(pollingRef.current);
-      setTimeout(() => navigate('/', { replace: true }), 1500);
-    } catch (err) {
-      console.error('Mock verify failed', err);
-      alert('인증 건너뛰기에 실패했습니다.');
-    }
-  };
-
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-[440px] bg-white rounded-3xl shadow-xl shadow-gray-200/50 overflow-hidden border border-gray-100">
@@ -202,16 +158,6 @@ export function PhoneVerification() {
                     본인 명의의 휴대폰으로만 인증이 가능합니다. 별도의 발송 비용 없이 옥토모(OCTOMO) 시스템을 통해 안전하게 진행됩니다.
                   </p>
                 </div>
-              </div>
-
-              {/* Dev Bypass Section */}
-              <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
-                <button
-                  onClick={handleDevBypass}
-                  className="w-full h-12 bg-amber-50 text-amber-600 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-100 transition-all"
-                >
-                  인증 건너뛰기 (개발용)
-                </button>
               </div>
             </div>
           ) : (
@@ -282,16 +228,6 @@ export function PhoneVerification() {
                   className="w-full mt-2 text-[10px] text-zinc-400 hover:text-zinc-600 transition-colors"
                 >
                   입력한 번호가 틀리셨나요? 처음으로 돌아가기
-                </button>
-              </div>
-
-              {/* Dev Bypass Section */}
-              <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
-                <button
-                  onClick={handleDevBypass}
-                  className="w-full h-10 bg-amber-50 text-amber-600 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-amber-100 transition-all opacity-50 hover:opacity-100"
-                >
-                  강제 인증 완료 (개발용)
                 </button>
               </div>
             </div>
