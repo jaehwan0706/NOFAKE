@@ -26,10 +26,20 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
-
+const allowedOrigins = [
+  'http://localhost:5173',       // 로컬 테스트용
+  'http://52.79.233.74:5173'     // AWS 배포용 프론트엔드 주소
+];
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
+  origin: function (origin, callback) {
+    // origin이 없거나(서버 간 통신 등), 허용 목록에 주소가 있으면 통과!
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true // 카카오 로그인 토큰 및 쿠키 통신을 위해 필수
 }));
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use((err, req, res, next) => {
