@@ -1,9 +1,13 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || "";
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: BodyInit | Record<string, unknown> | null;
 };
 
+/**
+ * Centralized API request helper.
+ * robustly prepends the base URL and handles slash concatenation.
+ */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
   
@@ -17,7 +21,12 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  // Ensure robust URL construction
+  const cleanBase = API_BASE_URL.replace(/\/$/, "");
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${cleanBase}${cleanPath}`;
+
+  const response = await fetch(url, {
     ...options,
     headers,
     body: body as BodyInit | null | undefined,

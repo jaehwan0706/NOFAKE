@@ -1394,17 +1394,6 @@ app.post('/api/phone-verification/mock-verify', async (req, res) => {
   }
 });
 
-// 🌟 [디버깅] 404 핸들러
-app.use((req, res) => {
-  console.log(`[404 NOT FOUND] ${req.method} ${req.url}`);
-  res.status(404).json({ 
-    success: false, 
-    error: 'Route not found', 
-    method: req.method,
-    url: req.url 
-  });
-});
-
 // ============================================
 // Fabric Gateway 연동 (간단 클라이언트)
 // ============================================
@@ -1737,8 +1726,13 @@ async function queryBalancesMock(walletAddress) {
 
 const ZERO_BALANCES = { nofake: 0, nike: 0, musinsa: 0 };
 
+// ============================================
+// 포인트 API (Router)
+// ============================================
+const pointsRouter = express.Router();
+
 // GET 잔액 조회 (체인코드 조회)
-app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
+pointsRouter.get('/balance', verifyTokenMiddleware, async (req, res) => {
   try {
     const walletAddress = req.user?.walletAddress || req.query.walletAddress;
     if (!walletAddress) return res.status(400).json({ error: 'walletAddress required' });
@@ -1757,9 +1751,7 @@ app.get('/api/points/balance', verifyTokenMiddleware, async (req, res) => {
 });
 
 // POST 포인트 민트 (래플 보상용) - requires authentication
-// fromBrand: optional brand identifier for the rewarding raffle (e.g. 'MUSINSA', 'NIKE').
-//            Defaults to 'RAFFLE' when omitted, preserving backwards-compatibility.
-app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
+pointsRouter.post('/mint', verifyTokenMiddleware, async (req, res) => {
   try {
     const { walletAddress, brand, amount, fromBrand } = req.body || {};
     if (!walletAddress || !brand || !amount) return res.status(400).json({ error: 'walletAddress, brand, amount required' });
@@ -1769,7 +1761,6 @@ app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
     const sourceBrand = fromBrand ? String(fromBrand).toUpperCase() : 'RAFFLE';
 
     if (useFabricMock) {
-      // Update local DB
       const normalized = normalizeWalletAddress(walletAddress) || walletAddress;
       const key = normalizeBrandKey(brand);
       if (!key) return res.status(400).json({ error: 'invalid brand' });
@@ -1781,7 +1772,6 @@ app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
       return res.json({ success: true, data: current });
     }
 
-    // Call Fabric chaincode MintPoints
     const { gateway, contract } = await connectFabricContract();
     try {
       const tx = contract.createTransaction('MintPoints');
@@ -1800,45 +1790,12 @@ app.post('/api/points/mint', verifyTokenMiddleware, async (req, res) => {
   }
 });
 
-// Admin: get accumulated platform treasury fees from Fabric ledger key NOFAKE_PLATFORM_TREASURY
-const PLATFORM_TREASURY_KEY = 'NOFAKE_PLATFORM_TREASURY';
-
-app.get('/api/admin/fees', verifyTokenMiddleware, async (req, res) => {
-  try {
-    if (!isAdminWalletRequest(req)) {
-      return res.status(403).json({ success: false, error: 'admin wallet authentication failed' });
-    }
-
-    const raw = useFabricMock
-      ? await queryBalancesMock(PLATFORM_TREASURY_KEY)
-      : await queryBalancesFabric(PLATFORM_TREASURY_KEY);
-
-    // Chaincode accumulates fees in the fromBrand field of the treasury:
-    //   NOFAKE → Brand  : fee lands in raw.nofake
-    //   Brand  → NOFAKE : fee lands in raw.musinsa / raw.nike
-    // total aggregates both directions so the dashboard always shows the full picture.
-    const nofakeFees   = Number(raw?.nofake   ?? 0);
-    const musinsaFees  = Number(raw?.musinsa  ?? 0);
-    const nikeFees     = Number(raw?.nike     ?? 0);
-    const total        = nofakeFees + musinsaFees + nikeFees;
-
-    return res.json({
-      success: true,
-      data: { ...raw, nofakeFees, musinsaFees, nikeFees, total }
-    });
-  } catch (err) {
-    console.error('/api/admin/fees error:', err);
-    res.status(500).json({ success: false, error: err.message || 'server error' });
-  }
-});
-
 // POST 포인트 스왑 (체인코드 SwapPoint 호출)
-app.post('/api/points/swap', verifyTokenMiddleware, async (req, res) => {
+pointsRouter.post('/swap', verifyTokenMiddleware, async (req, res) => {
   try {
     const walletAddress = req.user?.walletAddress || req.body.walletAddress;
     const { fromBrand, toBrand, amount } = req.body;
     if (!walletAddress || !fromBrand || !toBrand || !amount) return res.status(400).json({ error: 'walletAddress, fromBrand, toBrand, amount required' });
-    // Enforce minimum swap amount
     const MIN_SWAP = 5000;
     if (Number(amount) < MIN_SWAP) return res.status(400).json({ error: `MINIMUM_AMOUNT: amount must be >= ${MIN_SWAP}` });
 
@@ -1856,12 +1813,7 @@ app.post('/api/points/swap', verifyTokenMiddleware, async (req, res) => {
     PointTransaction.create({ walletAddress: normalizedSwap, type: 'swap', fromBrand: fromBrand.toUpperCase(), toBrand: toBrand.toUpperCase(), amount: Number(amount), fee: swapResponse.result?.fee || 0, txId: swapResponse.txId })
       .catch(e => console.warn('PointTransaction record failed:', e.message));
 
-    return res.json({
-      success: true,
-      txHash: swapResponse.txId,
-      result: swapResponse.result,
-      data: finalBalances
-    });
+    return res.json({ success: true, txHash: swapResponse.txId, result: swapResponse.result, data: finalBalances });
   } catch (err) {
     console.error('/api/points/swap error:', err);
     return res.status(500).json({ error: err.message || 'server error' });
@@ -1869,7 +1821,7 @@ app.post('/api/points/swap', verifyTokenMiddleware, async (req, res) => {
 });
 
 // GET 포인트 거래 내역 (인증된 사용자)
-app.get('/api/points/history', verifyTokenMiddleware, async (req, res) => {
+pointsRouter.get('/history', verifyTokenMiddleware, async (req, res) => {
   try {
     const walletAddress = req.user?.walletAddress;
     if (!walletAddress) return res.status(400).json({ error: 'walletAddress not found in session' });
@@ -1887,7 +1839,38 @@ app.get('/api/points/history', verifyTokenMiddleware, async (req, res) => {
   }
 });
 
-// GET 어드민: 총 지급 포인트 통계 (Hyperledger 원장 기반 — PointTransaction 집계)
+// Mount points router
+app.use('/api/points', pointsRouter);
+
+// Admin: get accumulated platform treasury fees from Fabric ledger key NOFAKE_PLATFORM_TREASURY
+const PLATFORM_TREASURY_KEY = 'NOFAKE_PLATFORM_TREASURY';
+
+app.get('/api/admin/fees', verifyTokenMiddleware, async (req, res) => {
+  try {
+    if (!isAdminWalletRequest(req)) {
+      return res.status(403).json({ success: false, error: 'admin wallet authentication failed' });
+    }
+
+    const raw = useFabricMock
+      ? await queryBalancesMock(PLATFORM_TREASURY_KEY)
+      : await queryBalancesFabric(PLATFORM_TREASURY_KEY);
+
+    const nofakeFees   = Number(raw?.nofake   ?? 0);
+    const musinsaFees  = Number(raw?.musinsa  ?? 0);
+    const nikeFees     = Number(raw?.nike     ?? 0);
+    const total        = nofakeFees + musinsaFees + nikeFees;
+
+    return res.json({
+      success: true,
+      data: { ...raw, nofakeFees, musinsaFees, nikeFees, total }
+    });
+  } catch (err) {
+    console.error('/api/admin/fees error:', err);
+    res.status(500).json({ success: false, error: err.message || 'server error' });
+  }
+});
+
+// GET 어드민: 총 지급 포인트 통계
 app.get('/api/admin/stats/points', verifyTokenMiddleware, async (req, res) => {
   try {
     if (!isAdminWalletRequest(req)) {
@@ -1905,13 +1888,10 @@ app.get('/api/admin/stats/points', verifyTokenMiddleware, async (req, res) => {
       return res.json({ success: true, data: { totalDistributed, participantCount, rewardPerParticipant: 500 } });
     }
 
-    // Read NOFAKE_TOTAL_DISTRIBUTED counter written by MintPoints chaincode
     const counter = await queryBalancesFabric('NOFAKE_TOTAL_DISTRIBUTED');
     const totalDistributed = Number(counter?.nofake ?? 0);
     const RAFFLE_REWARD_PER_PARTICIPANT = 500;
-    const participantCount = totalDistributed > 0
-      ? Math.floor(totalDistributed / RAFFLE_REWARD_PER_PARTICIPANT)
-      : 0;
+    const participantCount = totalDistributed > 0 ? Math.floor(totalDistributed / RAFFLE_REWARD_PER_PARTICIPANT) : 0;
 
     return res.json({
       success: true,
@@ -1940,7 +1920,6 @@ const OLD_CONTRACT_ADDRESS = '0x398591b6257b8BA14Baf06728a706a5B73dd2795';
 
 const ensureTestData = async () => {
   try {
-    // ── 1. DB MIGRATION: fix any user whose walletAddress is still the contract address ──
     const [migratedUsers] = await User.update(
       { walletAddress: TEST_WALLET_ADDRESS },
       { where: { walletAddress: OLD_CONTRACT_ADDRESS } }
@@ -1949,7 +1928,6 @@ const ensureTestData = async () => {
       console.log(`✅ [DB Migration] ${migratedUsers} user(s) wallet updated: ${OLD_CONTRACT_ADDRESS} → ${TEST_WALLET_ADDRESS}`);
     }
 
-    // ── 2. Upsert test/admin user record ──
     await User.upsert({
       kakaoId: TEST_KAKAO_ID,
       nickname: 'Mock User',
@@ -1959,10 +1937,9 @@ const ensureTestData = async () => {
       points: 0
     });
 
-    // ── 3. Upsert PointBalance in relational DB (mock path + source-of-truth) ──
     await PointBalance.upsert({
       walletAddress: TEST_WALLET_ADDRESS,
-      nofake: 100000,   // pre-funded: 100,000 NOFAKE points
+      nofake: 100000,
       musinsa: 0,
       nike: 10000
     });
@@ -1970,10 +1947,8 @@ const ensureTestData = async () => {
     console.log(`✅ Admin EOA  : ${TEST_WALLET_ADDRESS}`);
     console.log(`✅ DB balance : nofake=100000, nike=10000 for ${TEST_WALLET_ADDRESS}`);
 
-    // ── 4. Hyperledger Fabric CouchDB sync (only when FABRIC_MOCK=false) ──
     if (!useFabricMock) {
       try {
-        // Only prime the ledger on a brand-new (strictly zero) balance to avoid double-minting on restart
         const existing = await queryBalancesFabric(TEST_WALLET_ADDRESS).catch(() => null);
         const currentNofake = Number(existing?.nofake ?? existing?.NOFAKE ?? 0);
 
@@ -1990,7 +1965,6 @@ const ensureTestData = async () => {
           console.log(`✅ Fabric: ledger already funded (${currentNofake} NOFAKE) — skipping mint`);
         }
       } catch (fabricErr) {
-        // Non-fatal: Fabric may not be running in dev — DB remains authoritative
         console.warn(`⚠️  Fabric sync skipped (non-fatal): ${fabricErr.message}`);
       }
     }
@@ -2002,8 +1976,6 @@ const ensureTestData = async () => {
 ensureSchema().then(async () => {
   await ensureTestData();
 
-  // Seed raffles if not present — required by POST /api/mint
-  // firstPrizeCount/secondPrizeCount must be > 0 for buildRevealAssignments to select winners
   const RAFFLE_SEEDS = [
     { id: 1, title: 'Jordan 1 High OG Chicago',             category: 'sneakers', status: 'MINTING', firstPrizeCount: 1, secondPrizeCount: 5 },
     { id: 2, title: 'Musinsa Standard Oversized Hoodie',    category: 'clothing', status: 'MINTING', firstPrizeCount: 1, secondPrizeCount: 5 },
@@ -2014,7 +1986,6 @@ ensureSchema().then(async () => {
       if (created) {
         console.log(`✅ Raffle id=${seed.id} seeded: ${seed.title}`);
       } else if (Number(raffle.firstPrizeCount) === 0) {
-        // Ensure existing raffles have a valid prize count so reveals work
         await raffle.update({ firstPrizeCount: seed.firstPrizeCount, secondPrizeCount: seed.secondPrizeCount });
         console.log(`✅ Raffle id=${seed.id} prize counts updated: firstPrizeCount=${seed.firstPrizeCount}`);
       }
@@ -2037,15 +2008,22 @@ ensureSchema().then(async () => {
 app.get('/api/test/users', async (req, res) => {
     try {
         const users = await User.findAll();
-        res.json({
-            success: true,
-            count: users.length,
-            data: users
-        });
+        res.json({ success: true, count: users.length, data: users });
     } catch (error) {
         console.error('데이터 조회 에러:', error);
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// 🌟 [디버깅] 404 핸들러 (모든 라우트 정의 후 최하단에 위치해야 함)
+app.use((req, res) => {
+  console.log(`[404 NOT FOUND] ${req.method} ${req.url}`);
+  res.status(404).json({ 
+    success: false, 
+    error: 'Route not found', 
+    method: req.method,
+    url: req.url 
+  });
 });
 
 export default app;
