@@ -1,0 +1,49 @@
+
+> front@0.0.0 dev
+> vite --host 127.0.0.1
+
+[2m오후 6:49:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+
+  [32m[1mVITE[22m v8.0.12[39m  [2mready in [0m[1m2883[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+[2m오후 6:49:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] bundling dependencies...
+[2m오후 6:57:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Header.tsx, /src/styles/globals.css[22m
+[2m오후 6:57:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Header.tsx, /src/styles/globals.css[22m
+[2m오후 7:00:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/raffle/RafflesPage.tsx, /src/styles/globals.css[22m
+[2m오후 7:00:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/raffle/RafflesPage.tsx, /src/styles/globals.css[22m
+[2m오후 7:01:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles/globals.css[22m
+[2m오후 7:50:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Footer.tsx, /src/styles/globals.css[22m
+[2m오후 7:59:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Footer.tsx, /src/styles/globals.css[22m
+[2m오후 8:02:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Footer.tsx, /src/styles/globals.css[22m
+[2m오후 8:04:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Footer.tsx, /src/styles/globals.css[22m
+[2m오후 8:05:48[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Footer.tsx, /src/styles/globals.css[22m
+[2m오후 8:07:28[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Footer.tsx, /src/styles/globals.css[22m
+[2m오후 8:10:25[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
+[2m오후 8:10:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because lockfile has changed
+[2m오후 8:10:26[22m [36m[1m[vite][22m[39m server restarted.
+[2m오후 8:10:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] bundling dependencies...
+[2m오후 8:26:01[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m오후 8:26:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+[2m오후 8:26:02[22m [36m[1m[vite][22m[39m server restarted.
+[2m오후 8:26:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] bundling dependencies...
+[2m오후 8:29:28[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m오후 8:29:28[22m [36m[1m[vite][22m[39m server restarted.
+[2m오후 8:50:40[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m오후 8:50:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+[2m오후 8:50:41[22m [36m[1m[vite][22m[39m server restarted.
+[2m오후 8:50:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] bundling dependencies...
+[2m오후 9:56:03[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m오후 9:56:04[22m [36m[1m[vite][22m[39m server restarted.
+[2m오후 9:56:05[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] bundling dependencies...
+[2m오후 10:00:52[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m오후 10:00:52[22m [36m[1m[vite][22m[39m server restarted.
+[2m오후 10:00:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] bundling dependencies...
+[2m오후 10:26:29[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m오후 10:26:29[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m오후 10:26:30[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+[2m오후 10:26:30[22m [36m[1m[vite][22m[39m server restarted.
+[2m오후 10:26:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] bundling dependencies...
+[2m오후 10:29:20[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m오후 10:29:20[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m오후 10:29:22[22m [36m[1m[vite][22m[39m server restarted.
